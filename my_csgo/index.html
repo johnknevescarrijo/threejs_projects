@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CS:GO Three.js Clone</title>
+  <link rel="stylesheet" href="./src/style.css">
+</head>
+<body>
+  <div id="game-container"></div>
+
+  <!-- Damage Blood Vignette -->
+  <div id="damage-overlay"></div>
+
+  <!-- Dynamic Crosshair -->
+  <div id="crosshair-container">
+    <div id="ch-top" class="crosshair-line"></div>
+    <div id="ch-bottom" class="crosshair-line"></div>
+    <div id="ch-left" class="crosshair-line"></div>
+    <div id="ch-right" class="crosshair-line"></div>
+    <div class="crosshair-dot"></div>
+  </div>
+
+  <!-- Hitmarker -->
+  <div id="hitmarker"></div>
+
+  <!-- Top HUD (Timer & Score) -->
+  <div id="top-hud">
+    <div class="score-box">
+      <span class="score-label">KILLS</span>
+      <span id="score-kills" class="score-val">0</span>
+    </div>
+    <div id="match-timer">00:00</div>
+    <div class="score-box">
+      <span class="score-label">DEATHS</span>
+      <span id="score-deaths" class="score-val">0</span>
+    </div>
+  </div>
+
+  <!-- Killfeed -->
+  <div id="killfeed"></div>
+
+  <!-- Bottom Left HUD (Health & Armor) -->
+  <div id="bottom-left-hud">
+    <div class="stat-card">
+      <div class="stat-header">
+        <span class="stat-icon">➕</span>
+        <span class="score-label">HEALTH</span>
+      </div>
+      <div id="health-val" class="stat-val">100</div>
+      <div class="bar-bg">
+        <div id="health-bar-fill" class="bar-fill"></div>
+      </div>
+    </div>
+
+    <div class="stat-card armor">
+      <div class="stat-header">
+        <span class="stat-icon">🛡️</span>
+        <span class="score-label">ARMOR</span>
+      </div>
+      <div id="armor-val" class="stat-val">100</div>
+      <div class="bar-bg">
+        <div id="armor-bar-fill" class="bar-fill"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Right HUD (Weapons & Ammo) -->
+  <div id="bottom-right-hud">
+    <div class="weapon-selector">
+      <div id="weapon-slot-1" class="weapon-slot-pill active">[1] AK-47</div>
+      <div id="weapon-slot-2" class="weapon-slot-pill">[2] DEAGLE</div>
+    </div>
+
+    <div class="ammo-card">
+      <div id="weapon-name">AK-47</div>
+      <div class="ammo-numbers">
+        <span id="ammo-val">30</span>
+        <span class="ammo-divider">/</span>
+        <span id="reserve-val">90</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Start Screen Overlay -->
+  <div id="start-screen" class="overlay-screen">
+    <div class="modal-box">
+      <h1 class="modal-title">CS:GO Web Clone</h1>
+      <p class="modal-subtitle">Dust II Mini Map • AK-47 & Desert Eagle • Bot AI</p>
+
+      <div class="controls-grid">
+        <div class="control-item"><span class="control-key">W A S D</span> Movimento</div>
+        <div class="control-item"><span class="control-key">MOUSE</span> Olhar / Mirar</div>
+        <div class="control-item"><span class="control-key">CLICK ESQ</span> Atirar</div>
+        <div class="control-item"><span class="control-key">R</span> Recarregar</div>
+        <div class="control-item"><span class="control-key">1</span> AK-47</div>
+        <div class="control-item"><span class="control-key">2</span> Desert Eagle</div>
+        <div class="control-item"><span class="control-key">ESPAÇO</span> Pular</div>
+        <div class="control-item"><span class="control-key">CTRL / C</span> Agachar</div>
+        <div class="control-item"><span class="control-key">SHIFT</span> Andar (Silencioso)</div>
+        <div class="control-item"><span class="control-key">ESC</span> Pausar Cursor</div>
+      </div>
+
+      <button id="btn-start" class="btn-primary">JOGAR AGORA</button>
+    </div>
+  </div>
+
+  <!-- Death Screen Overlay (Auto-Respawn) -->
+  <div id="death-screen" class="death-banner-overlay">
+    <div class="death-banner-box">
+      <h1 class="death-title">VOCÊ FOI ELIMINADO</h1>
+      <p class="modal-subtitle">Respawn automático em <span id="death-timer-val" class="death-timer-highlight">2.5s</span></p>
+      <div class="death-bar-container">
+        <div id="death-bar-fill" class="death-bar-fill"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
