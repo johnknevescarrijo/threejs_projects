@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Futebol de Botão 3D</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    body {
+      overflow: hidden;
+      background: #0f172a;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      color: #fff;
+    }
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      outline: none;
+    }
+
+    /* Placar & Header Superior */
+    #hud {
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    .scoreboard {
+      display: flex;
+      align-items: center;
+      background: rgba(15, 23, 42, 0.88);
+      padding: 8px 24px;
+      border-radius: 40px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(10px);
+      gap: 18px;
+    }
+    .team-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: 0.5px;
+    }
+    .badge-red { color: #f87171; }
+    .badge-blue { color: #60a5fa; }
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+    .dot-red { background: #ef4444; box-shadow: 0 0 10px #ef4444; }
+    .dot-blue { background: #3b82f6; box-shadow: 0 0 10px #3b82f6; }
+
+    .score {
+      font-size: 28px;
+      font-weight: 900;
+      color: #f8fafc;
+      min-width: 70px;
+      text-align: center;
+      background: rgba(0, 0, 0, 0.4);
+      padding: 2px 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .turn-indicator {
+      font-size: 13px;
+      font-weight: 600;
+      padding: 5px 16px;
+      border-radius: 20px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      transition: all 0.3s ease;
+    }
+
+    /* Painel de Controles & Instruções */
+    #bottom-bar {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 12px;
+      z-index: 10;
+    }
+    .btn {
+      background: rgba(15, 23, 42, 0.85);
+      color: #e2e8f0;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      padding: 10px 18px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+      transition: all 0.2s;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn:hover {
+      background: rgba(30, 41, 59, 0.95);
+      border-color: rgba(255, 255, 255, 0.35);
+      transform: translateY(-2px);
+    }
+    .btn:active {
+      transform: translateY(0);
+    }
+
+    #help-box {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: #94a3b8;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+      max-width: 260px;
+      pointer-events: none;
+      z-index: 10;
+    }
+    #help-box strong { color: #f8fafc; }
+
+    /* Modal / Banner de GOL */
+    #goal-banner {
+      position: absolute;
+      top: 45%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.5);
+      background: linear-gradient(135deg, #16a34a, #15803d);
+      color: #ffffff;
+      padding: 24px 60px;
+      border-radius: 24px;
+      font-size: 48px;
+      font-weight: 900;
+      text-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+      box-shadow: 0 0 50px rgba(34, 197, 94, 0.8), 0 20px 40px rgba(0, 0, 0, 0.7);
+      border: 3px solid #86efac;
+      pointer-events: none;
+      opacity: 0;
+      z-index: 100;
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      text-align: center;
+      letter-spacing: 2px;
+    }
+    #goal-banner.show {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+    #goal-banner span {
+      display: block;
+      font-size: 18px;
+      font-weight: 600;
+      margin-top: 6px;
+      color: #dcfce7;
+      text-shadow: none;
+      letter-spacing: normal;
+    }
+  </style>
+</head>
+<body>
+  <!-- HUD Superior -->
+  <div id="hud">
+    <div class="scoreboard">
+      <div class="team-badge badge-red">
+        <span class="dot dot-red"></span> VERMELHO
+      </div>
+      <div class="score" id="score-text">0 - 0</div>
+      <div class="team-badge badge-blue">
+        AZUL <span class="dot dot-blue"></span>
+      </div>
+    </div>
+    <div class="turn-indicator" id="turn-text" style="color: #ef4444; border-color: #ef4444;">
+      👉 Vez do Time Vermelho
+    </div>
+  </div>
+
+  <!-- Ajuda / Instruções -->
+  <div id="help-box">
+    <strong>🕹️ Como Jogar:</strong><br/>
+    1. Clique e puxe para trás no botão do seu time para mirar e dosar a força.<br/>
+    2. Solte para chutar (estilo estilingue).<br/>
+    3. Use o botão direito para girar a câmera e scroll para zoom.
+  </div>
+
+  <!-- Barra de Botões -->
+  <div id="bottom-bar">
+    <button class="btn" id="btn-camera">📷 Alternar Câmera</button>
+    <button class="btn" id="btn-reset">🔄 Reiniciar Partida</button>
+    <button class="btn" id="btn-sound">🔊 Som: Ligado</button>
+  </div>
+
+  <!-- Banner de Gol -->
+  <div id="goal-banner">
+    ⚽ GOOOOOOL!
+    <span id="goal-subtitle">Time marcou!</span>
+  </div>
+
+  <!-- Importmap Three.js -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // =========================================================================
+    // 1. ÁUDIO SINTETIZADO (Web Audio API)
+    // =========================================================================
+    let soundEnabled = true;
+    let audioCtx = null;
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+    }
+
+    function playTone(freq, type, duration, gainVal = 0.2) {
+      if (!soundEnabled || !audioCtx) return;
+      try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(gainVal, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch (e) {}
+    }
+
+    function playShootSound(powerRatio = 1) {
+      initAudio();
+      playTone(180 + powerRatio * 150, 'triangle', 0.12, 0.35);
+    }
+
+    function playButtonHitSound(intensity = 1) {
+      initAudio();
+      const freq = 450 + Math.random() * 150;
+      playTone(freq, 'sine', 0.08, Math.min(0.3, 0.1 + intensity * 0.15));
+    }
+
+    function playWallHitSound() {
+      initAudio();
+      playTone(120, 'square', 0.07, 0.15);
+    }
+
+    function playWhistleSound() {
+      initAudio();
+      if (!soundEnabled || !audioCtx) return;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(2200, audioCtx.currentTime);
+      osc.frequency.setValueAtTime(2400, audioCtx.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.35);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.35);
+    }
+
+    function playGoalFanfare() {
+      initAudio();
+      if (!soundEnabled || !audioCtx) return;
+      const notes = [523.25, 659.25, 783.99, 1046.50];
+      notes.forEach((note, index) => {
+        setTimeout(() => {
+          playTone(note, 'triangle', 0.4, 0.3);
+        }, index * 120);
+      });
+    }
+
+    // =========================================================================
+    // 2. CONFIGURAÇÕES & DIMENSÕES DO TABULEIRO / MESA
+    // =========================================================================
+    const TABLE_LENGTH = 86; // Eixo X
+    const TABLE_WIDTH = 56;  // Eixo Z
+    const WALL_THICKNESS = 2.5;
+    const WALL_HEIGHT = 2.2;
+
+    const GOAL_WIDTH = 13.0; // Abertura do gol no eixo Z
+    const GOAL_DEPTH = 5.0;
+    const GOAL_HEIGHT = 3.5;
+
+    const BUTTON_RADIUS = 2.2;
+    const BUTTON_HEIGHT = 0.75;
+    const BUTTON_MASS = 1.2;
+
+    const GK_WIDTH = 5.2;    // Tamanho do goleiro no eixo Z
+    const GK_DEPTH = 1.6;    // Espessura do goleiro no eixo X
+    const GK_HEIGHT = 2.4;
+    const GK_MASS = 3.5;
+
+    const BALL_RADIUS = 1.0;
+    const BALL_MASS = 0.45;
+
+    const FRICTION = 0.983; // Desaceleração suave por frame
+    const RESTITUTION = 0.88; // Coeficiente de elasticidade nos choques
+
+    // =========================================================================
+    // 3. CENÁRIO, ILUMINAÇÃO E RENDERER
+    // =========================================================================
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0a0f1d);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const cameraViews = [
+      { pos: new THREE.Vector3(0, 75, 48), target: new THREE.Vector3(0, 0, 0), name: "Isométrica" },
+      { pos: new THREE.Vector3(0, 95, 0.1), target: new THREE.Vector3(0, 0, 0), name: "Vista de Cima" },
+      { pos: new THREE.Vector3(-60, 45, 0), target: new THREE.Vector3(0, 0, 0), name: "Atrás do Vermelho" },
+      { pos: new THREE.Vector3(60, 45, 0), target: new THREE.Vector3(0, 0, 0), name: "Atrás do Azul" }
+    ];
+    let currentCameraViewIdx = 0;
+    camera.position.copy(cameraViews[0].pos);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.body.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.maxPolarAngle = Math.PI / 2 - 0.08;
+    controls.minDistance = 20;
+    controls.maxDistance = 160;
+    controls.target.set(0, 0, 0);
+
+    // Iluminação
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
+    scene.add(ambientLight);
+
+    const mainLight = new THREE.DirectionalLight(0xfffaed, 1.4);
+    mainLight.position.set(30, 60, 25);
+    mainLight.castShadow = true;
+    mainLight.shadow.mapSize.width = 2048;
+    mainLight.shadow.mapSize.height = 2048;
+    mainLight.shadow.camera.near = 10;
+    mainLight.shadow.camera.far = 160;
+    mainLight.shadow.camera.left = -60;
+    mainLight.shadow.camera.right = 60;
+    mainLight.shadow.camera.top = 45;
+    mainLight.shadow.camera.bottom = -45;
+    mainLight.shadow.bias = -0.0003;
+    scene.add(mainLight);
+
+    const stadiumFloorGeom = new THREE.PlaneGeometry(300, 300);
+    const stadiumFloorMat = new THREE.MeshStandardMaterial({ color: 0x070b14, roughness: 0.95 });
+    const stadiumFloor = new THREE.Mesh(stadiumFloorGeom, stadiumFloorMat);
+    stadiumFloor.rotation.x = -Math.PI / 2;
+    stadiumFloor.position.y = -2.5;
+    stadiumFloor.receiveShadow = true;
+    scene.add(stadiumFloor);
+
+    // =========================================================================
+    // 4. CONSTRUÇÃO DA MESA DE BOTÃO COM BORDAS DE MADEIRA E GOLS
+    // =========================================================================
+    const tableGroup = new THREE.Group();
+    scene.add(tableGroup);
+
+    // Textura do Campo de Botão com linhas precisas e listras
+    function createPitchTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 2048;
+      canvas.height = 1335;
+      const ctx = canvas.getContext('2d');
+
+      ctx.fillStyle = '#22863a';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Listras verdes clássicas
+      const stripes = 14;
+      const stripeW = canvas.width / stripes;
+      for (let i = 0; i < stripes; i += 2) {
+        ctx.fillStyle = '#28a745';
+        ctx.fillRect(i * stripeW, 0, stripeW, canvas.height);
+      }
+
+      ctx.strokeStyle = '#ffffff';
+      ctx.fillStyle = '#ffffff';
+      ctx.lineWidth = 8;
+      ctx.lineCap = 'round';
+
+      const pad = 30;
+      const w = canvas.width - pad * 2;
+      const h = canvas.height - pad * 2;
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+
+      ctx.strokeRect(pad, pad, w, h);
+
+      // Linha Central
+      ctx.beginPath();
+      ctx.moveTo(cx, pad);
+      ctx.lineTo(cx, canvas.height - pad);
+      ctx.stroke();
+
+      // Círculo Central
+      const centerR = 190;
+      ctx.beginPath();
+      ctx.arc(cx, cy, centerR, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Ponto Central
+      ctx.beginPath();
+      ctx.arc(cx, cy, 10, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Áreas e Pênaltis
+      function drawArea(isLeft) {
+        const xStart = isLeft ? pad : canvas.width - pad;
+        const dir = isLeft ? 1 : -1;
+        const goalAreaW = 340;
+        const goalAreaH = 460;
+        const penSpotX = xStart + dir * 260;
+
+        ctx.strokeRect(
+          isLeft ? xStart : xStart - goalAreaW,
+          cy - goalAreaH / 2,
+          goalAreaW,
+          goalAreaH
+        );
+
+        // Marca do pênalti
+        ctx.beginPath();
+        ctx.arc(penSpotX, cy, 8, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Arco da área
+        ctx.beginPath();
+        if (isLeft) {
+          ctx.arc(penSpotX, cy, 170, -0.65, 0.65);
+        } else {
+          ctx.arc(penSpotX, cy, 170, Math.PI - 0.65, Math.PI + 0.65);
+        }
+        ctx.stroke();
+      }
+
+      drawArea(true);
+      drawArea(false);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      return texture;
+    }
+
+    // Tampo da mesa (gramado)
+    const pitchGeom = new THREE.PlaneGeometry(TABLE_LENGTH, TABLE_WIDTH);
+    const pitchMat = new THREE.MeshStandardMaterial({
+      map: createPitchTexture(),
+      roughness: 0.45,
+      metalness: 0.05
+    });
+    const pitchMesh = new THREE.Mesh(pitchGeom, pitchMat);
+    pitchMesh.rotation.x = -Math.PI / 2;
+    pitchMesh.receiveShadow = true;
+    tableGroup.add(pitchMesh);
+
+    // Bordas de Madeira da mesa (Tabelas)
+    const woodMat = new THREE.MeshStandardMaterial({
+      color: 0x5c2c16,
+      roughness: 0.35,
+      metalness: 0.15
+    });
+
+    const halfL = TABLE_LENGTH / 2;
+    const halfW = TABLE_WIDTH / 2;
+    const goalHalfW = GOAL_WIDTH / 2;
+
+    function createWall(w, h, d, x, y, z) {
+      const geom = new THREE.BoxGeometry(w, h, d);
+      const mesh = new THREE.Mesh(geom, woodMat);
+      mesh.position.set(x, y, z);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      tableGroup.add(mesh);
+      return mesh;
+    }
+
+    // Paredes Superiores e Inferiores (Z = ±halfW)
+    createWall(TABLE_LENGTH + WALL_THICKNESS * 2, WALL_HEIGHT, WALL_THICKNESS, 0, WALL_HEIGHT / 2, -halfW - WALL_THICKNESS / 2);
+    createWall(TABLE_LENGTH + WALL_THICKNESS * 2, WALL_HEIGHT, WALL_THICKNESS, 0, WALL_HEIGHT / 2, halfW + WALL_THICKNESS / 2);
+
+    // Paredes de Fundo (Laterais do Gol em X = ±halfL)
+    const sideWallLen = (TABLE_WIDTH - GOAL_WIDTH) / 2;
+    const sideWallZ1 = -halfW + sideWallLen / 2;
+    const sideWallZ2 = halfW - sideWallLen / 2;
+
+    // Lado Vermelho (Esquerdo, X = -halfL)
+    createWall(WALL_THICKNESS, WALL_HEIGHT, sideWallLen, -halfL - WALL_THICKNESS / 2, WALL_HEIGHT / 2, sideWallZ1);
+    createWall(WALL_THICKNESS, WALL_HEIGHT, sideWallLen, -halfL - WALL_THICKNESS / 2, WALL_HEIGHT / 2, sideWallZ2);
+
+    // Lado Azul (Direito, X = +halfL)
+    createWall(WALL_THICKNESS, WALL_HEIGHT, sideWallLen, halfL + WALL_THICKNESS / 2, WALL_HEIGHT / 2, sideWallZ1);
+    createWall(WALL_THICKNESS, WALL_HEIGHT, sideWallLen, halfL + WALL_THICKNESS / 2, WALL_HEIGHT / 2, sideWallZ2);
+
+    // Criação das Caixas de Gol (Traves de Plástico com Rede)
+    function createGoalBox(isLeft) {
+      const goal = new THREE.Group();
+      const plasticMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.2 });
+      const netMat = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, transparent: true, opacity: 0.35 });
+
+      const postRadius = 0.25;
+      const postGeom = new THREE.CylinderGeometry(postRadius, postRadius, GOAL_HEIGHT, 16);
+
+      // Trave 1 & 2
+      const post1 = new THREE.Mesh(postGeom, plasticMat);
+      post1.position.set(0, GOAL_HEIGHT / 2, -goalHalfW);
+      post1.castShadow = true;
+      goal.add(post1);
+
+      const post2 = post1.clone();
+      post2.position.set(0, GOAL_HEIGHT / 2, goalHalfW);
+      goal.add(post2);
+
+      // Travessão
+      const barGeom = new THREE.CylinderGeometry(postRadius, postRadius, GOAL_WIDTH, 16);
+      const bar = new THREE.Mesh(barGeom, plasticMat);
+      bar.rotation.x = Math.PI / 2;
+      bar.position.set(0, GOAL_HEIGHT, 0);
+      bar.castShadow = true;
+      goal.add(bar);
+
+      // Fundo e Rede
+      const depthDir = isLeft ? -1 : 1;
+      const netBoxGeom = new THREE.BoxGeometry(GOAL_DEPTH, GOAL_HEIGHT, GOAL_WIDTH);
+      const netBox = new THREE.Mesh(netBoxGeom, netMat);
+      netBox.position.set(depthDir * (GOAL_DEPTH / 2), GOAL_HEIGHT / 2, 0);
+      goal.add(netBox);
+
+      // Fundo rígido do gol
+      const backWallGeom = new THREE.BoxGeometry(0.5, GOAL_HEIGHT, GOAL_WIDTH);
+      const backWall = new THREE.Mesh(backWallGeom, woodMat);
+      backWall.position.set(depthDir * (GOAL_DEPTH + 0.25), GOAL_HEIGHT / 2, 0);
+      goal.add(backWall);
+
+      goal.position.set(isLeft ? -halfL : halfL, 0, 0);
+      tableGroup.add(goal);
+    }
+    createGoalBox(true);
+    createGoalBox(false);
+
+    // =========================================================================
+    // 5. CRIAÇÃO DOS BOTÕES (DISCOS), GOLEIROS E BOLA
+    // =========================================================================
+    const pieces = []; // Array de entidades físicas
+    let ball = null;
+
+    // Gerador de Textura com Adesivo Circular / Número do Botão
+    function createButtonTexture(colorHex, numText) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 256;
+      const ctx = canvas.getContext('2d');
+
+      // Fundo plástico brilhante
+      ctx.fillStyle = colorHex;
+      ctx.beginPath();
+      ctx.arc(128, 128, 128, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Anel decorativo interno
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 8;
+      ctx.beginPath();
+      ctx.arc(128, 128, 110, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(0,0,0,0.2)';
+      ctx.beginPath();
+      ctx.arc(128, 128, 70, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Número
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 70px "Segoe UI", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(numText, 128, 132);
+
+      return new THREE.CanvasTexture(canvas);
+    }
+
+    // Criar Botão Circular
+    function createButtonPiece(x, z, team, number) {
+      const group = new THREE.Group();
+      const colorHex = team === 'red' ? '#dc2626' : '#2563eb';
+      const sideColor = team === 'red' ? 0xb91c1c : 0x1d4ed8;
+
+      const geom = new THREE.CylinderGeometry(BUTTON_RADIUS, BUTTON_RADIUS, BUTTON_HEIGHT, 32);
+      const topMat = new THREE.MeshStandardMaterial({
+        map: createButtonTexture(colorHex, number),
+        roughness: 0.2,
+        metalness: 0.3
+      });
+      const sideMat = new THREE.MeshStandardMaterial({
+        color: sideColor,
+        roughness: 0.25,
+        metalness: 0.3
+      });
+      const bottomMat = new THREE.MeshStandardMaterial({
+        color: 0x1e293b,
+        roughness: 0.1
+      });
+
+      const mesh = new THREE.Mesh(geom, [sideMat, topMat, bottomMat]);
+      mesh.position.y = BUTTON_HEIGHT / 2;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      group.add(mesh);
+
+      // Anel indicador de seleção
+      const ringGeom = new THREE.RingGeometry(BUTTON_RADIUS * 1.05, BUTTON_RADIUS * 1.35, 32);
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: 0xfacc15,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0
+      });
+      const ring = new THREE.Mesh(ringGeom, ringMat);
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = 0.05;
+      group.add(ring);
+
+      group.position.set(x, 0, z);
+      scene.add(group);
+
+      const piece = {
+        type: 'button',
+        team: team,
+        number: number,
+        radius: BUTTON_RADIUS,
+        mass: BUTTON_MASS,
+        mesh: group,
+        ring: ring,
+        pos: new THREE.Vector2(x, z),
+        vel: new THREE.Vector2(0, 0),
+        initialPos: new THREE.Vector2(x, z)
+      };
+
+      pieces.push(piece);
+      return piece;
+    }
+
+    // Criar Goleiro de Acrílico Retangular
+    function createGoalkeeperPiece(x, z, team) {
+      const group = new THREE.Group();
+      const gkColor = team === 'red' ? 0xf59e0b : 0x10b981;
+
+      const geom = new THREE.BoxGeometry(GK_DEPTH, GK_HEIGHT, GK_WIDTH);
+      const mat = new THREE.MeshPhysicalMaterial({
+        color: gkColor,
+        roughness: 0.1,
+        metalness: 0.1,
+        transmission: 0.6,
+        transparent: true,
+        opacity: 0.95
+      });
+      const mesh = new THREE.Mesh(geom, mat);
+      mesh.position.y = GK_HEIGHT / 2;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      group.add(mesh);
+
+      // Adesivo com Escudo / "1" no topo
+      const labelCanvas = document.createElement('canvas');
+      labelCanvas.width = 128;
+      labelCanvas.height = 128;
+      const ctx = labelCanvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 80px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('1', 64, 64);
+      const labelTex = new THREE.CanvasTexture(labelCanvas);
+
+      const labelGeom = new THREE.PlaneGeometry(GK_DEPTH * 0.8, GK_WIDTH * 0.5);
+      const labelMat = new THREE.MeshBasicMaterial({ map: labelTex, transparent: true });
+      const labelMesh = new THREE.Mesh(labelGeom, labelMat);
+      labelMesh.rotation.x = -Math.PI / 2;
+      labelMesh.rotation.z = Math.PI / 2;
+      labelMesh.position.y = GK_HEIGHT + 0.02;
+      group.add(labelMesh);
+
+      group.position.set(x, 0, z);
+      scene.add(group);
+
+      const piece = {
+        type: 'gk',
+        team: team,
+        number: '1',
+        widthZ: GK_WIDTH,
+        depthX: GK_DEPTH,
+        radius: (GK_WIDTH + GK_DEPTH) / 4, // Raio efetivo de colisão circular suavizada
+        mass: GK_MASS,
+        mesh: group,
+        pos: new THREE.Vector2(x, z),
+        vel: new THREE.Vector2(0, 0),
+        initialPos: new THREE.Vector2(x, z)
+      };
+
+      pieces.push(piece);
+      return piece;
+    }
+
+    // Criar Bolinha
+    function createBall(x, z) {
+      const geom = new THREE.SphereGeometry(BALL_RADIUS, 32, 32);
+      const mat = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        roughness: 0.25,
+        metalness: 0.1
+      });
+      const mesh = new THREE.Mesh(geom, mat);
+      mesh.position.set(x, BALL_RADIUS, z);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      scene.add(mesh);
+
+      return {
+        type: 'ball',
+        radius: BALL_RADIUS,
+        mass: BALL_MASS,
+        mesh: mesh,
+        pos: new THREE.Vector2(x, z),
+        vel: new THREE.Vector2(0, 0),
+        initialPos: new THREE.Vector2(x, z)
+      };
+    }
+
+    // =========================================================================
+    // 6. FORMAÇÕES INICIAIS DOS TIMES
+    // =========================================================================
+    function setupFormations() {
+      // Limpa peças existentes
+      pieces.forEach(p => scene.remove(p.mesh));
+      pieces.length = 0;
+      if (ball) scene.remove(ball.mesh);
+
+      // Bola no centro
+      ball = createBall(0, 0);
+
+      // Time Vermelho (Lado Esquerdo, X < 0)
+      createGoalkeeperPiece(-39, 0, 'red');
+      createButtonPiece(-30, -15, 'red', '2'); // Lateral
+      createButtonPiece(-32, -5,  'red', '3'); // Zagueiro
+      createButtonPiece(-32, 5,   'red', '4'); // Zagueiro
+      createButtonPiece(-30, 15,  'red', '6'); // Lateral
+      createButtonPiece(-16, -18, 'red', '7'); // Meia
+      createButtonPiece(-18, -6,  'red', '5'); // Volante
+      createButtonPiece(-18, 6,   'red', '8'); // Volante
+      createButtonPiece(-16, 18,  'red', '11');// Meia
+      createButtonPiece(-6,  -7,  'red', '9'); // Atacante
+      createButtonPiece(-6,  7,   'red', '10');// Atacante
+
+      // Time Azul (Lado Direito, X > 0)
+      createGoalkeeperPiece(39, 0, 'blue');
+      createButtonPiece(30, 15,  'blue', '2'); // Lateral
+      createButtonPiece(32, 5,   'blue', '3'); // Zagueiro
+      createButtonPiece(32, -5,  'blue', '4'); // Zagueiro
+      createButtonPiece(30, -15, 'blue', '6'); // Lateral
+      createButtonPiece(16, 18,  'blue', '7'); // Meia
+      createButtonPiece(18, 6,   'blue', '5'); // Volante
+      createButtonPiece(18, -6,  'blue', '8'); // Volante
+      createButtonPiece(16, -18, 'blue', '11');// Meia
+      createButtonPiece(6,  7,   'blue', '9'); // Atacante
+      createButtonPiece(6,  -7,  'blue', '10');// Atacante
+    }
+
+    setupFormations();
+
+    // =========================================================================
+    // 7. SISTEMA DE MIRA & DISPARO (SLINGSHOT)
+    // =========================================================================
+    const aimLineGeom = new THREE.BufferGeometry();
+    const aimLinePositions = new Float32Array(6);
+    aimLineGeom.setAttribute('position', new THREE.BufferAttribute(aimLinePositions, 3));
+    const aimLineMat = new THREE.LineBasicMaterial({ color: 0xfacc15, linewidth: 4 });
+    const aimLine = new THREE.Line(aimLineGeom, aimLineMat);
+    aimLine.visible = false;
+    scene.add(aimLine);
+
+    // Círculo de mira na base
+    const aimCircleGeom = new THREE.RingGeometry(0.3, 0.6, 24);
+    const aimCircleMat = new THREE.MeshBasicMaterial({ color: 0xef4444, side: THREE.DoubleSide });
+    const aimCircle = new THREE.Mesh(aimCircleGeom, aimCircleMat);
+    aimCircle.rotation.x = -Math.PI / 2;
+    aimCircle.position.y = 0.08;
+    aimCircle.visible = false;
+    scene.add(aimCircle);
+
+    // Estado do Jogo
+    let currentTurn = 'red'; // 'red' ou 'blue'
+    let scoreRed = 0;
+    let scoreBlue = 0;
+    let isMoving = false;
+    let selectedPiece = null;
+    let isDragging = false;
+    const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    const dragCurrentPoint = new THREE.Vector3();
+
+    const hudScore = document.getElementById('score-text');
+    const hudTurn = document.getElementById('turn-text');
+    const goalBanner = document.getElementById('goal-banner');
+    const goalSubtitle = document.getElementById('goal-subtitle');
+
+    function updateTurnUI() {
+      if (currentTurn === 'red') {
+        hudTurn.innerHTML = '👉 Vez do Time Vermelho';
+        hudTurn.style.color = '#ef4444';
+        hudTurn.style.borderColor = '#ef4444';
+      } else {
+        hudTurn.innerHTML = '👉 Vez do Time Azul';
+        hudTurn.style.color = '#3b82f6';
+        hudTurn.style.borderColor = '#3b82f6';
+      }
+    }
+
+    // Interação com Mouse / Touch
+    function getIntersectedPiece(event) {
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+
+      const interactables = pieces.filter(p => p.team === currentTurn);
+      const meshes = interactables.map(p => p.mesh.children[0]);
+      const intersects = raycaster.intersectObjects(meshes, true);
+
+      if (intersects.length > 0) {
+        const hitMesh = intersects[0].object;
+        return interactables.find(p => p.mesh.children.includes(hitMesh) || p.mesh === hitMesh.parent);
+      }
+      return null;
+    }
+
+    window.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 || isMoving) return; // Apenas clique esquerdo e com peças paradas
+      initAudio();
+
+      const piece = getIntersectedPiece(e);
+      if (piece) {
+        selectedPiece = piece;
+        isDragging = true;
+        controls.enabled = false; // Desativa órbita durante o chute
+
+        if (piece.ring) piece.ring.material.opacity = 0.8;
+      }
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      if (!isDragging || !selectedPiece) return;
+
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+
+      if (raycaster.ray.intersectPlane(dragPlane, dragCurrentPoint)) {
+        const originX = selectedPiece.pos.x;
+        const originZ = selectedPiece.pos.y;
+
+        // Vetor de puxada
+        let pullX = originX - dragCurrentPoint.x;
+        let pullZ = originZ - dragCurrentPoint.z;
+
+        const maxPull = 18.0;
+        const pullLen = Math.hypot(pullX, pullZ);
+        if (pullLen > maxPull) {
+          pullX = (pullX / pullLen) * maxPull;
+          pullZ = (pullZ / pullLen) * maxPull;
+        }
+
+        // Atualiza a linha de mira (aponta na direção do chute, que é oposta à puxada)
+        const shootTargetX = originX + pullX;
+        const shootTargetZ = originZ + pullZ;
+
+        const positions = aimLine.geometry.attributes.position.array;
+        positions[0] = originX;
+        positions[1] = 0.1;
+        positions[2] = originZ;
+        positions[3] = shootTargetX;
+        positions[4] = 0.1;
+        positions[5] = shootTargetZ;
+        aimLine.geometry.attributes.position.needsUpdate = true;
+        aimLine.visible = true;
+
+        aimCircle.position.set(shootTargetX, 0.1, shootTargetZ);
+        aimCircle.visible = true;
+      }
+    });
+
+    window.addEventListener('pointerup', (e) => {
+      if (!isDragging || !selectedPiece) {
+        controls.enabled = true;
+        return;
+      }
+
+      if (raycaster.ray.intersectPlane(dragPlane, dragCurrentPoint)) {
+        const originX = selectedPiece.pos.x;
+        const originZ = selectedPiece.pos.y;
+
+        let pullX = originX - dragCurrentPoint.x;
+        let pullZ = originZ - dragCurrentPoint.z;
+        const pullLen = Math.hypot(pullX, pullZ);
+
+        if (pullLen > 1.2) {
+          // Dispara o botão
+          const powerRatio = Math.min(pullLen / 18.0, 1.0);
+          const speed = powerRatio * 2.8;
+
+          selectedPiece.vel.x = (pullX / pullLen) * speed;
+          selectedPiece.vel.y = (pullZ / pullLen) * speed;
+
+          playShootSound(powerRatio);
+          isMoving = true;
+        }
+      }
+
+      if (selectedPiece.ring) selectedPiece.ring.material.opacity = 0;
+      aimLine.visible = false;
+      aimCircle.visible = false;
+      selectedPiece = null;
+      isDragging = false;
+      controls.enabled = true;
+    });
+
+    // =========================================================================
+    // 8. MOTOR DE FÍSICA 2.5D (COLISÕES, REBOTES E DETECÇÃO DE GOL)
+    // =========================================================================
+    let goalCooldown = false;
+
+    function handleGoal(scoredBy) {
+      if (goalCooldown) return;
+      goalCooldown = true;
+
+      if (scoredBy === 'red') {
+        scoreRed++;
+        goalSubtitle.innerText = 'Golaço do Time Vermelho!';
+        goalSubtitle.style.color = '#fca5a5';
+      } else {
+        scoreBlue++;
+        goalSubtitle.innerText = 'Golaço do Time Azul!';
+        goalSubtitle.style.color = '#93c5fd';
+      }
+
+      hudScore.innerText = `${scoreRed} - ${scoreBlue}`;
+      goalBanner.classList.add('show');
+      playGoalFanfare();
+
+      setTimeout(() => {
+        goalBanner.classList.remove('show');
+        resetPositions();
+        goalCooldown = false;
+      }, 2500);
+    }
+
+    function resetPositions() {
+      pieces.forEach(p => {
+        p.pos.copy(p.initialPos);
+        p.vel.set(0, 0);
+        p.mesh.position.set(p.pos.x, p.type === 'gk' ? 0 : 0, p.pos.y);
+      });
+      ball.pos.copy(ball.initialPos);
+      ball.vel.set(0, 0);
+      ball.mesh.position.set(0, BALL_RADIUS, 0);
+      playWhistleSound();
+    }
+
+    function updatePhysics() {
+      const allEntities = [...pieces, ball];
+
+      // 1. Atualizar Posições e Aplicar Atrito
+      allEntities.forEach(ent => {
+        ent.pos.x += ent.vel.x;
+        ent.pos.y += ent.vel.y;
+
+        ent.vel.x *= FRICTION;
+        ent.vel.y *= FRICTION;
+
+        // Se velocidade for quase zero, zera completamente
+        if (ent.vel.lengthSq() < 0.0004) {
+          ent.vel.set(0, 0);
+        }
+      });
+
+      // 2. Colisão entre Entidades (Círculo vs Círculo)
+      for (let i = 0; i < allEntities.length; i++) {
+        for (let j = i + 1; j < allEntities.length; j++) {
+          const e1 = allEntities[i];
+          const e2 = allEntities[j];
+
+          const dx = e2.pos.x - e1.pos.x;
+          const dz = e2.pos.y - e1.pos.y;
+          const dist = Math.hypot(dx, dz);
+          const minDist = e1.radius + e2.radius;
+
+          if (dist < minDist && dist > 0.0001) {
+            // Vetor normal e sobreposição
+            const nx = dx / dist;
+            const nz = dz / dist;
+            const overlap = minDist - dist;
+
+            // Separação física
+            const totalMass = e1.mass + e2.mass;
+            e1.pos.x -= nx * overlap * (e2.mass / totalMass);
+            e1.pos.y -= nz * overlap * (e2.mass / totalMass);
+            e2.pos.x += nx * overlap * (e1.mass / totalMass);
+            e2.pos.y += nz * overlap * (e1.mass / totalMass);
+
+            // Velocidade relativa ao longo da normal
+            const kx = e1.vel.x - e2.vel.x;
+            const kz = e1.vel.y - e2.vel.y;
+            const p = 2 * (nx * kx + nz * kz) / totalMass;
+
+            e1.vel.x -= p * e2.mass * nx * RESTITUTION;
+            e1.vel.y -= p * e2.mass * nz * RESTITUTION;
+            e2.vel.x += p * e1.mass * nx * RESTITUTION;
+            e2.vel.y += p * e1.mass * nz * RESTITUTION;
+
+            const impactSpeed = Math.hypot(kx, kz);
+            if (impactSpeed > 0.15) {
+              playButtonHitSound(impactSpeed);
+            }
+          }
+        }
+      }
+
+      // 3. Colisão com as Paredes e Detecção de Gol
+      const minX = -halfL;
+      const maxX = halfL;
+      const minZ = -halfW;
+      const maxZ = halfW;
+
+      allEntities.forEach(ent => {
+        const r = ent.radius;
+
+        // Paredes laterais (Z = ±halfW)
+        if (ent.pos.y - r < minZ) {
+          ent.pos.y = minZ + r;
+          ent.vel.y = -ent.vel.y * RESTITUTION;
+          playWallHitSound();
+        } else if (ent.pos.y + r > maxZ) {
+          ent.pos.y = maxZ - r;
+          ent.vel.y = -ent.vel.y * RESTITUTION;
+          playWallHitSound();
+        }
+
+        // Linhas de Fundo (X = ±halfL)
+        // Se estiver na faixa do gol (|Z| < goalHalfW - r)
+        const isInGoalMouth = Math.abs(ent.pos.y) < (goalHalfW - 0.2);
+
+        // Lado Esquerdo (Gol do Vermelho / Alvo do Azul)
+        if (ent.pos.x - r < minX) {
+          if (isInGoalMouth) {
+            // Entrou na área do gol
+            if (ent === ball && ent.pos.x < minX - 1.5) {
+              handleGoal('blue'); // Gol do Azul!
+            }
+            // Limite do fundo da rede do gol
+            if (ent.pos.x - r < minX - GOAL_DEPTH) {
+              ent.pos.x = minX - GOAL_DEPTH + r;
+              ent.vel.x = -ent.vel.x * 0.4;
+            }
+          } else {
+            // Bateu na parede lateral ao lado da trave
+            ent.pos.x = minX + r;
+            ent.vel.x = -ent.vel.x * RESTITUTION;
+            playWallHitSound();
+          }
+        }
+
+        // Lado Direito (Gol do Azul / Alvo do Vermelho)
+        if (ent.pos.x + r > maxX) {
+          if (isInGoalMouth) {
+            // Entrou na área do gol
+            if (ent === ball && ent.pos.x > maxX + 1.5) {
+              handleGoal('red'); // Gol do Vermelho!
+            }
+            // Limite do fundo da rede do gol
+            if (ent.pos.x + r > maxX + GOAL_DEPTH) {
+              ent.pos.x = maxX + GOAL_DEPTH - r;
+              ent.vel.x = -ent.vel.x * 0.4;
+            }
+          } else {
+            // Bateu na parede lateral ao lado da trave
+            ent.pos.x = maxX - r;
+            ent.vel.x = -ent.vel.x * RESTITUTION;
+            playWallHitSound();
+          }
+        }
+
+        // Sincroniza posição no Three.js
+        ent.mesh.position.x = ent.pos.x;
+        ent.mesh.position.z = ent.pos.y;
+      });
+
+      // 4. Verificação de estabilização do turno
+      if (isMoving) {
+        const stillMoving = allEntities.some(ent => ent.vel.lengthSq() > 0.0001);
+        if (!stillMoving) {
+          isMoving = false;
+          // Alterna turno
+          currentTurn = currentTurn === 'red' ? 'blue' : 'red';
+          updateTurnUI();
+        }
+      }
+    }
+
+    // =========================================================================
+    // 9. CONTROLES DE INTERFACE (BOTÕES)
+    // =========================================================================
+    document.getElementById('btn-camera').addEventListener('click', () => {
+      currentCameraViewIdx = (currentCameraViewIdx + 1) % cameraViews.length;
+      const targetView = cameraViews[currentCameraViewIdx];
+      camera.position.copy(targetView.pos);
+      controls.target.copy(targetView.target);
+    });
+
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      scoreRed = 0;
+      scoreBlue = 0;
+      hudScore.innerText = "0 - 0";
+      currentTurn = 'red';
+      updateTurnUI();
+      resetPositions();
+    });
+
+    const btnSound = document.getElementById('btn-sound');
+    btnSound.addEventListener('click', () => {
+      soundEnabled = !soundEnabled;
+      btnSound.innerText = soundEnabled ? '🔊 Som: Ligado' : '🔇 Som: Desligado';
+    });
+
+    // =========================================================================
+    // 10. LOOP PRINCIPAL DE RENDERIZAÇÃO
+    // =========================================================================
+    function animate() {
+      requestAnimationFrame(animate);
+
+      updatePhysics();
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    });
+  </script>
+</body>
+</html>
