@@ -98,14 +98,16 @@
       left: 50%;
       transform: translateX(-50%);
       display: flex;
-      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
       z-index: 10;
     }
     .btn {
       background: rgba(15, 23, 42, 0.85);
       color: #e2e8f0;
       border: 1px solid rgba(255, 255, 255, 0.18);
-      padding: 10px 18px;
+      padding: 10px 16px;
       border-radius: 10px;
       font-size: 13px;
       font-weight: 600;
@@ -180,6 +182,145 @@
       text-shadow: none;
       letter-spacing: normal;
     }
+
+    /* Modal de Configuração / Modo de Jogo */
+    #mode-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(8, 14, 26, 0.75);
+      backdrop-filter: blur(8px);
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    #mode-modal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .modal-card {
+      background: linear-gradient(145deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98));
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 20px;
+      width: 90%;
+      max-width: 480px;
+      padding: 28px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 30px rgba(59, 130, 246, 0.15);
+      transform: scale(0.92);
+      transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    #mode-modal-overlay.active .modal-card {
+      transform: scale(1);
+    }
+    .modal-header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .modal-header h2 {
+      font-size: 24px;
+      font-weight: 800;
+      color: #f8fafc;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+    .modal-header p {
+      font-size: 13px;
+      color: #94a3b8;
+      margin-top: 4px;
+    }
+
+    .form-group {
+      margin-bottom: 18px;
+    }
+    .form-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 700;
+      color: #cbd5e1;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .btn-group {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+      gap: 8px;
+    }
+    .option-btn {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1.5px solid rgba(255, 255, 255, 0.15);
+      color: #cbd5e1;
+      padding: 10px 8px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      text-align: center;
+    }
+    .option-btn:hover {
+      background: rgba(51, 65, 85, 0.8);
+      border-color: rgba(255, 255, 255, 0.3);
+      color: #fff;
+    }
+    .option-btn.selected {
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.35), rgba(37, 99, 235, 0.55));
+      border-color: #60a5fa;
+      color: #ffffff;
+      box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
+    }
+    .option-btn .opt-icon {
+      font-size: 18px;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+    }
+    .btn-primary {
+      flex: 1;
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      border: 1px solid #60a5fa;
+      color: white;
+      padding: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      border-radius: 12px;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4);
+      transition: all 0.2s;
+    }
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(37, 99, 235, 0.6);
+    }
+    .btn-secondary {
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #94a3b8;
+      padding: 12px 18px;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-secondary:hover {
+      background: rgba(51, 65, 85, 0.9);
+      color: #f1f5f9;
+    }
   </style>
 </head>
 <body>
@@ -187,11 +328,11 @@
   <div id="hud">
     <div class="scoreboard">
       <div class="team-badge badge-red">
-        <span class="dot dot-red"></span> VERMELHO
+        <span class="dot dot-red"></span> <span id="label-red">VERMELHO</span>
       </div>
       <div class="score" id="score-text">0 - 0</div>
       <div class="team-badge badge-blue">
-        AZUL <span class="dot dot-blue"></span>
+        <span id="label-blue">AZUL</span> <span class="dot dot-blue"></span>
       </div>
     </div>
     <div class="turn-indicator" id="turn-text" style="color: #ef4444; border-color: #ef4444;">
@@ -209,9 +350,78 @@
 
   <!-- Barra de Botões -->
   <div id="bottom-bar">
+    <button class="btn" id="btn-mode">⚙️ Modo de Jogo</button>
     <button class="btn" id="btn-camera">📷 Alternar Câmera</button>
     <button class="btn" id="btn-reset">🔄 Reiniciar Partida</button>
     <button class="btn" id="btn-sound">🔊 Som: Ligado</button>
+  </div>
+
+  <!-- Modal de Modo de Jogo -->
+  <div id="mode-modal-overlay" class="active">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>⚽ Opções da Partida</h2>
+        <p>Escolha o modo de jogo, time e nível de desafio</p>
+      </div>
+
+      <!-- Escolha do Modo -->
+      <div class="form-group">
+        <label class="form-label">Modo de Jogo</label>
+        <div class="btn-group" id="group-mode">
+          <button class="option-btn selected" data-value="pve">
+            <span class="opt-icon">👤🤖</span>
+            <span>1 Jogador (vs Bot)</span>
+          </button>
+          <button class="option-btn" data-value="pvp">
+            <span class="opt-icon">👥</span>
+            <span>2 Jogadores (Local)</span>
+          </button>
+          <button class="option-btn" data-value="eve">
+            <span class="opt-icon">🤖🤖</span>
+            <span>Assistir (Bot vs Bot)</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Escolha do Time do Jogador (apenas se 1P vs Bot) -->
+      <div class="form-group" id="section-player-team">
+        <label class="form-label">Seu Time</label>
+        <div class="btn-group" id="group-team">
+          <button class="option-btn selected" data-value="red">
+            <span class="opt-icon" style="color: #ef4444;">🔴</span>
+            <span>Vermelho</span>
+          </button>
+          <button class="option-btn" data-value="blue">
+            <span class="opt-icon" style="color: #3b82f6;">🔵</span>
+            <span>Azul</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Dificuldade do Bot -->
+      <div class="form-group" id="section-bot-difficulty">
+        <label class="form-label">Dificuldade da IA</label>
+        <div class="btn-group" id="group-diff">
+          <button class="option-btn" data-value="easy">
+            <span class="opt-icon">🟢</span>
+            <span>Fácil</span>
+          </button>
+          <button class="option-btn selected" data-value="medium">
+            <span class="opt-icon">🟡</span>
+            <span>Médio</span>
+          </button>
+          <button class="option-btn" data-value="hard">
+            <span class="opt-icon">🔴</span>
+            <span>Craque</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" id="btn-modal-close" style="display:none;">Fechar</button>
+        <button class="btn-primary" id="btn-modal-start">▶️ Iniciar Jogo</button>
+      </div>
+    </div>
   </div>
 
   <!-- Banner de Gol -->
@@ -807,7 +1017,7 @@
     setupFormations();
 
     // =========================================================================
-    // 7. SISTEMA DE MIRA & DISPARO (SLINGSHOT)
+    // 7. SISTEMA DE MIRA & DISPARO (SLINGSHOT) E GERENCIAMENTO DE MODOS / BOT
     // =========================================================================
     const aimLineGeom = new THREE.BufferGeometry();
     const aimLinePositions = new Float32Array(6);
@@ -826,7 +1036,14 @@
     aimCircle.visible = false;
     scene.add(aimCircle);
 
-    // Estado do Jogo
+    // Configurações de Modo de Jogo e IA
+    let gameMode = 'pve';          // 'pve' (1P vs Bot), 'pvp' (2P Local), 'eve' (Bot vs Bot)
+    let playerTeam = 'red';        // Time do jogador no modo 1P ('red' ou 'blue')
+    let botDifficulty = 'medium';  // 'easy', 'medium', 'hard'
+    let isBotThinking = false;
+    let botTimeoutId = null;
+
+    // Estado da Partida
     let currentTurn = 'red'; // 'red' ou 'blue'
     let scoreRed = 0;
     let scoreBlue = 0;
@@ -840,23 +1057,255 @@
 
     const hudScore = document.getElementById('score-text');
     const hudTurn = document.getElementById('turn-text');
+    const labelRed = document.getElementById('label-red');
+    const labelBlue = document.getElementById('label-blue');
     const goalBanner = document.getElementById('goal-banner');
     const goalSubtitle = document.getElementById('goal-subtitle');
 
-    function updateTurnUI() {
-      if (currentTurn === 'red') {
-        hudTurn.innerHTML = '👉 Vez do Time Vermelho';
-        hudTurn.style.color = '#ef4444';
-        hudTurn.style.borderColor = '#ef4444';
-      } else {
-        hudTurn.innerHTML = '👉 Vez do Time Azul';
-        hudTurn.style.color = '#3b82f6';
-        hudTurn.style.borderColor = '#3b82f6';
+    // Retorna se o turno atual pertence a uma IA
+    function isCurrentTurnBot() {
+      if (gameMode === 'eve') return true;
+      if (gameMode === 'pvp') return false;
+      if (gameMode === 'pve') {
+        return currentTurn !== playerTeam;
+      }
+      return false;
+    }
+
+    function getDifficultyLabel(diff) {
+      if (diff === 'easy') return 'Fácil';
+      if (diff === 'medium') return 'Médio';
+      return 'Craque';
+    }
+
+    function updateScoreboardBadges() {
+      const diffText = getDifficultyLabel(botDifficulty);
+      if (gameMode === 'pve') {
+        if (playerTeam === 'red') {
+          labelRed.innerText = 'VOCÊ';
+          labelBlue.innerText = `BOT (${diffText})`;
+        } else {
+          labelRed.innerText = `BOT (${diffText})`;
+          labelBlue.innerText = 'VOCÊ';
+        }
+      } else if (gameMode === 'pvp') {
+        labelRed.innerText = 'JOGADOR 1';
+        labelBlue.innerText = 'JOGADOR 2';
+      } else if (gameMode === 'eve') {
+        labelRed.innerText = `BOT 1 (${diffText})`;
+        labelBlue.innerText = `BOT 2 (${diffText})`;
       }
     }
 
-    // Interação com Mouse / Touch
+    function updateTurnUI() {
+      const isBot = isCurrentTurnBot();
+      const color = currentTurn === 'red' ? '#ef4444' : '#3b82f6';
+      const teamName = currentTurn === 'red' ? 'Vermelho' : 'Azul';
+
+      if (isBot) {
+        hudTurn.innerHTML = `🤖 Vez da IA (${teamName}) - calculando jogada...`;
+      } else {
+        if (gameMode === 'pve') {
+          hudTurn.innerHTML = `👉 Sua vez! (Time ${teamName})`;
+        } else {
+          hudTurn.innerHTML = `👉 Vez do Time ${teamName}`;
+        }
+      }
+      hudTurn.style.color = color;
+      hudTurn.style.borderColor = color;
+    }
+
+    // =========================================================================
+    // 7.1 INTELIGÊNCIA ARTIFICIAL (BOT)
+    // =========================================================================
+    function triggerBotTurnIfNeeded() {
+      if (isMoving || goalCooldown || isBotThinking) return;
+      if (!isCurrentTurnBot()) return;
+
+      isBotThinking = true;
+      updateTurnUI();
+
+      // Delay natural para o jogador ver a transição
+      const thinkTime = 700 + Math.random() * 500;
+      botTimeoutId = setTimeout(() => {
+        if (!isMoving && !goalCooldown && isCurrentTurnBot()) {
+          executeBotTurn();
+        } else {
+          isBotThinking = false;
+        }
+      }, thinkTime);
+    }
+
+    function executeBotTurn() {
+      const botTeam = currentTurn;
+      const targetGoalX = botTeam === 'red' ? halfL : -halfL; // Gol adversário
+      const availablePieces = pieces.filter(p => p.team === botTeam);
+
+      if (availablePieces.length === 0 || !ball) {
+        isBotThinking = false;
+        return;
+      }
+
+      // 1. Escolher a melhor peça e o melhor ponto de chute
+      let bestPiece = null;
+      let bestScore = -Infinity;
+      let bestShotDir = new THREE.Vector2();
+      let bestTargetPower = 0.7;
+
+      // Definir o ponto alvo dentro da baliza adversária
+      let targetGoalZ = 0;
+      if (botDifficulty === 'hard') {
+        // Mira nos cantos do gol evitando o goleiro adversário
+        const enemyGK = pieces.find(p => p.team !== botTeam && p.type === 'gk');
+        if (enemyGK) {
+          // Se o goleiro estiver mais para a direita (Z positivo), chuta na esquerda (Z negativo) e vice-versa
+          targetGoalZ = enemyGK.pos.y >= 0 ? -(goalHalfW * 0.65) : (goalHalfW * 0.65);
+        } else {
+          targetGoalZ = (Math.random() > 0.5 ? 1 : -1) * (goalHalfW * 0.65);
+        }
+      } else if (botDifficulty === 'medium') {
+        targetGoalZ = (Math.random() - 0.5) * (goalHalfW * 0.8);
+      } else {
+        // Easy: mira no meio com possível erro
+        targetGoalZ = (Math.random() - 0.5) * goalHalfW;
+      }
+
+      const goalPos = new THREE.Vector2(targetGoalX, targetGoalZ);
+
+      // Vetor da bola até o gol adversário
+      const ballToGoal = new THREE.Vector2().subVectors(goalPos, ball.pos);
+      const ballToGoalDist = ballToGoal.length();
+      const ballToGoalDir = ballToGoal.clone().normalize();
+
+      // Ponto ideal onde o botão deve atingir a bola (logo atrás dela na direção oposta ao gol)
+      const idealImpactDist = BUTTON_RADIUS + BALL_RADIUS + 0.1;
+      const idealTouchPos = new THREE.Vector2(
+        ball.pos.x - ballToGoalDir.x * idealImpactDist,
+        ball.pos.y - ballToGoalDir.y * idealImpactDist
+      );
+
+      availablePieces.forEach(p => {
+        const isGK = p.type === 'gk';
+        const toImpact = new THREE.Vector2().subVectors(idealImpactDist ? idealTouchPos : ball.pos, p.pos);
+        const distToImpact = toImpact.length();
+
+        // Direção que a peça se moveria
+        const moveDir = toImpact.clone().normalize();
+
+        // Alinhamento com o gol (produto escalar)
+        const alignment = moveDir.dot(ballToGoalDir);
+
+        // Pontuação base: proximidade do ponto ideal
+        let score = 100 - distToImpact * 1.5;
+
+        // Bonificação pelo alinhamento ofensivo
+        score += alignment * 40;
+
+        // Se a peça estiver entre a bola e o gol adversário (ou seja, teria que chutar contra o próprio gol)
+        const isBehindBall = (botTeam === 'red' && p.pos.x < ball.pos.x) ||
+                             (botTeam === 'blue' && p.pos.x > ball.pos.x);
+        if (isBehindBall) {
+          score += 30;
+        } else {
+          score -= 45; // Penaliza peças mal posicionadas para chutar em direção ao gol
+        }
+
+        // Penalidade para goleiro se afastar da meta
+        if (isGK) {
+          const distToOwnGoal = Math.abs(p.pos.x - (botTeam === 'red' ? -halfL : halfL));
+          if (distToImpact > 18) {
+            score -= 80; // Não sai do gol se a bola estiver longe
+          } else {
+            score -= 20;
+          }
+        }
+
+        // Adiciona um fator aleatório moderado nas dificuldades mais baixas
+        if (botDifficulty === 'easy') {
+          score += (Math.random() - 0.5) * 35;
+        } else if (botDifficulty === 'medium') {
+          score += (Math.random() - 0.5) * 15;
+        }
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestPiece = p;
+          bestShotDir = moveDir;
+
+          // Cálculo de força necessária baseada na distância até a bola + distância até o gol
+          const totalDistance = distToImpact + ballToGoalDist;
+          let power = Math.min(Math.max(totalDistance / 60, 0.45), 1.0);
+
+          if (botDifficulty === 'easy') {
+            power *= 0.65 + Math.random() * 0.4;
+          } else if (botDifficulty === 'medium') {
+            power *= 0.85 + Math.random() * 0.2;
+          } else {
+            power = Math.min(1.0, power * 1.1);
+          }
+
+          bestTargetPower = power;
+        }
+      });
+
+      if (!bestPiece) {
+        bestPiece = availablePieces[0];
+        bestShotDir.set(botTeam === 'red' ? 1 : -1, 0);
+        bestTargetPower = 0.6;
+      }
+
+      // Aplica imprecisão angular de acordo com o nível da IA
+      if (botDifficulty === 'easy') {
+        const errorAngle = (Math.random() - 0.5) * 0.45; // ~25 graus de erro
+        bestShotDir.rotateAround(new THREE.Vector2(0, 0), errorAngle);
+      } else if (botDifficulty === 'medium') {
+        const errorAngle = (Math.random() - 0.5) * 0.15; // ~8 graus de erro
+        bestShotDir.rotateAround(new THREE.Vector2(0, 0), errorAngle);
+      }
+
+      // Efeito visual de foco no botão da IA
+      if (bestPiece.ring) {
+        bestPiece.ring.material.opacity = 0.9;
+      }
+
+      // Mostra a mira do Bot brevemente
+      const shootDist = bestTargetPower * 14.0;
+      const targetX = bestPiece.pos.x + bestShotDir.x * shootDist;
+      const targetZ = bestPiece.pos.y + bestShotDir.y * shootDist;
+
+      const positions = aimLine.geometry.attributes.position.array;
+      positions[0] = bestPiece.pos.x;
+      positions[1] = 0.1;
+      positions[2] = bestPiece.pos.y;
+      positions[3] = targetX;
+      positions[4] = 0.1;
+      positions[5] = targetZ;
+      aimLine.geometry.attributes.position.needsUpdate = true;
+      aimLine.visible = true;
+
+      aimCircle.position.set(targetX, 0.1, targetZ);
+      aimCircle.visible = true;
+
+      // Executa o chute após a animação de mira
+      setTimeout(() => {
+        if (bestPiece.ring) bestPiece.ring.material.opacity = 0;
+        aimLine.visible = false;
+        aimCircle.visible = false;
+
+        const speed = bestTargetPower * 2.8;
+        bestPiece.vel.x = bestShotDir.x * speed;
+        bestPiece.vel.y = bestShotDir.y * speed;
+
+        playShootSound(bestTargetPower);
+        isMoving = true;
+        isBotThinking = false;
+      }, 350);
+    }
+
+    // Interação com Mouse / Touch para jogadores humanos
     function getIntersectedPiece(event) {
+      if (isCurrentTurnBot()) return null; // Bloqueia toque humano no turno do Bot
+
       mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
       mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
       raycaster.setFromCamera(mouse, camera);
@@ -873,7 +1322,7 @@
     }
 
     window.addEventListener('pointerdown', (e) => {
-      if (e.button !== 0 || isMoving) return; // Apenas clique esquerdo e com peças paradas
+      if (e.button !== 0 || isMoving || isBotThinking) return; // Apenas clique esquerdo e com peças paradas
       initAudio();
 
       const piece = getIntersectedPiece(e);
@@ -989,15 +1438,23 @@
         goalBanner.classList.remove('show');
         resetPositions();
         goalCooldown = false;
+        triggerBotTurnIfNeeded();
       }, 2500);
     }
 
     function resetPositions() {
+      if (botTimeoutId) clearTimeout(botTimeoutId);
+      isBotThinking = false;
+
       pieces.forEach(p => {
         p.pos.copy(p.initialPos);
         p.vel.set(0, 0);
         p.mesh.position.set(p.pos.x, p.type === 'gk' ? 0 : 0, p.pos.y);
+        if (p.ring) p.ring.material.opacity = 0;
       });
+      aimLine.visible = false;
+      aimCircle.visible = false;
+
       ball.pos.copy(ball.initialPos);
       ball.vel.set(0, 0);
       ball.mesh.position.set(0, BALL_RADIUS, 0);
@@ -1140,13 +1597,86 @@
           // Alterna turno
           currentTurn = currentTurn === 'red' ? 'blue' : 'red';
           updateTurnUI();
+          triggerBotTurnIfNeeded();
         }
       }
     }
 
     // =========================================================================
-    // 9. CONTROLES DE INTERFACE (BOTÕES)
+    // 9. CONTROLES DE INTERFACE (BOTÕES & MODAL DE CONFIGURAÇÃO)
     // =========================================================================
+    const modeModal = document.getElementById('mode-modal-overlay');
+    const btnMode = document.getElementById('btn-mode');
+    const btnModalClose = document.getElementById('btn-modal-close');
+    const btnModalStart = document.getElementById('btn-modal-start');
+    const sectionPlayerTeam = document.getElementById('section-player-team');
+    const sectionBotDifficulty = document.getElementById('section-bot-difficulty');
+
+    // Manipulação dos botões do Modal
+    function setupButtonGroup(containerId, onChange) {
+      const container = document.getElementById(containerId);
+      const buttons = container.querySelectorAll('.option-btn');
+      buttons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          buttons.forEach(b => b.classList.remove('selected'));
+          btn.classList.add('selected');
+          if (onChange) onChange(btn.getAttribute('data-value'));
+        });
+      });
+    }
+
+    setupButtonGroup('group-mode', (val) => {
+      gameMode = val;
+      if (gameMode === 'pve') {
+        sectionPlayerTeam.style.display = 'block';
+        sectionBotDifficulty.style.display = 'block';
+      } else if (gameMode === 'pvp') {
+        sectionPlayerTeam.style.display = 'none';
+        sectionBotDifficulty.style.display = 'none';
+      } else if (gameMode === 'eve') {
+        sectionPlayerTeam.style.display = 'none';
+        sectionBotDifficulty.style.display = 'block';
+      }
+    });
+
+    setupButtonGroup('group-team', (val) => {
+      playerTeam = val;
+    });
+
+    setupButtonGroup('group-diff', (val) => {
+      botDifficulty = val;
+    });
+
+    function openModal() {
+      btnModalClose.style.display = 'inline-block';
+      modeModal.classList.add('active');
+    }
+
+    function closeModal() {
+      modeModal.classList.remove('active');
+    }
+
+    btnMode.addEventListener('click', () => {
+      openModal();
+    });
+
+    btnModalClose.addEventListener('click', () => {
+      closeModal();
+    });
+
+    btnModalStart.addEventListener('click', () => {
+      initAudio();
+      closeModal();
+      scoreRed = 0;
+      scoreBlue = 0;
+      hudScore.innerText = "0 - 0";
+      currentTurn = 'red';
+      updateScoreboardBadges();
+      updateTurnUI();
+      resetPositions();
+      triggerBotTurnIfNeeded();
+    });
+
     document.getElementById('btn-camera').addEventListener('click', () => {
       currentCameraViewIdx = (currentCameraViewIdx + 1) % cameraViews.length;
       const targetView = cameraViews[currentCameraViewIdx];
@@ -1159,8 +1689,10 @@
       scoreBlue = 0;
       hudScore.innerText = "0 - 0";
       currentTurn = 'red';
+      updateScoreboardBadges();
       updateTurnUI();
       resetPositions();
+      triggerBotTurnIfNeeded();
     });
 
     const btnSound = document.getElementById('btn-sound');
@@ -1168,6 +1700,10 @@
       soundEnabled = !soundEnabled;
       btnSound.innerText = soundEnabled ? '🔊 Som: Ligado' : '🔇 Som: Desligado';
     });
+
+    // Configuração inicial das badges
+    updateScoreboardBadges();
+    updateTurnUI();
 
     // =========================================================================
     // 10. LOOP PRINCIPAL DE RENDERIZAÇÃO

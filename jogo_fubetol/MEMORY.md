@@ -1,7 +1,7 @@
 # MEMORY - Futebol de Botão 3D (Three.js)
 
 ## 📌 Visão Geral do Projeto
-Jogo interativo 3D no estilo clássico de **Futebol de Botão**, desenvolvido com Three.js (ES6 via CDN) e física 2.5D customizada. O jogo inclui mecânica de mira e tiro estilo estilingue ("drag and shoot"), sistema de turnos com alternância automática, detecção e celebração de gols com placar, efeitos sonoros sintetizados via Web Audio API e múltiplas câmeras.
+Jogo interativo 3D no estilo clássico de **Futebol de Botão**, desenvolvido com Three.js (ES6 via CDN) e física 2.5D customizada. O jogo inclui mecânica de mira e tiro estilo estilingue ("drag and shoot"), sistema de turnos com alternância automática, detecção e celebração de gols com placar, efeitos sonoros sintetizados via Web Audio API, múltiplas câmeras, **Inteligência Artificial (Bot)** e **Menu de Modos de Jogo (1P vs Bot, 2P Local, Bot vs Bot)**.
 
 ---
 
@@ -19,7 +19,8 @@ Jogo interativo 3D no estilo clássico de **Futebol de Botão**, desenvolvido co
 jogo_fubetol/
 ├── AGENTS.md      # Especificações e diretrizes do projeto de Futebol de Botão 3D
 ├── MEMORY.md      # Registro arquitetural, decisões de física, mecânicas e status
-└── index.html     # Aplicação completa (HTML5, HUD, CSS, Three.js, Física, Áudio e Controles)
+├── README.md      # Apresentação do projeto, modos de jogo e guia de execução
+└── index.html     # Aplicação completa (HTML5, HUD, CSS, Three.js, Física, IA, Áudio e Controles)
 ```
 
 ---
@@ -42,25 +43,36 @@ jogo_fubetol/
 - **Colisão com Bordas & Traves:** Rebote nas tabelas de madeira e nas laterais dos gols.
 - **Detecção de Gol:** Reconhecimento imediato quando a bola ultrapassa a linha e entra no interior das balizas.
 
-### 4. Sistema de Mira & Disparo (Slingshot)
-- Interação por `Raycaster` com clique no botão do time da vez.
+### 4. Inteligência Artificial (Bot) & Tomada de Decisão
+- **Algoritmo de Posicionamento Vetorial:**
+  - Calcula a trajetória ideal bola $\to$ gol adversário.
+  - Determina o ponto de contato ótimo atrás da bola.
+  - Avalia todas as peças do time da IA com pontuação para proximidade, ângulo em relação à meta rival e bloqueio de recuo contra o próprio gol.
+  - O goleiro da IA prioriza a proteção da meta, saindo apenas em lances de perigo na pequena área.
+- **Níveis de Desafio:**
+  - **Fácil:** Maior dispersão angular (desvio aleatório) e força variável.
+  - **Médio:** Mira consistente no gol e força calibrada.
+  - **Craque (Difícil):** Calcula a posição do goleiro adversário e busca os cantos livres da trave com precisão e força calibrada para a distância.
+- **Feedback Visual & Temporal:**
+  - Simulação de tempo de reação ("pensando..."), anel indicador no botão escolhido e linha de mira temporária antes do disparo.
+
+### 5. Modos de Jogo & Menu de Opções
+- **Modal Interativo:**
+  - **1 Jogador (vs Bot):** Disputa contra a IA com escolha de time (Vermelho ou Azul) e dificuldade.
+  - **2 Jogadores (Local):** Turnos alternados entre dois humanos no mesmo dispositivo.
+  - **Assistir (Bot vs Bot):** Simulação autônoma de partida entre duas IAs.
+- **Acesso:** Abre ao carregar o jogo ou via botão `⚙️ Modo de Jogo` no HUD inferior a qualquer momento.
+
+### 6. Sistema de Mira & Disparo (Slingshot)
+- Interação por `Raycaster` com clique no botão do time da vez (bloqueado durante os turnos da IA).
 - Vetor de mira dinâmico desenhado no chão (linha e círculo indicador) ao arrastar o mouse para trás.
 - Força proporcional à distância de puxada com limite máximo (`maxPull = 18`).
-- Bloqueio de cliques quando as peças estão em movimento ou no turno do adversário.
 
-### 5. Sistema de Turnos & Regras
-- Alternância de turno (Vermelho ↔ Azul) disparada automaticamente assim que todas as peças no campo atingem repouso (`vel < threshold`).
-- Ao marcar gol:
-  - Exibição de banner comemorativo animado (*GOOOOOL!*).
-  - Fanfarra sonora.
-  - Atualização do placar no HUD.
-  - Reposicionamento suave e apito inicial para reinício.
-
-### 6. Interface (HUD) & Recursos Extras
-- Placar e indicador de turno atual com cores correspondentes.
+### 7. Interface (HUD) & Recursos Extras
+- Placar com badges customizadas indicando quem está jogando ("VOCÊ", "BOT (Craque)", "JOGADOR 1/2").
+- Indicador de turno contextual com status em tempo real.
 - Botão para alternar entre 4 ângulos de câmera (Isométrica, Vista de Cima, Atrás do Vermelho e Atrás do Azul).
-- Botão de reiniciar partida (zera placar e reseta posições).
-- Botão de alternar efeitos sonoros (Liga/Desliga).
+- Botão de reiniciar partida e botão de alternar efeitos sonoros.
 
 ---
 

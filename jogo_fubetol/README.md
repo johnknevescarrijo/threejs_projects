@@ -4,8 +4,16 @@ Um jogo interativo e completo de **Futebol de Botão 3D** construído com **Thre
 
 ---
 
-## 🎮 Demonstração & Recursos
+## 🎮 Modos de Jogo & Recursos
 
+- **Modos de Jogo:**
+  - 👤🤖 **1 Jogador (vs Bot):** Desafie a Inteligência Artificial escolhendo jogar de **Vermelho** ou **Azul**.
+  - 👥 **2 Jogadores (Local):** Dispute com um amigo em turnos alternados no mesmo teclado/mouse.
+  - 🤖🤖 **Assistir (Bot vs Bot):** Acompanhe uma partida simulada entre dois bots autônomos.
+- **Inteligência Artificial (Bot):**
+  - Três níveis de desafio: **🟢 Fácil (Iniciante)**, **🟡 Médio (Equilibrado)** e **🔴 Craque (Difícil)**.
+  - Tomada de decisão vetorial: calcula o melhor botão, o ponto de impacto ideal atrás da bola e busca os cantos da baliza longe do goleiro adversário.
+  - Animação de mira e tempo de raciocínio da IA antes de chutar.
 - **Mesa de Botão Clássica:** Campo verde com marcações detalhadas e tabelas/bordas elevadas de madeira para jogadas de rebote.
 - **Peças Tradicionais:**
   - **10 Botões de linha por time** (Vermelho vs Azul) com números e efeito de acrílico/plástico.
@@ -17,7 +25,7 @@ Um jogo interativo e completo de **Futebol de Botão 3D** construído com **Thre
   - Colisões elásticas círculo-círculo com conservação de momento.
   - Rebotes nas tabelas de madeira e traves.
   - Detecção automática de **GOL** com reposicionamento automático.
-- **Sistema de Turnos & Placar:** Alternância automática de vez entre o Time Vermelho e o Time Azul assim que todas as peças param.
+- **Sistema de Turnos & Placar:** Alternância automática de vez com badges interativos no placar ("VOCÊ", "BOT", "JOGADOR 1/2").
 - **Efeitos Sonoros Nativos (Web Audio API):** Sons sintetizados em tempo real para impactos de acrílico, batidas na madeira, chutes, apito do juiz e comemoração de gol.
 - **Múltiplos Ângulos de Câmera:** Alternância rápida entre visão isométrica, vista aérea superior (top-down) e visão atrás de cada um dos times.
 
@@ -25,10 +33,11 @@ Um jogo interativo e completo de **Futebol de Botão 3D** construído com **Thre
 
 ## 🕹️ Como Jogar
 
-1. **Disparo:** No seu turno, clique com o **botão esquerdo** em um botão do seu time.
-2. **Mira & Força:** Arraste o mouse para trás para esticar o vetor de mira e aumentar a força do chute.
-3. **Chutar:** Solte o botão do mouse para impulsionar a peça.
-4. **Câmera:**
+1. **Menu de Opções:** Logo no início (ou clicando no botão `⚙️ Modo de Jogo`), selecione o **Modo de Jogo**, seu **Time** e o **Nível da IA**.
+2. **Disparo:** No seu turno, clique com o **botão esquerdo** em um botão do seu time.
+3. **Mira & Força:** Arraste o mouse para trás para esticar o vetor de mira e aumentar a força do chute.
+4. **Chutar:** Solte o botão do mouse para impulsionar a peça.
+5. **Câmera:**
    - **Girar:** Segure o botão direito do mouse e arraste.
    - **Zoom:** Use a roda do mouse (scroll).
    - **Mover:** Botão do meio do mouse (pan).
@@ -79,8 +88,8 @@ Você também pode abrir o arquivo `index.html` com duplo clique em navegadores 
 
 ```text
 jogo_fubetol/
-├── index.html      # Aplicação completa (Three.js, física, controles, áudio e UI)
-├── README.md       # Apresentação do projeto e guia de execução
+├── index.html      # Aplicação completa (Three.js, física, IA, controles, áudio e UI)
+├── README.md       # Apresentação do projeto, modos de jogo e guia de execução
 ├── AGENTS.md       # Diretrizes e especificações do jogo
 └── MEMORY.md       # Memória técnica, arquitetura e decisões de projeto
 ```
