@@ -136,48 +136,97 @@ canvas {
   box-shadow: 0 0 6px #ff0000;
 }
 
-/* HUD Top Bar (Timer & Score) */
+/* HUD Top Bar (Team Scoreboard & Timer) */
 #top-hud {
   position: absolute;
-  top: 20px;
+  top: 18px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 20px;
-  background: rgba(15, 20, 30, 0.75);
-  backdrop-filter: blur(4px);
-  padding: 8px 24px;
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  gap: 16px;
+  background: rgba(12, 16, 26, 0.88);
+  backdrop-filter: blur(8px);
+  padding: 6px 18px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
   z-index: 20;
 }
 
-.score-box {
+.team-score-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: 6px;
+}
+
+.team-score-card.ct {
+  background: rgba(59, 130, 246, 0.18);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+}
+
+.team-score-card.t {
+  background: rgba(239, 68, 68, 0.18);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.team-tag {
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.team-tag.ct {
+  background: #3b82f6;
+  color: #ffffff;
+}
+
+.team-tag.t {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.team-score-val {
+  font-size: 24px;
+  font-weight: 900;
+  color: #ffffff;
+  min-width: 24px;
+  text-align: center;
+}
+
+.center-match-info {
   display: flex;
   flex-direction: column;
   align-items: center;
-}
-
-.score-label {
-  font-size: 11px;
-  text-transform: uppercase;
-  color: #94a3b8;
-  letter-spacing: 1px;
-}
-
-.score-val {
-  font-size: 20px;
-  font-weight: bold;
-  color: #f1f5f9;
+  padding: 0 10px;
 }
 
 #match-timer {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 800;
   color: #e2e8f0;
-  letter-spacing: 2px;
-  padding: 0 10px;
+  letter-spacing: 1.5px;
+}
+
+.personal-kd {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.personal-kd strong {
+  color: #f1f5f9;
+}
+
+.kd-divider {
+  color: #475569;
 }
 
 /* Killfeed */
@@ -192,16 +241,18 @@ canvas {
 }
 
 .killfeed-entry {
-  background: rgba(10, 15, 25, 0.85);
+  background: rgba(10, 15, 25, 0.88);
+  backdrop-filter: blur(4px);
   border-left: 3px solid #ff9900;
   padding: 6px 12px;
   border-radius: 4px;
-  font-size: 14px;
+  font-size: 13px;
   display: flex;
   align-items: center;
   gap: 8px;
   animation: slideIn 0.25s ease-out;
   transition: opacity 0.4s ease-out;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
 }
 
 @keyframes slideIn {
@@ -209,25 +260,26 @@ canvas {
   to { transform: translateX(0); opacity: 1; }
 }
 
-.kf-killer {
+.kf-killer-ct, .kf-victim-ct {
   color: #60a5fa;
+  font-weight: bold;
+}
+
+.kf-killer-t, .kf-victim-t {
+  color: #f87171;
   font-weight: bold;
 }
 
 .kf-weapon {
   color: #fbbf24;
   font-size: 12px;
+  font-weight: 600;
 }
 
 .kf-hs {
   color: #ef4444;
   font-weight: bold;
   font-size: 12px;
-}
-
-.kf-victim {
-  color: #f87171;
-  font-weight: bold;
 }
 
 /* HUD Bottom Left (Health & Armor) */

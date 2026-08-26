@@ -16,6 +16,8 @@ export class HUD {
       crossBottom: document.getElementById('ch-bottom'),
       crossLeft: document.getElementById('ch-left'),
       crossRight: document.getElementById('ch-right'),
+      scoreCT: document.getElementById('score-ct'),
+      scoreT: document.getElementById('score-t'),
       scoreKills: document.getElementById('score-kills'),
       scoreDeaths: document.getElementById('score-deaths'),
       timer: document.getElementById('match-timer'),
@@ -46,18 +48,21 @@ export class HUD {
     this.damageOverlayTimer = 0.35;
   }
 
-  addKillfeedEntry(killer, weapon, victim, isHeadshot = false) {
+  addKillfeedEntry(killer, weapon, victim, isHeadshot = false, killerTeam = 'CT', victimTeam = 'T') {
     if (!this.dom.killfeed) return;
 
     const entry = document.createElement('div');
     entry.className = 'killfeed-entry';
     
+    const killerClass = (killerTeam === 'CT') ? 'kf-killer-ct' : 'kf-killer-t';
+    const victimClass = (victimTeam === 'CT') ? 'kf-victim-ct' : 'kf-victim-t';
     const hsIcon = isHeadshot ? '<span class="kf-hs">🎯 HEADSHOT</span>' : '';
+
     entry.innerHTML = `
-      <span class="kf-killer">${killer}</span>
+      <span class="${killerClass}">${killer}</span>
       <span class="kf-weapon">[${weapon}]</span>
       ${hsIcon}
-      <span class="kf-victim">${victim}</span>
+      <span class="${victimClass}">${victim}</span>
     `;
 
     this.dom.killfeed.appendChild(entry);
@@ -71,7 +76,7 @@ export class HUD {
     }, 4500);
   }
 
-  update(player, weaponManager, elapsedTime) {
+  update(player, weaponManager, elapsedTime, scoreCT = 0, scoreT = 0) {
     // 1. Health & Armor
     if (this.dom.healthVal) {
       this.dom.healthVal.textContent = Math.max(0, player.health);
@@ -134,7 +139,9 @@ export class HUD {
       }
     }
 
-    // 5. Score & Timer
+    // 5. Team Score, Personal K/D & Timer
+    if (this.dom.scoreCT) this.dom.scoreCT.textContent = scoreCT;
+    if (this.dom.scoreT) this.dom.scoreT.textContent = scoreT;
     if (this.dom.scoreKills) this.dom.scoreKills.textContent = player.kills;
     if (this.dom.scoreDeaths) this.dom.scoreDeaths.textContent = player.deaths;
 
@@ -162,3 +169,4 @@ export class HUD {
     }
   }
 }
+

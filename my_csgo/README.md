@@ -15,42 +15,39 @@ O projeto adota uma filosofia **100% procedural**: todos os modelos 3D das armas
 - **Sistema de Colisão Sólida**: Bounding Boxes (AABB) impedem atravessar paredes/caixas e permitem subir em plataformas e rampas.
 - **Gráficos & Iluminação em Alta Definição**: Domo de céu atmosférico com horizonte do deserto, iluminação dinâmica com sombras suaves (PCFSoftShadowMap), texturas em alta resolução (1024x1024) com relevo em *bump map*, barris metálicos industriais e lanternas táticas.
 
-### 🔫 2 Armas Ícones com Auto-Reload
-- **AK-47** (`Slot 1`):
-  - Rifle de assalto automático (600 RPM).
-  - Pente de 30 balas + 90 de reserva.
-  - Recuo vertical e dispersão horizontal (*spray pattern*).
-  - Dano: 36 (Headshot: 144 - eliminação instantânea).
-- **Desert Eagle** (`Slot 2`):
-  - Pistola semi-automática de alto impacto.
-  - Pente de 7 balas + 35 de reserva.
-  - Precisão cirúrgica de primeiro tiro com recuo pesado.
-  - Dano: 58 (Headshot: 232 - eliminação instantânea).
-- **Recarregamento Automático**: Ao esvaziar o pente (0 balas), a arma recarrega automaticamente se houver munição na reserva.
-- Animações procedurais de recuo de arma (*kickback*), balanço ao andar (*weapon sway/bobbing*) e animação de recarga.
+### 🔫 Armas Ícones em Alta Resolução (Viewmodel HD) com Braços Táticos
+- **Braços e Luvas em Primeira Pessoa**:
+  - Modelagem procedural de braços com farda SAS/CT e luvas táticas de combate com reforço em fibra de carbono nos nós dos dedos e aderência na palma.
+  - Empunhadura realista e anatômica específica para cada arma (empunhadura de duas mãos na Desert Eagle e empunhadura tática no guarda-mão da AK-47).
+- **Texturas Procedurais Detalhadas**:
+  - Madeira nobre cerejeira com veios envernizados na coronha, punho e guarda-mão da AK-47.
+  - Aço estampado/fosfatizado (*gunmetal*) no corpo e pente curvo 30 tiros.
+  - Cromo escovado com serrilhas de manobra e trilho Picatinny na Desert Eagle.
+  - Painéis de empunhadura da Deagle com acabamento em zigrinado (*diamond checkering*) e medalhão com a águia clássica.
+- **Efeitos Cinéticos e Animações Dinâmicas**:
+  - **Blowback & Recoil**: Recuo da culatra/slide da Deagle e do ferrolho da AK-47 ao disparar.
+  - **Ejeção Física de Cartuchos**: Cápsulas douradas de latão ejetadas lateralmente a cada tiro com física tridimensional, rotação e quique no chão.
+  - **Recarregamento Automático**: Ao esvaziar o pente (0 balas), a arma recarrega automaticamente com inclinação fluida se houver reserva.
 
-### 🏃 Movimentação & Respawn Automático
-- **Respawn Automático e Fluido**: Ao ser eliminado, surge um banner superior com barra e contagem regressiva de `2.5s`, renascendo o jogador sem interrupções manuais.
-- **Aceleração e Atrito no Solo**: Sensação clássica de peso e desaceleração.
-- **Agachamento Suave** (`Ctrl` ou `C`): Reduz a altura dos olhos de 1.7m para 1.05m e melhora a precisão do disparo em 30%.
-- **Caminhada Silenciosa** (`Shift`): Reduz a velocidade, estabiliza a mira e anula os sons de passos.
-- **Pulo e Gravidade** (`Espaço`): Física de salto responsiva.
+### 🤖 Sistema de Times: Bots Aliados (CT) & Bots Inimigos (Terroristas)
+- **Modo Tático CT vs Terroristas (3v3)**:
+  - **Jogador + Bots Aliados CT** (`CT_Alpha`, `CT_Bravo`) contra **Bots Terroristas** (`T_Phoenix`, `T_Leet`, `T_Balkan`).
+- **Modelos 3D Específicos por Time**:
+  - **Time CT (Aliados)**: Fardamento azul marinho, colete balístico, capacete Kevlar com visor tático e marcador holográfico de aliado 3D sobre a cabeça (`▲ CT_Alpha`).
+  - **Time Terrorista (Inimigos)**: Fardamento camuflado do deserto, colete marrom, bandanas vermelhas/máscaras e óculos táticos escuros.
+- **Inteligência Artificial de Combate & Combate Bot-vs-Bot**:
+  - Aliados CT patrulham e atacam apenas inimigos Terroristas.
+  - Terroristas caçam o jogador e os bots aliados CT.
+  - Bots podem se enfrentar e se eliminar reciprocamente com traçantes, sangue e registros no placar.
+  - Proteção contra fogo amigo para manter a integridade da equipe aliada.
+- **Hitboxes Críticas**: Cabeça (Headshot com som de *Dink* metálico e 4x de dano) e Corpo/Pernas.
+- **Respawn Automático**: Renascimento em waypoints seguros após 4 segundos.
 
-### 🤖 Bots com Inteligência Artificial
-- **Patrulha e Navegação com Física no Solo**: Circulam estrategicamente entre waypoints com detecção de relevo (*ground clamping*) e gravidade, subindo e descendo rampas/plataformas sem flutuar.
-- **Detecção por Linha de Visão (*Line-of-Sight Raycasting*)**: Detectam o jogador se estiverem no campo de visão e sem paredes obstruindo.
-- **Combate em Rajadas**: Miram e disparam rajadas de 3 tiros com sons e traçantes.
-- **Hitboxes Distintas**:
-  - **Cabeça**: Acertos críticos ativam o som metálico de capacete (*Dink*), multiplicador 4x e notificação de **HEADSHOT**.
-  - **Corpo/Pernas**: Dano padrão.
-- **Sistema de Respawn**: Bots eliminados respawnam automaticamente no nível correto do solo após 4 segundos.
-
-### 🖥️ HUD & Efeitos Audiovisuais
-- **Mira Dinâmica (Crosshair Verde)**: Abre dinamicamente conforme você se move, pula ou dispara em sequência.
-- **Hitmarkers**: Indicador visual 'X' com som de impacto (branco no corpo, vermelho com som metálico no headshot).
-- **Killfeed em Tempo Real**: Notificações no canto superior direito no formato `Player [Arma] 🎯 HEADSHOT Bot`.
-- **Efeitos de Impacto**: Decais de buracos de bala, faíscas metálicas, puffs de poeira e fumaça ao acertar paredes, e partículas de sangue nos inimigos.
-- **Áudio Procedural (Web Audio API)**: Sintetizador interno para tiros, cliques de recarga, passos, impactos e dink de capacete.
+### 🖥️ HUD & Placar de Equipes
+- **Placar de Equipes Dinâmico**: Top HUD moderno com contador de rodadas **[CT 0] [Timer] [0 T]** e estatísticas pessoais de Kills e Deaths.
+- **Killfeed Colorido com Identificação de Time**: Notificações no canto superior direito no formato `CT_Alpha [M4A1] T_Phoenix` e `Player [AK-47] 🎯 HEADSHOT T_Leet` com cores azul (CT) e vermelho (T).
+- **Mira Dinâmica (Crosshair Verde)**: Expansão proporcional ao recuo e velocidade.
+- **Hitmarkers e Efeitos de Impacto**: Decais de buracos de bala nas paredes, faíscas metálicas, puffs de poeira e ejeção contínua de cartuchos.
 
 ---
 

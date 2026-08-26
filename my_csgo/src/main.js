@@ -34,8 +34,10 @@ class Game {
     this.player = new Player(this.camera, this.renderer.domElement, this.map);
     this.hud = new HUD();
 
-    // 3. Bots
+    // 3. Bots & Teams
     this.bots = [];
+    this.scoreCT = 0;
+    this.scoreT = 0;
     this._spawnBots();
 
     // 4. Timing & State
@@ -48,14 +50,18 @@ class Game {
   }
 
   _spawnBots() {
-    const spawnPoints = [
-      { pos: new THREE.Vector3(18, 1.2, 18), name: 'Bot_CT_Alpha' },
-      { pos: new THREE.Vector3(-15, 0, 10), name: 'Bot_CT_Bravo' },
-      { pos: new THREE.Vector3(2, 0, 12), name: 'Bot_CT_Charlie' }
+    const botConfigs = [
+      // CT Team (Friendly allies)
+      { pos: new THREE.Vector3(-10, 0, -20), name: 'CT_Alpha', team: 'CT' },
+      { pos: new THREE.Vector3(6, 0, -22), name: 'CT_Bravo', team: 'CT' },
+      // Terrorist Team (Enemies)
+      { pos: new THREE.Vector3(18, 1.2, 18), name: 'T_Phoenix', team: 'T' },
+      { pos: new THREE.Vector3(-16, 0, 12), name: 'T_Leet', team: 'T' },
+      { pos: new THREE.Vector3(4, 0, 10), name: 'T_Balkan', team: 'T' }
     ];
 
-    spawnPoints.forEach((sp, index) => {
-      const bot = new Bot(index + 1, this.scene, this.map, sp.pos, sp.name);
+    botConfigs.forEach((cfg, index) => {
+      const bot = new Bot(index + 1, this.scene, this.map, cfg.pos, cfg.name, cfg.team);
       this.bots.push(bot);
     });
   }
@@ -143,9 +149,9 @@ class Game {
       }
     });
 
-    // First check bot hits
+    // Check bot hits
     const botIntersects = shotInfo.raycaster.intersectObjects(allBotHitboxes, false);
-    // Also check world hits
+    // Check world hits
     const worldIntersects = shotInfo.raycaster.intersectObjects(this.map.raycastMeshes, false);
 
     const closestBot = botIntersects.length > 0 ? botIntersects[0] : null;
@@ -160,25 +166,33 @@ class Game {
       const bot = hitData.bot;
       const isHeadshot = hitData.part === 'head';
 
-      let damage = shotInfo.damage;
-      if (isHeadshot) {
-        damage *= shotInfo.headshotMultiplier;
-        sounds.playHeadshot();
-        this.hud.showHitmarker(true);
-      } else {
+      // Check if it's a friendly CT bot
+      if (bot.team === 'CT') {
+        // Friendly fire protection - play subtle hit warning without teamkill
         sounds.playHitmarker();
-        this.hud.showHitmarker(false);
-      }
+      } else {
+        // Enemy Terrorist bot
+        let damage = shotInfo.damage;
+        if (isHeadshot) {
+          damage *= shotInfo.headshotMultiplier;
+          sounds.playHeadshot();
+          this.hud.showHitmarker(true);
+        } else {
+          sounds.playHitmarker();
+          this.hud.showHitmarker(false);
+        }
 
-      // Blood particles
-      const normal = closestBot.face ? closestBot.face.normal : new THREE.Vector3(0, 1, 0);
-      this.particles.createBlood(hitPoint, normal);
+        // Blood particles
+        const normal = closestBot.face ? closestBot.face.normal : new THREE.Vector3(0, 1, 0);
+        this.particles.createBlood(hitPoint, normal);
 
-      // Apply damage to bot
-      const wasKilled = bot.takeDamage(damage, isHeadshot);
-      if (wasKilled) {
-        this.player.kills++;
-        this.hud.addKillfeedEntry('Player', shotInfo.weaponName, bot.name, isHeadshot);
+        // Apply damage to enemy bot
+        const wasKilled = bot.takeDamage(damage, isHeadshot);
+        if (wasKilled) {
+          this.player.kills++;
+          this.scoreCT++;
+          this.hud.addKillfeedEntry('Player', shotInfo.weaponName, bot.name, isHeadshot, 'CT', 'T');
+        }
       }
     } else if (closestWorld) {
       // Hit a wall or crate!
@@ -213,16 +227,23 @@ class Game {
         const isMoving = this.player.velocity.lengthSq() > 0.1;
         this.weapons.update(delta, this.player.velocity, isMoving, this.player.isCrouching);
 
-        // 3. Update Bots
+        // 3. Update Bots (CT allies and T enemies) with Team AI & bot-vs-bot combat
         this.bots.forEach(bot => {
-          bot.update(delta, this.player, this.particles);
+          bot.update(delta, this.player, this.bots, this.particles, (killer, weapon, victim, isHS, killerTeam, victimTeam) => {
+            if (killerTeam === 'CT') {
+              this.scoreCT++;
+            } else {
+              this.scoreT++;
+            }
+            this.hud.addKillfeedEntry(killer, weapon, victim, isHS, killerTeam, victimTeam);
+          });
         });
 
         // 4. Update Particle Systems & Decals
         this.particles.update(delta);
 
-        // 5. Update HUD
-        this.hud.update(this.player, this.weapons, this.elapsedTime);
+        // 5. Update HUD with Team Scores
+        this.hud.update(this.player, this.weapons, this.elapsedTime, this.scoreCT, this.scoreT);
       }
 
       // Render 3D Scene
@@ -234,3 +255,4 @@ class Game {
 // Instantiate and launch game
 const game = new Game();
 game.start();
+

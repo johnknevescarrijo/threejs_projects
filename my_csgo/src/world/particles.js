@@ -12,6 +12,44 @@ export class ParticleSystem {
     this.sparkTexture = this._createSparkTexture();
     // Smoke / dust texture (soft radial fade)
     this.dustTexture = this._createSmokeTexture();
+    // Casing particles
+    this.casings = [];
+    this.casingGeo = new THREE.CylinderGeometry(0.007, 0.007, 0.024, 6);
+    this.casingMat = new THREE.MeshStandardMaterial({
+      color: 0xe5a93c,
+      metalness: 0.95,
+      roughness: 0.25
+    });
+  }
+
+  // Create physical brass bullet casing popping out of weapon ejection port
+  createShellEject(position, rightDir, upDir, forwardDir, isPistol = false) {
+    const mesh = new THREE.Mesh(this.casingGeo, this.casingMat);
+    mesh.position.copy(position);
+    mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+    mesh.castShadow = false;
+    this.scene.add(mesh);
+
+    // Eject to the right and slightly up/back
+    const speed = isPistol ? 2.2 : 2.8;
+    const velocity = rightDir.clone().multiplyScalar(speed + (Math.random() - 0.5) * 0.4)
+      .add(upDir.clone().multiplyScalar(1.4 + Math.random() * 0.6))
+      .add(forwardDir.clone().multiplyScalar(-0.4 + (Math.random() - 0.5) * 0.3));
+
+    const rotSpeed = new THREE.Vector3(
+      (Math.random() - 0.5) * 25,
+      (Math.random() - 0.5) * 25,
+      (Math.random() - 0.5) * 25
+    );
+
+    this.casings.push({
+      mesh,
+      velocity,
+      rotSpeed,
+      life: 1.8,
+      maxLife: 1.8,
+      bounced: 0
+    });
   }
 
   _createCircleTexture(colorHex) {
@@ -274,6 +312,36 @@ export class ParticleSystem {
 
       t.line.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
       t.line.geometry.attributes.position.needsUpdate = true;
+    }
+
+    // Update physical bullet casings
+    for (let i = this.casings.length - 1; i >= 0; i--) {
+      const c = this.casings[i];
+      c.life -= delta;
+
+      if (c.life <= 0) {
+        this.scene.remove(c.mesh);
+        this.casings.splice(i, 1);
+        continue;
+      }
+
+      // Physics
+      c.velocity.y -= 18.0 * delta; // Gravity
+      c.mesh.position.addScaledVector(c.velocity, delta);
+
+      c.mesh.rotation.x += c.rotSpeed.x * delta;
+      c.mesh.rotation.y += c.rotSpeed.y * delta;
+      c.mesh.rotation.z += c.rotSpeed.z * delta;
+
+      // Ground bounce check
+      if (c.mesh.position.y <= 0.02 && c.bounced < 2) {
+        c.mesh.position.y = 0.02;
+        c.velocity.y = -c.velocity.y * 0.4;
+        c.velocity.x *= 0.6;
+        c.velocity.z *= 0.6;
+        c.rotSpeed.multiplyScalar(0.5);
+        c.bounced++;
+      }
     }
   }
 }

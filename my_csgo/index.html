@@ -24,16 +24,25 @@
   <!-- Hitmarker -->
   <div id="hitmarker"></div>
 
-  <!-- Top HUD (Timer & Score) -->
+  <!-- Top HUD (Team Scoreboard & Match Timer) -->
   <div id="top-hud">
-    <div class="score-box">
-      <span class="score-label">KILLS</span>
-      <span id="score-kills" class="score-val">0</span>
+    <div class="team-score-card ct">
+      <span class="team-tag ct">CT</span>
+      <span id="score-ct" class="team-score-val">0</span>
     </div>
-    <div id="match-timer">00:00</div>
-    <div class="score-box">
-      <span class="score-label">DEATHS</span>
-      <span id="score-deaths" class="score-val">0</span>
+
+    <div class="center-match-info">
+      <div id="match-timer">00:00</div>
+      <div class="personal-kd">
+        <span>K: <strong id="score-kills">0</strong></span>
+        <span class="kd-divider">/</span>
+        <span>D: <strong id="score-deaths">0</strong></span>
+      </div>
+    </div>
+
+    <div class="team-score-card t">
+      <span id="score-t" class="team-score-val">0</span>
+      <span class="team-tag t">T</span>
     </div>
   </div>
 
@@ -86,7 +95,7 @@
   <div id="start-screen" class="overlay-screen">
     <div class="modal-box">
       <h1 class="modal-title">CS:GO Web Clone</h1>
-      <p class="modal-subtitle">Dust II Mini Map • AK-47 & Desert Eagle • Bot AI</p>
+      <p class="modal-subtitle">Dust II Mini • CT vs T Team Battle (Bots Aliados & Inimigos) • Gráficos Procedurais HD</p>
 
       <div class="controls-grid">
         <div class="control-item"><span class="control-key">W A S D</span> Movimento</div>

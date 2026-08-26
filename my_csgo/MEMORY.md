@@ -57,17 +57,49 @@ Este arquivo preserva as decisões arquiteturais, constantes calibradas de jogab
   - Ao morrer, um banner não-intrusivo surge no topo com contador regressivo animado de `2.5s` e barra de progresso. Ao expirar o tempo, o jogador renasce na base com vida/colete cheios e mantém o controle de mira suavemente.
 
 ### 6. Aprimoramentos Gráficos & Efeitos Visuais
-- **Texturas em Alta Resolução (1024x1024) com Bump Mapping**:
-  - Solo de arenito com mapa de relevo (*bump map*) simulando pedras, ranhuras e fendas sob a luz do sol.
-  - Paredes com tijolos texturizados, linhas de argamassa e marcas de desgaste do deserto.
-  - Caixas de madeira com veios de madeira, reforços de cantoneira metálica, rebites 3D e stencils táticos do CS:GO.
-- **Domo de Céu Atmosférico (Sky Dome)**:
-  - Céu em gradiente simulando o horizonte ensolarado característico de Dust II com neblina volumétrica suave (`FogExp2`).
-- **Iluminação & Cenário**:
-  - Sombras suaves em alta definição (2048x2048 PCFSoftShadowMap), lanternas pontuais com luz quente nas áreas do Bombsite A e túnel Long.
-  - Adição de barris metálicos industriais (vermelhos explosivos e amarelos tóxicos).
-- **Partículas & Efeitos de Impacto**:
-  - Puffs de poeira e fumaça ao acertar tiros nas paredes, faíscas brilhantes com decaimento gravitacional e traçantes luminosos aprimorados.
+### 7. Overhaul dos Gráficos das Armas & Braços em Primeira Pessoa (Viewmodel HD)
+- **Braços e Luvas Táticas Procedurais**:
+  - Adicionados braços em primeira pessoa com mangas táticas SAS/CT (`#263345`) e luvas de combate com placas de fibra de carbono nos nós dos dedos e palma antiderrapante.
+  - Empunhadura realista:
+    - **AK-47**: Mão esquerda sustentando o guarda-mão de madeira inferior; mão direita empunhando o cabo anatômico com dedo indicador no guarda-mato.
+    - **Desert Eagle**: Empunhadura de combate tática com as duas mãos (postura Isósceles moderna / *support hand* reforçando os dedos da mão principal).
+- **Texturas Procedurais e Acabamento das Armas**:
+  - Textura de madeira nobre envernizada com veios e nós laminados aplicada na coronha, guarda-mão duplo e punho da AK-47.
+  - Textura de aço estampado/fosfatizado (*gunmetal*) com ranhuras de reforço no corpo da culatra e no carregador curvo estilo banana (30 tiros).
+  - Textura de cromo escovado com serrilhas de manobra (*cocking serrations*) e trilho Picatinny superior para a Desert Eagle.
+  - Painéis de empunhadura da Deagle com zigrinado antiderrapante (*diamond checkering*) e medalhão com a águia do CS.
+- **Animações de Blowback & Ejeção Física de Cartuchos**:
+  - Animação de recuo do ferrolho (*bolt carrier*) na AK-47 e da culatra/slide na Deagle a cada disparo.
+  - Sistema de partículas com física para cartuchos de latão (*brass bullet casings*): a cada tiro, uma cápsula dourada é ejetada com velocidade lateral, rotação tridimensional e quique dinâmico no solo.
+
+### 8. Sistema de Times (CT vs Terroristas) & Bots Aliados (Friendly Bots)
+- **Estrutura de Times e Combate Tático**:
+  - O jogador faz parte do time **CT** (Contraterrorista).
+  - Adicionados **Bots Aliados CT** (`CT_Alpha`, `CT_Bravo`) que cooperam com o jogador.
+  - Adicionados **Bots Inimigos T** (`T_Phoenix`, `T_Leet`, `T_Balkan`).
+- **Modelagem Visual Distinta por Time**:
+  - **CT (Aliados)**: Farda tática azul marinho, colete balístico SWAT, capacete de Kevlar com visor tático azul e marcador holográfico 3D de aliado sobre a cabeça (`▲ CT_Alpha`).
+  - **Terroristas (Inimigos)**: Jaquetas camufladas do deserto, coletes táticos marrons, bandanas vermelhas/máscaras e óculos escuros de assalto.
+- **IA de Combate Tático e Dano Entre Bots**:
+  - Bots CT patrulham e engajam apenas bots Terroristas visíveis.
+  - Bots T perseguem e disparam contra o Jogador e contra os Bots CT aliados.
+  - Combate dinâmico Bot-vs-Bot com rastros balísticos, sangue e eliminações mútuas.
+  - Proteção contra fogo amigo: disparos do jogador em aliados CT não causam dano letal à equipe.
+- **Placar de Equipes & Killfeed Colorido**:
+  - Top HUD exibe o placar de rodadas/eliminações: **[CT 0] [Timer] [0 T]**, além do K/D individual.
+  - Killfeed estilizado com destaque de cores azul para CTs (Jogador e aliados) e vermelho/laranja para Terroristas, além de ícones de Headshot.
+
+### 9. Correção de Física dos Bots, Colisões Sólidas e Oclusão de Paredes
+- **Física e Colisões Sólidas dos Bots**:
+  - Implementado sistema de caixas delimitadoras AABB (`radius = 0.42m`) para os bots contra `this.map.colliders`, impedindo que atravessem paredes, caixas ou containers.
+  - Adicionado deslizamento de parede (*wall sliding*) e temporizador de desvencilhamento (*unstuck timer*) caso fiquem bloqueados em esquinas estreitas.
+  - Animação de caminhada com rotação alternada das pernas (`leftLeg` / `rightLeg`) e balanço pélvico no torso (`walkCycle`), eliminando o movimento estático/deslizante.
+- **Oclusão Estrita de Linha de Visão e Balística (Sem Atravessar Paredes)**:
+  - Raycast estrito de linha de visão a partir dos olhos dos bots: qualquer obstáculo sólido antes do alvo bloqueia a detecção.
+  - Raycast instantâneo no momento exato do disparo de cada bot: se uma parede/caixa obstruir a trajetória, o projétil atinge o obstáculo gerando faíscas e traçante no ponto de impacto, sem causar dano através da parede.
+- **Sistema de Guarda e Troca de Armas (Weapon Holstering / Anti-Sobreposição)**:
+  - Correção na visibilidade das armas no `WeaponManager`: agora apenas a arma ativa permanece visível, garantindo que a AK-47 e a Desert Eagle nunca fiquem sobrepostas.
+  - Animação suave de saque (*draw / unholster animation*) subindo a arma do coldre ao alternar entre os slots 1 e 2.
 
 ---
 
@@ -94,3 +126,4 @@ Este arquivo preserva as decisões arquiteturais, constantes calibradas de jogab
 2. **Granadas**: Granada de fumaça (Smoke), Flashbang (com efeito de cegueira na tela) e HE Grenade.
 3. **Plantação da C4**: Timer de 40s da bomba no Bombsite A com kit de defuse para CTs.
 4. **Multiplayer**: Suporte a salas multiplayer via WebSockets / WebRTC.
+
