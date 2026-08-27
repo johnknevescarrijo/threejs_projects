@@ -40,7 +40,7 @@ Desenvolver um jogo completo e interativo de **Futebol de Botão 3D** utilizando
     - **Fácil:** Dispersão angular maior e força reduzida/aleatória.
     - **Médio:** Mira consistente no gol e força calibrada.
     - **Craque (Difícil):** Mira precisa nos cantos do gol desviando do goleiro adversário e força otimizada.
-    - **Lendário (Extremo Master):** Inteligência tática avançada com raycasting de desobstrução, detecção de jogadas de tabela (bank shots) nas bordas de madeira, finalizações cirúrgicas no ângulo oposto ao goleiro, posicionamento defensivo automático do goleiro fechando o ângulo da bola e potência máxima com velocidade turbinada (3.4x).
+    - **Lendário (Extremo Master):** Inteligência tática avançada com simulação prospectiva de física (forward physics simulation), passes e assistências para atacantes desmarcados, jogadas posicionais de bloqueio defensivo, raycasting de desobstrução, detecção de jogadas de tabela (bank shots) nas bordas de madeira, finalizações cirúrgicas no ângulo oposto ao goleiro, posicionamento defensivo automático do goleiro fechando o ângulo da bola e potência máxima com velocidade turbinada (3.4x).
 
 ## 5. Mecânicas de Jogo (Física & Interação)
 - **Seleção & Disparo:** O jogador clica em um botão do seu time no seu turno, arrasta para trás para dosar a força e direção, e solta para impulsionar o botão.

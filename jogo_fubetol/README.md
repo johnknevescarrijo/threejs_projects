@@ -12,7 +12,7 @@ Um jogo interativo e completo de **Futebol de Botão 3D** construído com **Thre
   - 🤖🤖 **Assistir (Bot vs Bot):** Acompanhe uma partida simulada entre dois bots autônomos.
 - **Inteligência Artificial (Bot):**
   - Quatro níveis de desafio: **🟢 Fácil (Iniciante)**, **🟡 Médio (Equilibrado)**, **🔴 Craque (Difícil)** e **👑 Lendário (Extremo Master)**.
-  - Tomada de decisão vetorial e analítica: raycasting para desobstrução de jogadas, chutes de tabela (bank shots) nas bordas de madeira, finalizações cirúrgicas no ângulo oposto ao goleiro, posicionamento defensivo automático da meta e velocidade de disparo turbinada.
+  - Tomada de decisão analítica profunda: simulação física prospectiva dos lances, passes e assistências para armação de jogadas, bloqueios posicionais para anular o contra-ataque adversário, raycasting de desobstrução, jogadas de tabela (bank shots) e velocidade máxima de disparo ($3.4\times$).
   - Animação de mira e tempo de raciocínio dinâmico da IA antes de chutar.
 - **Mesa de Botão Clássica:** Campo verde com marcações detalhadas e tabelas/bordas elevadas de madeira para jogadas de rebote.
 - **Peças Tradicionais:**
