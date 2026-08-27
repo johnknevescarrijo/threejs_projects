@@ -414,6 +414,10 @@
             <span class="opt-icon">🔴</span>
             <span>Craque</span>
           </button>
+          <button class="option-btn" data-value="legendary">
+            <span class="opt-icon">👑</span>
+            <span>Lendário</span>
+          </button>
         </div>
       </div>
 
@@ -1075,7 +1079,9 @@
     function getDifficultyLabel(diff) {
       if (diff === 'easy') return 'Fácil';
       if (diff === 'medium') return 'Médio';
-      return 'Craque';
+      if (diff === 'hard') return 'Craque';
+      if (diff === 'legendary') return 'Lendário';
+      return 'Médio';
     }
 
     function updateScoreboardBadges() {
@@ -1116,8 +1122,61 @@
     }
 
     // =========================================================================
-    // 7.1 INTELIGÊNCIA ARTIFICIAL (BOT)
+    // 7.1 INTELIGÊNCIA ARTIFICIAL (BOT) AVANÇADA
     // =========================================================================
+    function segmentIntersectsCircle(p1, p2, center, radius) {
+      const seg = new THREE.Vector2().subVectors(p2, p1);
+      const lenSq = seg.lengthSq();
+      if (lenSq < 0.0001) return p1.distanceTo(center) <= radius;
+      const toC = new THREE.Vector2().subVectors(center, p1);
+      const t = Math.max(0, Math.min(1, toC.dot(seg) / lenSq));
+      const proj = new THREE.Vector2().copy(p1).addScaledVector(seg, t);
+      return proj.distanceTo(center) <= radius;
+    }
+
+    function isPathClear(start, end, ignoredA, ignoredB, clearanceRadius) {
+      for (let k = 0; k < pieces.length; k++) {
+        const p = pieces[k];
+        if (p === ignoredA || p === ignoredB) continue;
+        if (segmentIntersectsCircle(start, end, p.pos, clearanceRadius + p.radius * 0.88)) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    function updateDefensiveGoalkeepers() {
+      if (goalCooldown) return;
+      const isRedBot = (gameMode === 'eve') || (gameMode === 'pve' && playerTeam === 'blue');
+      const isBlueBot = (gameMode === 'eve') || (gameMode === 'pve' && playerTeam === 'red');
+
+      if (botDifficulty === 'legendary' || botDifficulty === 'hard') {
+        const smoothing = botDifficulty === 'legendary' ? 0.92 : 0.6;
+
+        if (isRedBot) {
+          const redGk = pieces.find(p => p.team === 'red' && p.type === 'gk');
+          if (redGk) {
+            const targetZ = THREE.MathUtils.clamp(ball.pos.y * 0.65, -goalHalfW * 0.58, goalHalfW * 0.58);
+            redGk.pos.y = THREE.MathUtils.lerp(redGk.pos.y, targetZ, smoothing);
+            redGk.pos.x = -39;
+            redGk.mesh.position.x = redGk.pos.x;
+            redGk.mesh.position.z = redGk.pos.y;
+          }
+        }
+
+        if (isBlueBot) {
+          const blueGk = pieces.find(p => p.team === 'blue' && p.type === 'gk');
+          if (blueGk) {
+            const targetZ = THREE.MathUtils.clamp(ball.pos.y * 0.65, -goalHalfW * 0.58, goalHalfW * 0.58);
+            blueGk.pos.y = THREE.MathUtils.lerp(blueGk.pos.y, targetZ, smoothing);
+            blueGk.pos.x = 39;
+            blueGk.mesh.position.x = blueGk.pos.x;
+            blueGk.mesh.position.z = blueGk.pos.y;
+          }
+        }
+      }
+    }
+
     function triggerBotTurnIfNeeded() {
       if (isMoving || goalCooldown || isBotThinking) return;
       if (!isCurrentTurnBot()) return;
@@ -1125,8 +1184,9 @@
       isBotThinking = true;
       updateTurnUI();
 
-      // Delay natural para o jogador ver a transição
-      const thinkTime = 700 + Math.random() * 500;
+      // Raciocínio rápido e cirúrgico no Lendário
+      const baseThink = botDifficulty === 'legendary' ? 350 : 650;
+      const thinkTime = baseThink + Math.random() * 350;
       botTimeoutId = setTimeout(() => {
         if (!isMoving && !goalCooldown && isCurrentTurnBot()) {
           executeBotTurn();
@@ -1146,129 +1206,182 @@
         return;
       }
 
-      // 1. Escolher a melhor peça e o melhor ponto de chute
+      const enemyGK = pieces.find(p => p.team !== botTeam && p.type === 'gk');
+
+      // Gera alvos estratégicos (Gols Diretos nos Ângulos + Tabelas nas Bordas de Madeira)
+      const candidateTargets = [];
+
+      if (botDifficulty === 'legendary') {
+        const farPostZ = enemyGK ? (enemyGK.pos.y >= 0 ? -(goalHalfW * 0.74) : (goalHalfW * 0.74)) : -(goalHalfW * 0.74);
+        const nearPostZ = -farPostZ;
+
+        // 1. Ângulo oposto ao goleiro (abertura livre)
+        candidateTargets.push({ pos: new THREE.Vector2(targetGoalX, farPostZ), isGoal: true, isFarPost: true, weight: 1.5 });
+        // 2. Outro ângulo da trave
+        candidateTargets.push({ pos: new THREE.Vector2(targetGoalX, nearPostZ), isGoal: true, isFarPost: false, weight: 1.2 });
+        // 3. Cantos médios
+        candidateTargets.push({ pos: new THREE.Vector2(targetGoalX, farPostZ * 0.5), isGoal: true, isFarPost: false, weight: 1.0 });
+
+        // 4. Tabelinhas nas Bordas de Madeira (Bank Shots / Rebotes)
+        const topWallZ = -halfW + BALL_RADIUS + 0.5;
+        const bottomWallZ = halfW - BALL_RADIUS - 0.5;
+        // Alvo espelhado na parede superior
+        candidateTargets.push({
+          pos: new THREE.Vector2(targetGoalX, 2 * topWallZ - farPostZ),
+          isGoal: true,
+          isBankShot: true,
+          weight: 1.3
+        });
+        // Alvo espelhado na parede inferior
+        candidateTargets.push({
+          pos: new THREE.Vector2(targetGoalX, 2 * bottomWallZ - farPostZ),
+          isGoal: true,
+          isBankShot: true,
+          weight: 1.3
+        });
+
+        // 5. Chute tático de pressão ofensiva profunda
+        candidateTargets.push({ pos: new THREE.Vector2(targetGoalX * 0.85, 0), isGoal: false, weight: 0.6 });
+      } else if (botDifficulty === 'hard') {
+        const targetZ = enemyGK ? (enemyGK.pos.y >= 0 ? -(goalHalfW * 0.65) : (goalHalfW * 0.65)) : (goalHalfW * 0.65);
+        candidateTargets.push({ pos: new THREE.Vector2(targetGoalX, targetZ), isGoal: true, weight: 1.2 });
+        candidateTargets.push({ pos: new THREE.Vector2(targetGoalX, -targetZ), isGoal: true, weight: 1.0 });
+      } else if (botDifficulty === 'medium') {
+        candidateTargets.push({ pos: new THREE.Vector2(targetGoalX, (Math.random() - 0.5) * (goalHalfW * 0.8)), isGoal: true, weight: 1.0 });
+      } else {
+        // Easy
+        candidateTargets.push({ pos: new THREE.Vector2(targetGoalX, (Math.random() - 0.5) * goalHalfW), isGoal: true, weight: 1.0 });
+      }
+
       let bestPiece = null;
       let bestScore = -Infinity;
       let bestShotDir = new THREE.Vector2();
       let bestTargetPower = 0.7;
-
-      // Definir o ponto alvo dentro da baliza adversária
-      let targetGoalZ = 0;
-      if (botDifficulty === 'hard') {
-        // Mira nos cantos do gol evitando o goleiro adversário
-        const enemyGK = pieces.find(p => p.team !== botTeam && p.type === 'gk');
-        if (enemyGK) {
-          // Se o goleiro estiver mais para a direita (Z positivo), chuta na esquerda (Z negativo) e vice-versa
-          targetGoalZ = enemyGK.pos.y >= 0 ? -(goalHalfW * 0.65) : (goalHalfW * 0.65);
-        } else {
-          targetGoalZ = (Math.random() > 0.5 ? 1 : -1) * (goalHalfW * 0.65);
-        }
-      } else if (botDifficulty === 'medium') {
-        targetGoalZ = (Math.random() - 0.5) * (goalHalfW * 0.8);
-      } else {
-        // Easy: mira no meio com possível erro
-        targetGoalZ = (Math.random() - 0.5) * goalHalfW;
-      }
-
-      const goalPos = new THREE.Vector2(targetGoalX, targetGoalZ);
-
-      // Vetor da bola até o gol adversário
-      const ballToGoal = new THREE.Vector2().subVectors(goalPos, ball.pos);
-      const ballToGoalDist = ballToGoal.length();
-      const ballToGoalDir = ballToGoal.clone().normalize();
-
-      // Ponto ideal onde o botão deve atingir a bola (logo atrás dela na direção oposta ao gol)
-      const idealImpactDist = BUTTON_RADIUS + BALL_RADIUS + 0.1;
-      const idealTouchPos = new THREE.Vector2(
-        ball.pos.x - ballToGoalDir.x * idealImpactDist,
-        ball.pos.y - ballToGoalDir.y * idealImpactDist
-      );
+      let isLethalGoalShot = false;
 
       availablePieces.forEach(p => {
         const isGK = p.type === 'gk';
-        const toImpact = new THREE.Vector2().subVectors(idealImpactDist ? idealTouchPos : ball.pos, p.pos);
-        const distToImpact = toImpact.length();
 
-        // Direção que a peça se moveria
-        const moveDir = toImpact.clone().normalize();
+        candidateTargets.forEach(target => {
+          const targetPos = target.pos;
+          const ballToTarget = new THREE.Vector2().subVectors(targetPos, ball.pos);
+          const ballToTargetDist = ballToTarget.length();
+          const ballToTargetDir = ballToTarget.clone().normalize();
 
-        // Alinhamento com o gol (produto escalar)
-        const alignment = moveDir.dot(ballToGoalDir);
+          // Ponto de contato onde o centro do botão deve atingir a bola
+          const idealTouchPos = new THREE.Vector2(
+            ball.pos.x - ballToTargetDir.x * (BUTTON_RADIUS + BALL_RADIUS + 0.12),
+            ball.pos.y - ballToTargetDir.y * (BUTTON_RADIUS + BALL_RADIUS + 0.12)
+          );
 
-        // Pontuação base: proximidade do ponto ideal
-        let score = 100 - distToImpact * 1.5;
+          const toImpact = new THREE.Vector2().subVectors(idealTouchPos, p.pos);
+          const distToImpact = toImpact.length();
+          const moveDir = toImpact.clone().normalize();
 
-        // Bonificação pelo alinhamento ofensivo
-        score += alignment * 40;
+          // Alinhamento do vetor de aproximação com a saída da bola
+          const alignment = moveDir.dot(ballToTargetDir);
 
-        // Se a peça estiver entre a bola e o gol adversário (ou seja, teria que chutar contra o próprio gol)
-        const isBehindBall = (botTeam === 'red' && p.pos.x < ball.pos.x) ||
-                             (botTeam === 'blue' && p.pos.x > ball.pos.x);
-        if (isBehindBall) {
-          score += 30;
-        } else {
-          score -= 45; // Penaliza peças mal posicionadas para chutar em direção ao gol
-        }
+          // Se a peça estiver na frente da bola ou em ângulo impossível, descarta
+          if (alignment < 0.2 && botDifficulty === 'legendary') return;
 
-        // Penalidade para goleiro se afastar da meta
-        if (isGK) {
-          const distToOwnGoal = Math.abs(p.pos.x - (botTeam === 'red' ? -halfL : halfL));
-          if (distToImpact > 18) {
-            score -= 80; // Não sai do gol se a bola estiver longe
+          let score = 150 - distToImpact * 1.2;
+          score += alignment * 80;
+
+          // Bônus para peças posicionadas atrás da linha da bola
+          const isBehindBall = (botTeam === 'red' && p.pos.x < ball.pos.x) ||
+                               (botTeam === 'blue' && p.pos.x > ball.pos.x);
+          if (isBehindBall) {
+            score += 60;
           } else {
-            score -= 20;
+            score -= 100;
           }
-        }
 
-        // Adiciona um fator aleatório moderado nas dificuldades mais baixas
-        if (botDifficulty === 'easy') {
-          score += (Math.random() - 0.5) * 35;
-        } else if (botDifficulty === 'medium') {
-          score += (Math.random() - 0.5) * 15;
-        }
+          // Penalidade para goleiro se afastar da trave
+          if (isGK) {
+            if (distToImpact > 14) {
+              score -= 300;
+            } else {
+              score -= 60;
+            }
+          }
 
-        if (score > bestScore) {
-          bestScore = score;
-          bestPiece = p;
-          bestShotDir = moveDir;
+          // Verificação de Obstáculos e Trajetória Livre
+          const pathPToImpactClear = isPathClear(p.pos, idealTouchPos, p, ball, BUTTON_RADIUS);
+          const hitsBallWrongSide = segmentIntersectsCircle(p.pos, idealTouchPos, ball.pos, BUTTON_RADIUS + BALL_RADIUS - 0.3);
+          const pathBallToTargetClear = isPathClear(ball.pos, targetPos, p, ball, BALL_RADIUS);
 
-          // Cálculo de força necessária baseada na distância até a bola + distância até o gol
-          const totalDistance = distToImpact + ballToGoalDist;
-          let power = Math.min(Math.max(totalDistance / 60, 0.45), 1.0);
+          if (pathPToImpactClear && !hitsBallWrongSide) {
+            score += 120;
 
+            if (target.isGoal && pathBallToTargetClear) {
+              // OPORTUNIDADE CLARA DE GOL DIRETO!
+              score += 1500 * target.weight;
+              if (target.isFarPost) score += 400;
+            } else if (target.isBankShot) {
+              // OPORTUNIDADE DE GOL DE REBOTE NA TABELA!
+              score += 1000 * target.weight;
+            }
+          } else {
+            score -= 250; // Trajetória obstruída por peças
+          }
+
+          // Variações aleatórias apenas para níveis fáceis/médios
           if (botDifficulty === 'easy') {
-            power *= 0.65 + Math.random() * 0.4;
+            score += (Math.random() - 0.5) * 50;
           } else if (botDifficulty === 'medium') {
-            power *= 0.85 + Math.random() * 0.2;
-          } else {
-            power = Math.min(1.0, power * 1.1);
+            score += (Math.random() - 0.5) * 20;
+          } else if (botDifficulty === 'hard') {
+            score += (Math.random() - 0.5) * 5;
           }
 
-          bestTargetPower = power;
-        }
+          if (score > bestScore) {
+            bestScore = score;
+            bestPiece = p;
+            bestShotDir = moveDir;
+
+            const totalDistance = distToImpact + ballToTargetDist;
+            let power = Math.min(Math.max(totalDistance / 55, 0.5), 1.0);
+
+            if (botDifficulty === 'easy') {
+              power *= 0.65 + Math.random() * 0.4;
+            } else if (botDifficulty === 'medium') {
+              power *= 0.85 + Math.random() * 0.2;
+            } else if (botDifficulty === 'hard') {
+              power = Math.min(1.0, power * 1.15);
+            } else if (botDifficulty === 'legendary') {
+              // No Lendário: Potência máxima para finalizações indefensáveis
+              power = (target.isGoal && pathPToImpactClear && !hitsBallWrongSide) ? 1.0 : Math.min(1.0, Math.max(0.75, (totalDistance / 45) * 1.3));
+              isLethalGoalShot = target.isGoal && pathPToImpactClear;
+            }
+
+            bestTargetPower = power;
+          }
+        });
       });
 
       if (!bestPiece) {
         bestPiece = availablePieces[0];
         bestShotDir.set(botTeam === 'red' ? 1 : -1, 0);
-        bestTargetPower = 0.6;
+        bestTargetPower = 0.65;
       }
 
-      // Aplica imprecisão angular de acordo com o nível da IA
+      // Aplica imprecisão angular apenas nas dificuldades inferiores
       if (botDifficulty === 'easy') {
-        const errorAngle = (Math.random() - 0.5) * 0.45; // ~25 graus de erro
+        const errorAngle = (Math.random() - 0.5) * 0.45;
         bestShotDir.rotateAround(new THREE.Vector2(0, 0), errorAngle);
       } else if (botDifficulty === 'medium') {
-        const errorAngle = (Math.random() - 0.5) * 0.15; // ~8 graus de erro
+        const errorAngle = (Math.random() - 0.5) * 0.15;
+        bestShotDir.rotateAround(new THREE.Vector2(0, 0), errorAngle);
+      } else if (botDifficulty === 'hard') {
+        const errorAngle = (Math.random() - 0.5) * 0.03;
         bestShotDir.rotateAround(new THREE.Vector2(0, 0), errorAngle);
       }
+      // Nível Lendário: Precisão milimétrica absoluta (0% erro)
 
-      // Efeito visual de foco no botão da IA
       if (bestPiece.ring) {
         bestPiece.ring.material.opacity = 0.9;
       }
 
-      // Mostra a mira do Bot brevemente
       const shootDist = bestTargetPower * 14.0;
       const targetX = bestPiece.pos.x + bestShotDir.x * shootDist;
       const targetZ = bestPiece.pos.y + bestShotDir.y * shootDist;
@@ -1286,20 +1399,21 @@
       aimCircle.position.set(targetX, 0.1, targetZ);
       aimCircle.visible = true;
 
-      // Executa o chute após a animação de mira
+      // Executa o disparo com velocidade proporcional ao nível
       setTimeout(() => {
         if (bestPiece.ring) bestPiece.ring.material.opacity = 0;
         aimLine.visible = false;
         aimCircle.visible = false;
 
-        const speed = bestTargetPower * 2.8;
+        const speedMultiplier = botDifficulty === 'legendary' ? 3.4 : 2.8;
+        const speed = bestTargetPower * speedMultiplier;
         bestPiece.vel.x = bestShotDir.x * speed;
         bestPiece.vel.y = bestShotDir.y * speed;
 
         playShootSound(bestTargetPower);
         isMoving = true;
         isBotThinking = false;
-      }, 350);
+      }, botDifficulty === 'legendary' ? 260 : 350);
     }
 
     // Interação com Mouse / Touch para jogadores humanos
@@ -1594,6 +1708,7 @@
         const stillMoving = allEntities.some(ent => ent.vel.lengthSq() > 0.0001);
         if (!stillMoving) {
           isMoving = false;
+          updateDefensiveGoalkeepers();
           // Alterna turno
           currentTurn = currentTurn === 'red' ? 'blue' : 'red';
           updateTurnUI();

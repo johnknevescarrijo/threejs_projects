@@ -53,6 +53,11 @@ jogo_fubetol/
   - **Fácil:** Maior dispersão angular (desvio aleatório) e força variável.
   - **Médio:** Mira consistente no gol e força calibrada.
   - **Craque (Difícil):** Calcula a posição do goleiro adversário e busca os cantos livres da trave com precisão e força calibrada para a distância.
+  - **Lendário (Extremo Master):** Inteligência analítica completa:
+    - **Raycasting de Obstáculos:** Verifica se o caminho do botão até o ponto de impacto e da bola até o alvo estão 100% livres de interceptação.
+    - **Tabelinhas / Bank Shots:** Se a linha direta para o gol estiver bloqueada, calcula ricochete perfeito nas tabelas/bordas de madeira.
+    - **Defesa Ativa do Goleiro:** O goleiro da IA desliza automaticamente para cobrir a linha de tiro da bola a cada final de jogada.
+    - **Velocidade e Potência Máxima:** Disparos com velocidade turbinada ($3.4\times$) e precisão milimétrica sem dispersão.
 - **Feedback Visual & Temporal:**
   - Simulação de tempo de reação ("pensando..."), anel indicador no botão escolhido e linha de mira temporária antes do disparo.
 
