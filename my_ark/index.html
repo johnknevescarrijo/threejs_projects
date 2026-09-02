@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ARK: Sobrevivência Pré-Histórica (Cel-Shaded)</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #0c1017;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: #f1f5f9;
+    }
+
+    #canvas-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+
+    /* Red Damage Vignette Flash */
+    #damage-vignette {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 5;
+      background: radial-gradient(circle, rgba(239, 68, 68, 0) 55%, rgba(220, 38, 38, 0.75) 100%);
+      opacity: 0;
+      transition: opacity 0.08s ease-out;
+    }
+
+    /* Crosshair */
+    #crosshair {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+    }
+
+    .crosshair-dot {
+      width: 6px;
+      height: 6px;
+      background-color: #fbbf24;
+      border: 1.5px solid #000000;
+      border-radius: 50%;
+    }
+
+    /* HUD Layout */
+    #hud-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 24px;
+    }
+
+    /* Top HUD (Biome, Time & Minimap) */
+    .hud-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      width: 100%;
+    }
+
+    .hud-badge-group {
+      display: flex;
+      gap: 12px;
+    }
+
+    .hud-pill-badge {
+      background: rgba(15, 23, 42, 0.88);
+      border: 2px solid #f59e0b;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), inset 0 0 8px rgba(245, 158, 11, 0.2);
+      padding: 8px 16px;
+      border-radius: 24px;
+      font-weight: 700;
+      font-size: 14px;
+      letter-spacing: 0.5px;
+      color: #fef08a;
+      backdrop-filter: blur(6px);
+      text-shadow: 1px 1px 2px #000000;
+    }
+
+    /* Minimap Radar (Top Right) */
+    #minimap-container {
+      position: relative;
+      width: 160px;
+      height: 160px;
+      border-radius: 50%;
+      background: rgba(15, 23, 42, 0.9);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+    }
+
+    #minimap-canvas {
+      width: 160px;
+      height: 160px;
+      border-radius: 50%;
+    }
+
+    /* Center Interaction Tooltip Prompt */
+    #hud-interaction-prompt {
+      position: absolute;
+      top: 58%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(15, 23, 42, 0.92);
+      border: 2px solid #fbbf24;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+      padding: 10px 22px;
+      border-radius: 20px;
+      font-weight: bold;
+      font-size: 16px;
+      color: #ffffff;
+      opacity: 0;
+      transition: opacity 0.15s ease;
+      text-shadow: 1px 1px 3px #000;
+      pointer-events: none;
+      z-index: 12;
+    }
+
+    /* Bottom HUD (Status Bars & Hotbar) */
+    .hud-bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      width: 100%;
+    }
+
+    /* Status Bars (Bottom Left) */
+    #status-bars-panel {
+      background: rgba(15, 23, 42, 0.88);
+      border: 2px solid #d97706;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), inset 0 0 10px rgba(217, 119, 6, 0.25);
+      padding: 16px;
+      border-radius: 16px;
+      width: 260px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      backdrop-filter: blur(8px);
+    }
+
+    .bar-row {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .bar-label-group {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #cbd5e1;
+    }
+
+    .bar-track {
+      width: 100%;
+      height: 12px;
+      background: #1e293b;
+      border: 1.5px solid #0f172a;
+      border-radius: 6px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.15s ease;
+    }
+
+    .bar-hp { background: linear-gradient(90deg, #dc2626, #ef4444); }
+    .bar-stam { background: linear-gradient(90deg, #059669, #10b981); }
+    .bar-hunger { background: linear-gradient(90deg, #d97706, #f59e0b); }
+    .bar-thirst { background: linear-gradient(90deg, #0284c7, #38bdf8); }
+
+    /* Hotbar (Bottom Center) */
+    #hud-hotbar {
+      display: flex;
+      gap: 8px;
+      background: rgba(15, 23, 42, 0.88);
+      border: 2px solid #d97706;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+      padding: 8px 12px;
+      border-radius: 16px;
+      backdrop-filter: blur(8px);
+    }
+
+    .hotbar-slot {
+      position: relative;
+      width: 60px;
+      height: 60px;
+      background: rgba(30, 41, 59, 0.85);
+      border: 2px solid #475569;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      transition: all 0.15s ease;
+    }
+
+    .hotbar-slot.active {
+      border-color: #fbbf24;
+      background: rgba(245, 158, 11, 0.25);
+      transform: translateY(-4px);
+      box-shadow: 0 0 14px rgba(251, 191, 36, 0.6);
+    }
+
+    .slot-num {
+      position: absolute;
+      top: 2px;
+      left: 6px;
+      font-size: 11px;
+      font-weight: 800;
+      color: #94a3b8;
+    }
+
+    .slot-count {
+      position: absolute;
+      bottom: 2px;
+      right: 6px;
+      font-size: 12px;
+      font-weight: 800;
+      color: #ffffff;
+      text-shadow: 1px 1px 2px #000;
+    }
+
+    /* Notifications Popup Container */
+    #notifications-container {
+      position: absolute;
+      right: 24px;
+      top: 200px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 20;
+      pointer-events: none;
+    }
+
+    .notif-badge {
+      background: rgba(15, 23, 42, 0.95);
+      border: 2px solid #f59e0b;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+      padding: 10px 18px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      animation: slideIn 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      color: #ffffff;
+    }
+
+    .notif-badge.fade-out {
+      opacity: 0;
+      transform: translateX(40px);
+      transition: all 0.35s ease;
+    }
+
+    .notif-tame { border-color: #22c55e; color: #86efac; }
+    .notif-mount { border-color: #38bdf8; color: #bae6fd; }
+    .notif-damage { border-color: #ef4444; color: #fca5a5; }
+
+    @keyframes slideIn {
+      from { transform: translateX(100px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    /* Start / Overlay Screen */
+    #start-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(8, 12, 20, 0.88);
+      backdrop-filter: blur(10px);
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+
+    #start-overlay.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .start-card {
+      background: rgba(15, 23, 42, 0.95);
+      border: 3px solid #f59e0b;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8), inset 0 0 20px rgba(245, 158, 11, 0.2);
+      border-radius: 20px;
+      padding: 36px 48px;
+      max-width: 680px;
+      width: 100%;
+      text-align: center;
+    }
+
+    .game-title {
+      font-size: 38px;
+      font-weight: 900;
+      letter-spacing: 1px;
+      color: #fbbf24;
+      text-shadow: 2px 2px 0 #000000, 0 0 20px rgba(251, 191, 36, 0.6);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+
+    .game-subtitle {
+      font-size: 16px;
+      color: #94a3b8;
+      margin-bottom: 24px;
+    }
+
+    .controls-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      text-align: left;
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid #475569;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 28px;
+      font-size: 14px;
+    }
+
+    .ctrl-key {
+      display: inline-block;
+      background: #0f172a;
+      border: 1.5px solid #f59e0b;
+      color: #fbbf24;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 6px;
+      margin-right: 6px;
+      font-size: 12px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      border: 2px solid #fef08a;
+      color: #0f172a;
+      font-size: 20px;
+      font-weight: 900;
+      padding: 14px 44px;
+      border-radius: 30px;
+      cursor: pointer;
+      box-shadow: 0 8px 24px rgba(245, 158, 11, 0.4);
+      transition: all 0.2s ease;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .btn-primary:hover {
+      transform: scale(1.05);
+      box-shadow: 0 12px 32px rgba(245, 158, 11, 0.6);
+    }
+
+    /* Inventory & Crafting Modal [TAB] */
+    #inventory-modal {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(8, 12, 20, 0.85);
+      backdrop-filter: blur(8px);
+      z-index: 50;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    #inventory-modal.active {
+      display: flex;
+    }
+
+    .inv-modal-card {
+      background: rgba(15, 23, 42, 0.96);
+      border: 3px solid #f59e0b;
+      border-radius: 20px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85);
+      width: 900px;
+      max-width: 95vw;
+      height: 580px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .inv-header {
+      padding: 16px 24px;
+      border-bottom: 2px solid #334155;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .inv-title {
+      font-size: 22px;
+      font-weight: 800;
+      color: #fbbf24;
+      text-shadow: 1px 1px 2px #000;
+    }
+
+    .close-modal-btn {
+      background: #1e293b;
+      border: 1px solid #64748b;
+      color: #f1f5f9;
+      padding: 6px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .inv-body-split {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .inv-column {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .inv-col-title {
+      font-size: 16px;
+      font-weight: 800;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .inv-items-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 10px;
+    }
+
+    .inv-item-card {
+      background: rgba(30, 41, 59, 0.85);
+      border: 1.5px solid #475569;
+      border-radius: 10px;
+      padding: 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .inv-item-card:hover {
+      border-color: #fbbf24;
+      background: rgba(245, 158, 11, 0.15);
+      transform: translateY(-2px);
+    }
+
+    .inv-item-icon { font-size: 24px; }
+    .inv-item-info { flex: 1; }
+    .inv-item-name { font-size: 13px; font-weight: 700; color: #f8fafc; }
+    .inv-item-desc { font-size: 10px; color: #94a3b8; }
+    .inv-item-count { font-size: 14px; font-weight: 800; color: #fbbf24; }
+
+    /* Crafting recipes */
+    .craft-recipe-card {
+      background: rgba(30, 41, 59, 0.85);
+      border: 1.5px solid #475569;
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .craft-recipe-card.craftable {
+      border-color: #22c55e;
+    }
+
+    .recipe-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .recipe-icon { font-size: 24px; }
+    .recipe-name { font-size: 15px; font-weight: 800; color: #ffffff; }
+    .recipe-desc { font-size: 11px; color: #94a3b8; }
+
+    .recipe-requirements {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .recipe-cost-badge {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-weight: 700;
+    }
+
+    .cost-met { background: rgba(34, 197, 94, 0.2); border: 1px solid #22c55e; color: #86efac; }
+    .cost-missing { background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fca5a5; }
+
+    .craft-btn {
+      background: #059669;
+      border: 1px solid #34d399;
+      color: #ffffff;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-weight: 800;
+      font-size: 13px;
+      cursor: pointer;
+      align-self: flex-end;
+      transition: all 0.15s ease;
+    }
+
+    .craft-btn:disabled {
+      background: #334155;
+      border-color: #475569;
+      color: #64748b;
+      cursor: not-allowed;
+    }
+
+    .craft-btn:not(:disabled):hover {
+      background: #10b981;
+      transform: scale(1.04);
+    }
+
+    /* Help Modal [H] */
+    #help-modal {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(8, 12, 20, 0.85);
+      backdrop-filter: blur(8px);
+      z-index: 60;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    #help-modal.active { display: flex; }
+  </style>
+</head>
+<body>
+
+  <!-- Three.js Canvas Container -->
+  <div id="canvas-container"></div>
+
+  <!-- Damage Vignette Effect -->
+  <div id="damage-vignette"></div>
+
+  <!-- Crosshair -->
+  <div id="crosshair">
+    <div class="crosshair-dot"></div>
+  </div>
+
+  <!-- Dynamic Interaction Prompt -->
+  <div id="hud-interaction-prompt"></div>
+
+  <!-- Notifications List -->
+  <div id="notifications-container"></div>
+
+  <!-- In-Game HUD -->
+  <div id="hud-overlay">
+    <!-- Top HUD -->
+    <div class="hud-top">
+      <div class="hud-badge-group">
+        <div id="hud-biome-display" class="hud-pill-badge">📍 Costa Tropical</div>
+        <div id="hud-time-display" class="hud-pill-badge">⏰ 08:00 ☀️</div>
+      </div>
+      
+      <!-- Minimap Circular Radar -->
+      <div id="minimap-container">
+        <canvas id="minimap-canvas" width="160" height="160"></canvas>
+      </div>
+    </div>
+
+    <!-- Bottom HUD -->
+    <div class="hud-bottom">
+      <!-- Status Bars -->
+      <div id="status-bars-panel">
+        <!-- HP -->
+        <div class="bar-row">
+          <div class="bar-label-group">
+            <span>❤️ Vida</span>
+            <span id="hud-hp-val">100</span>
+          </div>
+          <div class="bar-track">
+            <div id="hud-hp-bar" class="bar-fill bar-hp" style="width: 100%;"></div>
+          </div>
+        </div>
+
+        <!-- Stamina -->
+        <div class="bar-row">
+          <div class="bar-label-group">
+            <span>⚡ Estamina</span>
+            <span id="hud-stam-val">100</span>
+          </div>
+          <div class="bar-track">
+            <div id="hud-stam-bar" class="bar-fill bar-stam" style="width: 100%;"></div>
+          </div>
+        </div>
+
+        <!-- Hunger -->
+        <div class="bar-row">
+          <div class="bar-label-group">
+            <span>🥩 Fome</span>
+          </div>
+          <div class="bar-track">
+            <div id="hud-hunger-bar" class="bar-fill bar-hunger" style="width: 100%;"></div>
+          </div>
+        </div>
+
+        <!-- Thirst -->
+        <div class="bar-row">
+          <div class="bar-label-group">
+            <span>💧 Sede</span>
+          </div>
+          <div class="bar-track">
+            <div id="hud-thirst-bar" class="bar-fill bar-thirst" style="width: 100%;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hotbar Slots 1 - 6 -->
+      <div id="hud-hotbar">
+        <div class="hotbar-slot active"><span class="slot-num">1</span></div>
+        <div class="hotbar-slot"><span class="slot-num">2</span></div>
+        <div class="hotbar-slot"><span class="slot-num">3</span></div>
+        <div class="hotbar-slot"><span class="slot-num">4</span></div>
+        <div class="hotbar-slot"><span class="slot-num">5</span></div>
+        <div class="hotbar-slot"><span class="slot-num">6</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Start Game Overlay -->
+  <div id="start-overlay">
+    <div class="start-card">
+      <h1 class="game-title">🦖 SOBREVIVÊNCIA PRÉ-HISTÓRICA</h1>
+      <p class="game-subtitle">Mundo aberto Cel-Shaded inspirado em ARK com 4 biomas e dinossauros vivos</p>
+
+      <div class="controls-grid">
+        <div><span class="ctrl-key">W A S D</span> Mover</div>
+        <div><span class="ctrl-key">SHIFT</span> Correr</div>
+        <div><span class="ctrl-key">ESPAÇO</span> Pular</div>
+        <div><span class="ctrl-key">CLIQUE ESQ</span> Atacar / Coletar / Construir</div>
+        <div><span class="ctrl-key">E</span> Interagir / Domesticar / Montar</div>
+        <div><span class="ctrl-key">TAB / I</span> Inventário & Criação (Crafting)</div>
+        <div><span class="ctrl-key">1 - 6</span> Selecionar Item da Barra</div>
+        <div><span class="ctrl-key">H</span> Guia de Ajuda</div>
+      </div>
+
+      <button id="start-btn" class="btn-primary">JOGAR AGORA</button>
+    </div>
+  </div>
+
+  <!-- Full Inventory & Crafting Modal [TAB / I] -->
+  <div id="inventory-modal">
+    <div class="inv-modal-card">
+      <div class="inv-header">
+        <div class="inv-title">🎒 SOBREVIVÊNCIA: MOCHILA & CRIAÇÃO</div>
+        <button id="close-inventory-btn" class="close-modal-btn">Fechar (TAB)</button>
+      </div>
+
+      <div class="inv-body-split">
+        <!-- Backpack items -->
+        <div class="inv-column" style="border-right: 2px solid #334155;">
+          <div class="inv-col-title">📦 Recursos & Itens na Mochila</div>
+          <div id="inventory-items-grid" class="inv-items-grid"></div>
+        </div>
+
+        <!-- Crafting recipes -->
+        <div class="inv-column">
+          <div class="inv-col-title">🔨 Blueprints de Criação</div>
+          <div id="crafting-recipes-grid" style="display: flex; flex-direction: column; gap: 10px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Help Modal [H] -->
+  <div id="help-modal">
+    <div class="start-card" style="max-width: 600px;">
+      <h2 style="color: #fbbf24; margin-bottom: 16px;">📖 GUIA DE SOBREVIVÊNCIA</h2>
+      <div style="text-align: left; font-size: 14px; line-height: 1.6; color: #cbd5e1; margin-bottom: 20px;">
+        <p>• <b>Coleta:</b> Use o Machado em árvores para coletar Madeira. Use a Picareta em rochas para Pedra e Sílex. Pressione [E] em arbustos para colher Fibras e Bagas.</p>
+        <p>• <b>Domesticação:</b> Aproxime-se de um <i>Parasauro</i> com Bagas (Mejoberry roxa) e pressione [E] para alimentá-lo. Ao atingir 100%, você pode montá-lo para correr velozmente!</p>
+        <p>• <b>Predadores:</b> O <i>Raptor</i> caça velozmente com listras neon vermelhas. O <i>T-Rex Ápice</i> reina nas montanhas com espinhos elétricos roxos e rugido aterrador!</p>
+        <p>• <b>Construção:</b> Crie Fundações, Paredes e Tetos pelo menu [TAB] e coloque-os no chão com sistema de encaixe holográfico.</p>
+      </div>
+      <button id="close-help-btn" class="btn-primary" style="padding: 10px 30px; font-size: 16px;">ENTENDI</button>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
