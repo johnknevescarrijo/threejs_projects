@@ -1,0 +1,92 @@
+import { WeaponConfig, WeaponType } from '../types';
+
+export const WEAPON_DEFINITIONS: Record<WeaponType, WeaponConfig> = {
+  pistol: {
+    id: 'pistol',
+    name: 'Pistola 9mm',
+    icon: '🔫',
+    damage: 10,
+    fireRate: 0.22,
+    maxAmmo: 12,
+    reloadTime: 1.2,
+    range: 900,
+    bulletSpeed: 1400,
+    spread: 0.03,
+    pellets: 1,
+    auto: false,
+    color: '#facc15',
+    bulletRadius: 3,
+    description: 'Arma padrão de alta precisão e cadência equilibrada.'
+  },
+  shotgun: {
+    id: 'shotgun',
+    name: 'Espingarda Tática',
+    icon: '💥',
+    damage: 8, // 8 * 6 pellets = 48 damage if all hit
+    fireRate: 0.7,
+    maxAmmo: 6,
+    reloadTime: 1.8,
+    range: 550,
+    bulletSpeed: 1100,
+    spread: 0.22,
+    pellets: 6,
+    auto: false,
+    color: '#fb923c',
+    bulletRadius: 2.5,
+    description: 'Dispara 6 balins com espalhamento devastador a curta distância.'
+  },
+  rifle: {
+    id: 'rifle',
+    name: 'Fuzil de Assalto',
+    icon: '⚡',
+    damage: 8,
+    fireRate: 0.095, // ~10.5 tiros por segundo
+    maxAmmo: 30,
+    reloadTime: 1.6,
+    range: 1100,
+    bulletSpeed: 1550,
+    spread: 0.065,
+    pellets: 1,
+    auto: true,
+    color: '#38bdf8',
+    bulletRadius: 3,
+    description: 'Disparo automático versátil e de alta pressão.'
+  },
+  sniper: {
+    id: 'sniper',
+    name: 'Sniper Calibre .50',
+    icon: '🎯',
+    damage: 50,
+    fireRate: 1.25,
+    maxAmmo: 5,
+    reloadTime: 2.2,
+    range: 1800,
+    bulletSpeed: 2300,
+    spread: 0.005,
+    pellets: 1,
+    auto: false,
+    color: '#a855f7',
+    bulletRadius: 4.5,
+    trailColor: '#c084fc',
+    description: 'Tiro único de penetração massiva e alcance extremo.'
+  },
+  rocket: {
+    id: 'rocket',
+    name: 'Lança-Foguetes RPG',
+    icon: '🚀',
+    damage: 80,
+    fireRate: 1.4,
+    maxAmmo: 3,
+    reloadTime: 2.4,
+    range: 1300,
+    bulletSpeed: 850,
+    spread: 0.02,
+    pellets: 1,
+    auto: false,
+    color: '#ef4444',
+    bulletRadius: 6,
+    explosionRadius: 130,
+    trailColor: '#f97316',
+    description: 'Projétil balístico com explosão devastadora em área.'
+  }
+};
