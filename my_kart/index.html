@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My Kart - Autonomous AI Racing (Three.js)</title>
+    <link rel="stylesheet" href="/src/ui/style.css" />
+  </head>
+  <body>
+    <!-- 3D Canvas Container -->
+    <div id="canvas-container"></div>
+
+    <!-- HUD Overlay -->
+    <div id="hud">
+      <!-- Top Row -->
+      <div class="hud-top">
+        <!-- Position -->
+        <div class="position-container">
+          <span class="pos-number" id="pos-num">1</span>
+          <span class="pos-suffix" id="pos-suf">st</span>
+          <span class="pos-total" id="pos-tot">/ 8</span>
+        </div>
+
+        <!-- Item Slot -->
+        <div class="item-slot-wrapper">
+          <div class="item-slot" id="item-slot"></div>
+          <span class="item-key-hint">[E] Usar Item</span>
+        </div>
+
+        <!-- Lap Counter -->
+        <div class="lap-container">
+          <span>VOLTA </span>
+          <span class="lap-highlight" id="lap-num">1 / 3</span>
+        </div>
+      </div>
+
+      <!-- Center Notification Banner -->
+      <div class="notification-banner" id="notification-banner">
+        MINI-TURBO!
+      </div>
+
+      <!-- Telemetry and AI Debug Box -->
+      <div class="telemetry-panel">
+        <div class="telemetry-header">
+          <span>🧠 TELEMETRIA IA (AGENTS.MD)</span>
+          <button class="telemetry-btn" id="btn-toggle-sensors">SENSORES [B]</button>
+        </div>
+        <div id="telemetry-ai-info">Iniciando pilotos...</div>
+        <div style="margin-top: 8px; font-size: 11px; color: #94a3b8; display:flex; gap:6px;">
+          <button class="telemetry-btn" id="btn-toggle-sound">SOM: ON [M]</button>
+          <button class="telemetry-btn" id="btn-restart" style="background:#dc2626;">REINICIAR [R]</button>
+        </div>
+      </div>
+
+      <!-- Bottom Row -->
+      <div class="hud-bottom">
+        <!-- Minimap -->
+        <div class="minimap-container">
+          <canvas id="minimap-canvas" width="180" height="180"></canvas>
+        </div>
+
+        <!-- Speedometer & Drift Charge Bar -->
+        <div class="speed-container">
+          <div>
+            <span class="speed-value" id="speed-val">0</span>
+            <span class="speed-unit">KM/H</span>
+          </div>
+          <div class="drift-bar-container">
+            <div class="drift-bar-fill" id="drift-bar-fill"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Finish Race Modal -->
+    <div id="race-finish-modal">
+      <div class="modal-content">
+        <h2 class="modal-title" id="finish-title">VITÓRIA!</h2>
+        <div id="finish-details"></div>
+        <button class="modal-btn" onclick="location.reload()">CORRER NOVAMENTE</button>
+      </div>
+    </div>
+
+    <!-- Main Game Script -->
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

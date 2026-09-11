@@ -1,0 +1,338 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,700;0,900;1,900&family=Rajdhani:wght@600;700&display=swap');
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+}
+
+body, html {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: #0b0e14;
+  font-family: 'Rajdhani', sans-serif;
+  color: #fff;
+}
+
+#canvas-container {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+}
+
+#hud {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 24px;
+}
+
+/* Top Bar: Position, Lap, Item */
+.hud-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  width: 100%;
+}
+
+.position-container {
+  display: flex;
+  align-items: baseline;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(8px);
+  padding: 8px 24px;
+  border-radius: 16px;
+  border: 2px solid #38bdf8;
+  box-shadow: 0 8px 24px rgba(56, 189, 248, 0.3);
+}
+
+.pos-number {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 64px;
+  font-weight: 900;
+  font-style: italic;
+  color: #facc15;
+  text-shadow: 0 4px 12px rgba(250, 204, 21, 0.6);
+  line-height: 1;
+}
+
+.pos-suffix {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 28px;
+  font-weight: 900;
+  color: #facc15;
+  margin-right: 8px;
+}
+
+.pos-total {
+  font-size: 24px;
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+/* Item Slot */
+.item-slot-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.item-slot {
+  width: 90px;
+  height: 90px;
+  background: radial-gradient(circle, #334155 0%, #0f172a 100%);
+  border: 3px solid #f59e0b;
+  border-radius: 20px;
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 46px;
+  position: relative;
+  overflow: hidden;
+}
+
+.item-slot.roulette {
+  animation: pulse-glow 0.2s infinite alternate;
+  border-color: #38bdf8;
+}
+
+@keyframes pulse-glow {
+  0% { transform: scale(1); box-shadow: 0 0 15px #38bdf8; }
+  100% { transform: scale(1.08); box-shadow: 0 0 30px #f43f5e; }
+}
+
+.item-key-hint {
+  margin-top: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  background: rgba(0,0,0,0.6);
+  padding: 2px 10px;
+  border-radius: 8px;
+  color: #e2e8f0;
+}
+
+/* Lap Counter */
+.lap-container {
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(8px);
+  padding: 10px 20px;
+  border-radius: 14px;
+  border: 2px solid #818cf8;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+}
+
+.lap-highlight {
+  font-size: 32px;
+  font-family: 'Montserrat', sans-serif;
+  color: #a855f7;
+  font-weight: 900;
+}
+
+/* Notification Banner */
+.notification-banner {
+  align-self: center;
+  background: linear-gradient(90deg, transparent, rgba(239, 68, 68, 0.9), transparent);
+  padding: 12px 60px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 28px;
+  font-style: italic;
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: #ffffff;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+  opacity: 0;
+  transform: translateY(-20px) scale(0.9);
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.notification-banner.active {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+/* Bottom Bar: Minimap, Speedometer, Telemetry */
+.hud-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  width: 100%;
+}
+
+/* Minimap */
+.minimap-container {
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(6px);
+  border: 2px solid #475569;
+  border-radius: 18px;
+  padding: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+}
+
+#minimap-canvas {
+  width: 180px;
+  height: 180px;
+  display: block;
+}
+
+/* Speedometer & Drift Bar */
+.speed-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(8px);
+  padding: 12px 24px;
+  border-radius: 18px;
+  border: 2px solid #06b6d4;
+}
+
+.speed-value {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 54px;
+  font-weight: 900;
+  font-style: italic;
+  line-height: 1;
+  color: #f8fafc;
+}
+
+.speed-unit {
+  font-size: 16px;
+  font-weight: 700;
+  color: #94a3b8;
+  letter-spacing: 2px;
+}
+
+.drift-bar-container {
+  width: 140px;
+  height: 10px;
+  background: #334155;
+  border-radius: 6px;
+  margin-top: 8px;
+  overflow: hidden;
+  border: 1px solid #64748b;
+}
+
+.drift-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #38bdf8, #f59e0b);
+  transition: width 0.05s linear;
+}
+
+/* Controls Hint & Debug Panel */
+.telemetry-panel {
+  position: absolute;
+  top: 130px;
+  left: 24px;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(8px);
+  padding: 12px 18px;
+  border-radius: 12px;
+  border: 1px solid #334155;
+  font-size: 13px;
+  color: #cbd5e1;
+  pointer-events: auto;
+  max-width: 320px;
+}
+
+.telemetry-header {
+  font-weight: 700;
+  color: #38bdf8;
+  margin-bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.telemetry-btn {
+  background: #2563eb;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  cursor: pointer;
+  font-weight: 700;
+  pointer-events: auto;
+}
+
+.telemetry-btn:hover {
+  background: #1d4ed8;
+}
+
+/* End Race Overlay */
+#race-finish-modal {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.8);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s ease;
+}
+
+#race-finish-modal.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal-content {
+  background: #1e293b;
+  border: 3px solid #facc15;
+  border-radius: 24px;
+  padding: 36px 48px;
+  text-align: center;
+  box-shadow: 0 12px 40px rgba(250, 204, 21, 0.3);
+  max-width: 500px;
+}
+
+.modal-title {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 42px;
+  font-weight: 900;
+  font-style: italic;
+  color: #facc15;
+  margin-bottom: 16px;
+}
+
+.modal-btn {
+  background: #e11d48;
+  color: #fff;
+  border: none;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 20px;
+  font-weight: 900;
+  padding: 12px 32px;
+  border-radius: 12px;
+  cursor: pointer;
+  margin-top: 24px;
+  transition: transform 0.2s, background 0.2s;
+}
+
+.modal-btn:hover {
+  transform: scale(1.05);
+  background: #be123c;
+}
