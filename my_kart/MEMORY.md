@@ -44,24 +44,26 @@ Conforme estipulado no [`AGENTS.MD`](file:///home/john/Programacao/Estudos/three
 | Módulo | Caminho do Arquivo | Status | Descrição |
 | :--- | :--- | :--- | :--- |
 | **Constantes Globais** | [`src/core/constants.js`](file:///home/john/Programacao/Estudos/threejs_projects/my_kart/src/core/constants.js) | ✅ Concluído | Configurações de física, sensores, DDA, itens e parâmetros da pista. |
-| **Geometria da Pista & Spline** | [`src/core/track.js`](file:///home/john/Programacao/Estudos/threejs_projects/my_kart/src/core/track.js) | ✅ Concluído | Spline CatmullRom 3D, ribbon de asfalto, zebras zebradas, elevações, atalho off-road e árvores. |
-| **Câmera de Acompanhamento** | [`src/core/camera.js`](file:///home/john/Programacao/Estudos/threejs_projects/my_kart/src/core/camera.js) | ✅ Concluído | Câmera em 3ª pessoa suave com FOV dinâmico, screen-shake e alternância para visão do capô (tecla `C`). |
-| **Entidade Kart 3D** | [`src/entities/kart.js`](file:///home/john/Programacao/Estudos/threejs_projects/my_kart/src/entities/kart.js) | ✅ Concluído | Modelo 3D com chassi, rodas giratórias, esterço dianteiro, chamas de nitro, faíscas de drift e suporte a itens. |
-| **Caixas de Itens** | [`src/entities/itemBox.js`](file:///home/john/Programacao/Estudos/threejs_projects/my_kart/src/entities/itemBox.js) | ✅ Concluído | Blocos translúcidos flutuantes com animação contínua e temporizador de respawn (3.0s). |
-| **Gerenciador de Itens** | [`src/entities/item.js`](file:///home/john/Programacao/Estudos/threejs_projects/my_kart/src/entities/item.js) | ✅ Concluído | Casco Verde (quica nas bordas), Casco Vermelho (teleguiado), Banana (armadilha de solo), Cogumelo e Raio/Azul. |
-| **Sensores Espaciais** | [`src/ai/sensors.js`](file:///home/john/Programacao/Estudos/threejs_projects/my_kart/src/ai/sensors.js) | ✅ Concluído | Emissão de raios frontais, laterais e traseiros com renderizador de debug visual ativável pela tecla `B`. |
-| **Controlador de IA** | [`src/ai/aiController.js`](file:///home/john/Programacao/Estudos/threejs_projects/my_kart/src/ai/aiController.js) | ✅ Concluído | Pipeline de 4 camadas, DDA com trava de fair play nos últimos 300m, LOD e FSM de itens. |
+| **Texturas Procedurais** | [`src/core/textures.js`](file:///home/john/Programacao/Estudos/threejs_projects/my_kart/src/core/textures.js) | ✅ Concluído | Gerador de `CanvasTexture` para asfalto, linha de chegada, boost pads, grama, terra, caixas `?` e banners. |
+| **Sistema de Partículas 3D** | [`src/core/particles.js`](file:///home/john/Programacao/Estudos/threejs_projects/my_kart/src/core/particles.js) | ✅ Concluído | Pool de partículas `InstancedMesh` para faíscas de drift, chamas de nitro, poeira off-road e ondas de choque. |
+| **Geometria da Pista & Spline** | [`src/core/track.js`](file:///home/john/Programacao/Estudos/threejs_projects/my_kart/src/core/track.js) | ✅ Concluído | Spline CatmullRom 3D, asfalto texturizado, guardrails 3D, boost pads luminosos, lago central, nuvens e pórtico com semáforo. |
+| **Câmera de Acompanhamento** | [`src/core/camera.js`](file:///home/john/Programacao/Estudos/threejs_projects/my_kart/src/core/camera.js) | ✅ Concluído | Câmera com intro no grid, 3 modos (`[C]`), visão traseira (`[Q]`), FOV dinâmico e inclinação lateral em drift. |
+| **Entidade Kart 3D** | [`src/entities/kart.js`](file:///home/john/Programacao/Estudos/threejs_projects/my_kart/src/entities/kart.js) | ✅ Concluído | Modelo 3D detalhado (`RoundedBoxGeometry`, pintura automotiva `clearcoat`), piloto animado, pulo de drift (*hop*) e *slip angle*. |
+| **Caixas de Itens** | [`src/entities/itemBox.js`](file:///home/john/Programacao/Estudos/threejs_projects/my_kart/src/entities/itemBox.js) | ✅ Concluído | Cubos translúcidos arco-íris com textura `?`, núcleo cristalino giratório e respawn suave. |
+| **Gerenciador de Itens** | [`src/entities/item.js`](file:///home/john/Programacao/Estudos/threejs_projects/my_kart/src/entities/item.js) | ✅ Concluído | Modelos 3D detalhados de Cascos (Verde, Vermelho, Azul com espinhos), Banana, Cogumelo e Raio com feixe do céu. |
+| **Sensores Espaciais** | [`src/ai/sensors.js`](file:///home/john/Programacao/Estudos/threejs_projects/my_kart/src/ai/sensors.js) | ✅ Concluído | Emissão de raios frontais, laterais, traseiros e scan de boost pads com debug visual (`[B]`). |
+| **Controlador de IA** | [`src/ai/aiController.js`](file:///home/john/Programacao/Estudos/threejs_projects/my_kart/src/ai/aiController.js) | ✅ Concluído | Pipeline de 4 camadas, direção proporcional suave, DDA com trava de fair play nos últimos 300m, LOD e FSM de itens. |
 | **Arquétipos de Piloto** | [`src/ai/archetypes.js`](file:///home/john/Programacao/Estudos/threejs_projects/my_kart/src/ai/archetypes.js) | ✅ Concluído | O Agressivo (Rex), O Técnico (Aria) e O Tático/Defensivo (Vance) com parâmetros calibrados. |
-| **Sistema de Som** | [`src/audio/sound.js`](file:///home/john/Programacao/Estudos/threejs_projects/my_kart/src/audio/sound.js) | ✅ Concluído | Sintetizador procedural com Web Audio API para motor, turbo, drift, caixas de itens e rodopios. |
-| **HUD & UI Arcade** | [`src/ui/hud.js`](file:///home/john/Programacao/Estudos/threejs_projects/my_kart/src/ui/hud.js) & [`src/ui/style.css`](file:///home/john/Programacao/Estudos/threejs_projects/my_kart/src/ui/style.css) | ✅ Concluído | Posição, voltas, velocímetro, barra de drift, roleta de itens animada, telemetria de IA e minimapa vetorial. |
-| **Loop Principal da Aplicação** | [`src/main.js`](file:///home/john/Programacao/Estudos/threejs_projects/my_kart/src/main.js) | ✅ Concluído | Inicialização de cena Three.js, grid de 8 karts (1 player + 7 IA), colisões mútuas e ranking. |
+| **Sistema de Som** | [`src/audio/sound.js`](file:///home/john/Programacao/Estudos/threejs_projects/my_kart/src/audio/sound.js) | ✅ Concluído | Sintetizador procedural duplo com Web Audio API para motor, contagem de largada, turbo, drift e itens. |
+| **HUD & UI Arcade** | [`src/ui/hud.js`](file:///home/john/Programacao/Estudos/threejs_projects/my_kart/src/ui/hud.js) & [`src/ui/style.css`](file:///home/john/Programacao/Estudos/threejs_projects/my_kart/src/ui/style.css) | ✅ Concluído | Torre de classificação ao vivo, semáforo de largada, alerta de ameaça teleguiada, velocímetro com marchas e minimapa. |
+| **Loop Principal da Aplicação** | [`src/main.js`](file:///home/john/Programacao/Estudos/threejs_projects/my_kart/src/main.js) | ✅ Concluído | Cena Three.js com `RoomEnvironment` PBR, pós-processamento `UnrealBloomPass` (`[G]`), sombra dinâmica e largada turbo. |
 
 ---
 
 ## 4. Parâmetros e Regras do Sistema
 
 ### 4.1. Drift e Mini-Turbo
-* **Gatilho de Drift:** Ângulo de curva à frente $\ge 35^\circ$ ($\approx 0.61 \text{ rad}$) e velocidade instantânea $\ge 70\%$ da velocidade máxima.
+* **Gatilho de Drift:** Ângulo de curva à frente $\ge 35^\circ$ ($\approx 0.61 \text{ rad}$) e velocidade instantânea $\ge 70\%$ da velocidade máxima, iniciando com um pulo físico (*hop*) e ângulo de deslizamento (*slip angle*).
 * **Estágio 1 (Azul):** Atingido após 1.2 segundos contínuos de drift sob contraesterço. Concede impulso de +18 km/h por 0.9s.
 * **Estágio 2 (Laranja):** Atingido após 2.4 segundos contínuos de drift. Concede superimpulso de +30 km/h por 1.8s.
 
@@ -83,18 +85,17 @@ Conforme estipulado no [`AGENTS.MD`](file:///home/john/Programacao/Estudos/three
 
 ### 4.4. Sistema de Desbloqueio e Recuperação de IA (Anti-Stuck & Recovery)
 * **Projeção Localizada de Spline:** A busca do ponto mais próximo na spline utiliza uma janela deslizante em torno do progresso atual do kart ($t \pm 45$ amostras), eliminando saltos falsos para trechos paralelos em grampos e chicanes.
-* **Autoridade de Esterço em Baixa Velocidade:** Karts parados ou lentos mantêm capacidade de esterçamento mínimo ($40\%$), permitindo girar e manobrar para longe das barreiras.
+* **Autoridade de Esterço em Baixa Velocidade:** Karts parados ou lentos mantêm capacidade de esterçamento mínimo ($42\%$), permitindo girar e manobrar para longe das barreiras.
 * **Máquina de Recuperação Ativa:**
-  * Se a velocidade for $< 3.5 \text{ m/s}$ por $> 1.2\text{s}$, a IA engata marcha à ré e contraesterço por 1.2s.
+  * Se a velocidade for $< 3.5 \text{ m/s}$ por $> 1.2\text{s}$, a IA engata marcha à ré e contraesterço por 1.1s.
   * Se persistir travada por $> 3.0\text{s}$, aciona o *Failsafe Auto-Respawn*, recolocando o kart suavemente no centro da pista com velocidade frontal orientada à tangente.
-* **Deflexão Dinâmica de Muros:** Ao atingir os limites da barreira, o kart sofre impulso lateral corretivo e alinhamento de guinada (*yaw*), preservando o fluxo de corrida.
+* **Deflexão Dinâmica de Muros:** Ao atingir os limites da barreira, o kart sofre impulso lateral corretivo e alinhamento de guinada (*yaw*) pelo menor arco angular (`lerpAngle`), preservando o fluxo de corrida.
 
-### 4.5. Upgrades Gráficos e de Jogabilidade
-* **Domo Celeste Atmosférico:** Esfera com gradiente procedural dinâmico (azul profundo, ciano claro e névoa dourada no horizonte).
-* **Cenários Ricos:** Arquibancadas detalhadas com blocos de espectadores coloridos e placas de chevron luminoso nas curvas acentuadas.
-* **Suspensão Arcade Dinâmica:** Inclinação do chassi (*body roll*) em curvas e afundamento (*pitch*) em arrancadas e frenagens.
-* **Efeitos de Velocidade:** Linhas de vento 3D em alta velocidade, marcas de borracha na pista durante drift e ativação tática de vácuo (*slipstream*).
-* **Respawn Rápido do Jogador:** Tecla `[R]` executa o reposicionamento instantâneo do kart na pista.
+### 4.5. Upgrades Gráficos, Pós-Processamento e Jogabilidade
+* **Iluminação PBR & Pós-Processamento:** Mapa de ambiente `RoomEnvironment` via `PMREMGenerator` para reflexos metálicos e verniz automotivo (`clearcoat`), aliado a `EffectComposer` + `UnrealBloomPass` (alternável com `[G]`) e câmera de sombra `2048x2048` que acompanha o jogador.
+* **Texturas Procedurais de Alta Nitidez:** Asfalto granulado com trilho de borracha, faixas laterais, linha tracejada, faixa quadriculada de chegada, *Boost Pads* animados em neon, grama com listras de corte e banners de patrocinadores.
+* **Sistema de Partículas 3D (`InstancedMesh`):** Faíscas físicas de drift (azul/laranja), labaredas nos escapamentos duplos, poeira/grama no off-road, ondas de choque do Casco Azul e raios caindo do céu.
+* **Largada 3-2-1-GO! e Arrancada Turbo (*Rocket Start*):** Semáforo 3D no pórtico sincronizado com a contagem regressiva e bônus de turbo ao segurar o acelerador no tempo certo.
 
 ---
 

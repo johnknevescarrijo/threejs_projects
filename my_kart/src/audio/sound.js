@@ -7,6 +7,7 @@ export class SoundSystem {
     this.ctx = null;
     this.isMuted = false;
     this.engineOsc = null;
+    this.engineSubOsc = null;
     this.engineGain = null;
     this.engineLowpass = null;
     this.initialized = false;
@@ -19,22 +20,27 @@ export class SoundSystem {
       if (!AudioCtx) return;
       this.ctx = new AudioCtx();
 
-      // Master engine sound chain
+      // Dual oscillator engine sound chain for richer motor purr
       this.engineOsc = this.ctx.createOscillator();
       this.engineOsc.type = 'sawtooth';
 
+      this.engineSubOsc = this.ctx.createOscillator();
+      this.engineSubOsc.type = 'triangle';
+
       this.engineLowpass = this.ctx.createBiquadFilter();
       this.engineLowpass.type = 'lowpass';
-      this.engineLowpass.frequency.value = 450;
+      this.engineLowpass.frequency.value = 420;
 
       this.engineGain = this.ctx.createGain();
-      this.engineGain.gain.value = 0.04;
+      this.engineGain.gain.value = 0.03;
 
       this.engineOsc.connect(this.engineLowpass);
+      this.engineSubOsc.connect(this.engineLowpass);
       this.engineLowpass.connect(this.engineGain);
       this.engineGain.connect(this.ctx.destination);
 
       this.engineOsc.start();
+      this.engineSubOsc.start();
       this.initialized = true;
     } catch (e) {
       console.warn('Web Audio could not initialize automatically:', e);
@@ -51,12 +57,36 @@ export class SoundSystem {
   }
 
   updateEngine(speedRatio) {
-    if (!this.initialized || this.isMuted || !this.engineOsc) return;
-    // Map speed ratio (0 to 1+) to pitch (70Hz - 280Hz)
-    const baseFreq = 75 + Math.min(speedRatio, 1.4) * 190;
+    if (!this.initialized || !this.engineOsc) return;
+    if (this.isMuted) {
+      this.engineGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.05);
+      return;
+    }
+    const baseFreq = 68 + Math.min(speedRatio, 1.5) * 185;
     this.engineOsc.frequency.setTargetAtTime(baseFreq, this.ctx.currentTime, 0.05);
-    const targetGain = 0.02 + Math.min(speedRatio, 1.0) * 0.06;
+    this.engineSubOsc.frequency.setTargetAtTime(baseFreq * 0.5, this.ctx.currentTime, 0.05);
+    this.engineLowpass.frequency.setTargetAtTime(360 + speedRatio * 480, this.ctx.currentTime, 0.05);
+    const targetGain = 0.02 + Math.min(speedRatio, 1.0) * 0.055;
     this.engineGain.gain.setTargetAtTime(targetGain, this.ctx.currentTime, 0.05);
+  }
+
+  playCountdownBeep(isGo = false) {
+    this.ensureContext();
+    if (!this.ctx || this.isMuted) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(isGo ? 880 : 440, now);
+
+    gain.gain.setValueAtTime(0.22, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + (isGo ? 0.55 : 0.25));
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(now);
+    osc.stop(now + (isGo ? 0.56 : 0.26));
   }
 
   playItemBoxCollect() {
@@ -67,9 +97,9 @@ export class SoundSystem {
     const gain = this.ctx.createGain();
 
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(587, now); // D5
-    osc.frequency.setValueAtTime(880, now + 0.08); // A5
-    osc.frequency.setValueAtTime(1174, now + 0.16); // D6
+    osc.frequency.setValueAtTime(587, now);
+    osc.frequency.setValueAtTime(880, now + 0.08);
+    osc.frequency.setValueAtTime(1174, now + 0.16);
 
     gain.gain.setValueAtTime(0.18, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
@@ -88,7 +118,7 @@ export class SoundSystem {
     const gain = this.ctx.createGain();
 
     osc.type = 'square';
-    const freq = stage === 1 ? 520 : 780; // Blue vs Orange pitch
+    const freq = stage === 1 ? 520 : 780;
     osc.frequency.setValueAtTime(freq, now);
     osc.frequency.exponentialRampToValueAtTime(freq + 150, now + 0.12);
 
@@ -106,7 +136,6 @@ export class SoundSystem {
     if (!this.ctx || this.isMuted) return;
     const now = this.ctx.currentTime;
 
-    // Upward pitch sweep + white noise blast
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
     osc.type = 'sawtooth';
@@ -199,7 +228,7 @@ export class SoundSystem {
   playLapPass() {
     this.ensureContext();
     if (!this.ctx || this.isMuted) return;
-    const notes = [523.25, 659.25, 783.99, 1046.5]; // C5, E5, G5, C6
+    const notes = [523.25, 659.25, 783.99, 1046.5];
     notes.forEach((freq, idx) => {
       const now = this.ctx.currentTime + idx * 0.08;
       const osc = this.ctx.createOscillator();
