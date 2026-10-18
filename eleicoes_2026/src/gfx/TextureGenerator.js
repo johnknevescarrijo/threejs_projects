@@ -551,12 +551,12 @@ export class TextureGenerator {
         break;
 
       case 'renan':
-        // Terno Slim Moderno Preto grafite
+        // Terno Slim Moderno Preto da MISSÃO 14
         ctx.fillStyle = '#14171a';
         ctx.fillRect(0, 0, 512, 512);
 
-        // Camisa preta com detalhe amarelo do MBL/Missão
-        ctx.fillStyle = '#22272c';
+        // Camisa preta com detalhe amarelo do Partido Missão
+        ctx.fillStyle = '#1e2124';
         ctx.beginPath();
         ctx.moveTo(180, 0);
         ctx.lineTo(332, 0);
@@ -564,7 +564,7 @@ export class TextureGenerator {
         ctx.closePath();
         ctx.fill();
 
-        // Faixa/gravata slim amarela e preta
+        // Gravata slim amarela e preta
         ctx.fillStyle = '#ffcc00';
         ctx.beginPath();
         ctx.moveTo(242, 0);
@@ -575,14 +575,16 @@ export class TextureGenerator {
         ctx.closePath();
         ctx.fill();
 
-        // Logo "M" ou raio na lapela
+        // Emblema da ONÇA-PINTADA e MISSÃO 14 no peito
         ctx.fillStyle = '#ffcc00';
-        ctx.font = 'bold 28px sans-serif';
-        ctx.fillText('⚡LIVE', 135, 250);
+        ctx.font = 'bold 22px sans-serif';
+        ctx.fillText('🐆 MISSÃO', 125, 235);
+        ctx.font = '900 32px impact, sans-serif';
+        ctx.fillText('14', 155, 275);
         break;
 
       case 'caiado':
-        // Terno Clássico Cinza Médio / Bege de campo
+        // Terno Clássico Cinza Médio / Nobre do Coronel
         ctx.fillStyle = '#3e444a';
         ctx.fillRect(0, 0, 512, 512);
 
@@ -606,16 +608,21 @@ export class TextureGenerator {
         ctx.closePath();
         ctx.fill();
 
+        // Broche "44" da União Brasil na lapela
+        ctx.fillStyle = '#d4af37';
+        ctx.font = 'bold 22px impact, sans-serif';
+        ctx.fillText('44', 155, 250);
+
         // Fivela goiana no cinto (na base do paletó)
         ctx.fillStyle = '#d4af37'; // Ouro envelhecido
         ctx.fillRect(216, 460, 80, 42);
         ctx.fillStyle = '#2b1d0c';
-        ctx.font = 'bold 16px sans-serif';
-        ctx.fillText('GOIÁS', 232, 486);
+        ctx.font = 'bold 15px sans-serif';
+        ctx.fillText('GOIÁS 44', 222, 486);
         break;
 
       case 'curry':
-        // Terno Azul Royal esportivo com detalhes de time
+        // Terno Azul Royal executivo / inovação tecnológica
         ctx.fillStyle = '#1a3b8b';
         ctx.fillRect(0, 0, 512, 512);
 
@@ -639,13 +646,13 @@ export class TextureGenerator {
         ctx.closePath();
         ctx.fill();
 
-        // Número '30' ou '3PTS' estilizado no peito
+        // Logo de 3 Pontos e Parque Tecnológico
         ctx.fillStyle = '#ffc107';
-        ctx.font = 'bold 36px impact, sans-serif';
-        ctx.fillText('3 PTS', 140, 245);
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2;
-        ctx.strokeText('3 PTS', 140, 245);
+        ctx.font = 'bold 28px impact, sans-serif';
+        ctx.fillText('3 PTS 🏀', 135, 240);
+        ctx.font = 'bold 16px sans-serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText('PL 22', 150, 270);
         break;
     }
 
@@ -896,5 +903,88 @@ export class TextureGenerator {
       ctx.lineWidth = 2;
       ctx.stroke();
     }
+  }
+
+  /**
+   * Textura do LIVRO AMARELO do Partido Missão (Projétil do Renan)
+   */
+  static createLivroAmareloTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 320;
+    const ctx = canvas.getContext('2d');
+
+    // Capa do Livro Amarelo
+    ctx.fillStyle = '#ffcc00';
+    ctx.fillRect(0, 0, 256, 320);
+
+    // Borda preta elegante
+    ctx.strokeStyle = '#141414';
+    ctx.lineWidth = 14;
+    ctx.strokeRect(7, 7, 242, 306);
+
+    // Lombada do livro
+    ctx.fillStyle = '#141414';
+    ctx.fillRect(0, 0, 36, 320);
+
+    // Título "PLANO DE GOVERNO"
+    ctx.fillStyle = '#141414';
+    ctx.font = 'bold 15px sans-serif';
+    ctx.fillText('PLANO DE GOVERNO', 60, 50);
+
+    // Título principal
+    ctx.font = '900 24px sans-serif';
+    ctx.fillText('O LIVRO', 60, 85);
+    ctx.fillText('AMARELO', 60, 115);
+
+    // Ícone da Onça-Pintada
+    ctx.font = '64px sans-serif';
+    ctx.fillText('🐆', 95, 195);
+
+    // Partido Missão 14
+    ctx.fillStyle = '#141414';
+    ctx.font = 'bold 16px sans-serif';
+    ctx.fillText('PARTIDO MISSÃO', 65, 245);
+    ctx.font = '900 36px impact, sans-serif';
+    ctx.fillText('14', 115, 285);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+  }
+
+  /**
+   * Textura de Onda Sonora de Berrante (Projétil Acústico do Caiado)
+   */
+  static createBerranteWaveTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+
+    ctx.clearRect(0, 0, 256, 256);
+
+    // Ondas concêntricas acústicas douradas
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 10;
+    ctx.beginPath();
+    ctx.arc(60, 128, 50, -Math.PI / 2.5, Math.PI / 2.5);
+    ctx.stroke();
+
+    ctx.strokeStyle = '#ffa000';
+    ctx.lineWidth = 12;
+    ctx.beginPath();
+    ctx.arc(60, 128, 90, -Math.PI / 2.8, Math.PI / 2.8);
+    ctx.stroke();
+
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.arc(60, 128, 130, -Math.PI / 3, Math.PI / 3);
+    ctx.stroke();
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
   }
 }

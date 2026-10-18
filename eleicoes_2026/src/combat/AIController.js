@@ -1,8 +1,8 @@
 import { FIGHTER_STATE } from '../characters/Fighter.js';
 
 /**
- * AIController - Inteligência Artificial para o modo 1 Jogador vs CPU
- * Gera comandos dinâmicos adaptados à distância, barra de especial e estilo de cada candidato.
+ * AIController - Inteligência Artificial inspirada no Arcade de Street Fighter II
+ * Adapta decisões táticas: antiaéreo contra voadoras, rasteiras, bloqueio alto/baixo e especiais.
  */
 export class AIController {
   constructor(fighter, opponent) {
@@ -10,7 +10,7 @@ export class AIController {
     this.opponent = opponent;
 
     this.decisionTimer = 0;
-    this.decisionInterval = 0.12; // Reavalia a cada 120ms para reflexos naturais
+    this.decisionInterval = 0.11; // 110ms para reflexos arcade naturais
     this.currentInput = {
       left: false,
       right: false,
@@ -19,6 +19,8 @@ export class AIController {
       light: false,
       heavy: false,
       kick: false,
+      special1: false,
+      special2: false,
       special: false
     };
   }
@@ -34,10 +36,12 @@ export class AIController {
   }
 
   makeDecision() {
-    // Reseta comandos pontuais de ataque
+    // Reseta comandos de botões
     this.currentInput.light = false;
     this.currentInput.heavy = false;
     this.currentInput.kick = false;
+    this.currentInput.special1 = false;
+    this.currentInput.special2 = false;
     this.currentInput.special = false;
 
     if (!this.opponent || this.fighter.state === FIGHTER_STATE.DEFEAT) {
@@ -49,77 +53,139 @@ export class AIController {
     const oppPos = this.opponent.getPosition();
     const dist = Math.abs(myPos.x - oppPos.x);
     const charId = this.fighter.characterData.id;
+    const isOppInAir = oppPos.y > 0.6;
+    const amInAir = myPos.y > 0.3;
 
-    // 1. Prioridade Máxima: Usar Golpe Especial se Fundo Eleitoral estiver cheio!
+    // ==========================================
+    // 1. COMPORTAMENTO NO AR (Voadora ou Soco Aéreo)
+    // ==========================================
+    if (amInAir) {
+      if (Math.random() < 0.65) {
+        this.currentInput.kick = true; // VOADORA CLÁSSICA!
+      } else {
+        this.currentInput.heavy = true;
+      }
+      return;
+    }
+
+    // ==========================================
+    // 2. RESPOSTA ANTIAÉREA (Se o oponente pular em cima!)
+    // ==========================================
+    if (isOppInAir && dist < 2.4) {
+      if (Math.random() < 0.68) {
+        // Shoryuken / Uppercut Antiaéreo!
+        this.currentInput.down = true;
+        this.currentInput.heavy = true;
+        return;
+      } else {
+        // Defende em pé (Stand Block contra voadora!)
+        const backDir = oppPos.x > myPos.x ? 'left' : 'right';
+        this.currentInput.left = (backDir === 'left');
+        this.currentInput.right = (backDir === 'right');
+        this.currentInput.down = false;
+        return;
+      }
+    }
+
+    // ==========================================
+    // 3. PRIORIDADE: SUPER ESPECIAL SE A BARRA ESTIVER CHEIA
+    // ==========================================
     if (this.fighter.specialMeter >= 100) {
-      // Se tiver linha de visão favorável
-      if (dist < 8.0 && Math.random() < 0.75) {
+      if (dist < 8.0 && Math.random() < 0.7) {
         this.currentInput.special = true;
         this.resetMovement();
         return;
       }
     }
 
-    // 2. Reação de Defesa: Se o oponente estiver atacando e próximo
-    if (this.opponent.isHitboxActive && dist < 2.0) {
-      const blockChance = charId === 'caiado' ? 0.75 : 0.55;
+    // ==========================================
+    // 4. DEFESA DINÂMICA DE STREET FIGHTER II
+    // ==========================================
+    if (this.opponent.isHitboxActive && dist < 2.5) {
+      const blockChance = charId === 'caiado' ? 0.8 : 0.62;
       if (Math.random() < blockChance) {
-        this.currentInput.down = true; // Bloqueia agachado
-        this.currentInput.left = false;
-        this.currentInput.right = false;
+        const backDir = oppPos.x > myPos.x ? 'left' : 'right';
+        this.currentInput.left = (backDir === 'left');
+        this.currentInput.right = (backDir === 'right');
+
+        // Se o oponente estiver agachado, defende baixo (Crouch Block)
+        if (this.opponent.state === FIGHTER_STATE.CROUCH_KICK || this.opponent.state === FIGHTER_STATE.CROUCH) {
+          this.currentInput.down = true;
+        } else {
+          this.currentInput.down = false; // Stand Block contra golpes altos
+        }
         return;
       }
     } else {
       this.currentInput.down = false;
     }
 
-    // 3. Tomada de Decisão baseada na Distância
-    if (dist > 3.8) {
-      // Longe: Aproximar do oponente
+    // ==========================================
+    // 5. COMBATE À DISTÂNCIA E MEIA-DISTÂNCIA
+    // ==========================================
+    if (dist > 4.2) {
+      // Longe: Soltar Hadouken (Especial 1) ou se aproximar
+      if (Math.random() < 0.35) {
+        this.currentInput.special1 = true;
+        this.resetMovement();
+        return;
+      }
+
+      // Aproximação
       const moveTowards = oppPos.x > myPos.x ? 'right' : 'left';
       this.currentInput.left = (moveTowards === 'left');
       this.currentInput.right = (moveTowards === 'right');
 
-      // Pulo ocasional de aproximação (especialmente Renan e Curry)
-      const jumpChance = (charId === 'curry' || charId === 'renan') ? 0.08 : 0.03;
-      if (Math.random() < jumpChance && myPos.y <= 0.01) {
+      // Pulo ofensivo ocasional (Forward Jump)
+      if (Math.random() < 0.08 && myPos.y <= 0.01) {
         this.currentInput.up = true;
-      } else {
-        this.currentInput.up = false;
       }
-    } else if (dist <= 3.8 && dist >= 1.6) {
-      // Meia-distância: Zona de finta ou preparação de golpe
-      if (Math.random() < 0.35) {
-        // Chute de alcance
+    } else if (dist <= 4.2 && dist >= 1.7) {
+      // Meia-distância: Zona de finta, Especial 2 (Avanço) ou Chute longo
+      const roll = Math.random();
+      if (roll < 0.28) {
+        // Golpe de avanço / Especial 2
+        this.currentInput.special2 = true;
+      } else if (roll < 0.52) {
+        // Chute em pé de alcance
         this.currentInput.kick = true;
-      } else if (Math.random() < 0.3) {
-        // Soco forte de avanço
-        this.currentInput.heavy = true;
+      } else if (roll < 0.72) {
+        // Hadouken rápido
+        this.currentInput.special1 = true;
       } else {
-        // Continua se aproximando com cautela
+        // Aproximação cautelosa
         const moveTowards = oppPos.x > myPos.x ? 'right' : 'left';
         this.currentInput.left = (moveTowards === 'left');
         this.currentInput.right = (moveTowards === 'right');
       }
     } else {
-      // Corpo a corpo (< 1.6): Ataque fulminante
+      // ==========================================
+      // 6. CORPO A CORPO (< 1.7)
+      // ==========================================
       this.resetMovement();
+      const closeRoll = Math.random();
 
-      const roll = Math.random();
-      if (roll < 0.45) {
-        // Soco leve rápido (comboável)
-        this.currentInput.light = true;
-      } else if (roll < 0.75) {
-        // Soco forte / Gancho
-        this.currentInput.heavy = true;
-      } else if (roll < 0.92) {
-        // Chute
+      if (closeRoll < 0.32) {
+        // RASTEIRA CLÁSSICA (Sweep Knockdown!)
+        this.currentInput.down = true;
         this.currentInput.kick = true;
+      } else if (closeRoll < 0.58) {
+        // Jab rápido em pé
+        this.currentInput.light = true;
+      } else if (closeRoll < 0.78) {
+        // Gancho pesado
+        this.currentInput.heavy = true;
+      } else if (closeRoll < 0.9) {
+        // Agarrão (Frente + Soco Forte colado!)
+        const forwardDir = oppPos.x > myPos.x ? 'right' : 'left';
+        this.currentInput.left = (forwardDir === 'left');
+        this.currentInput.right = (forwardDir === 'right');
+        this.currentInput.heavy = true;
       } else {
-        // Passo para trás para esquiva
-        const retreatDir = oppPos.x > myPos.x ? 'left' : 'right';
-        this.currentInput.left = (retreatDir === 'left');
-        this.currentInput.right = (retreatDir === 'right');
+        // Backstep / Esquiva para trás
+        const backDir = oppPos.x > myPos.x ? 'left' : 'right';
+        this.currentInput.left = (backDir === 'left');
+        this.currentInput.right = (backDir === 'right');
       }
     }
   }
@@ -128,5 +194,6 @@ export class AIController {
     this.currentInput.left = false;
     this.currentInput.right = false;
     this.currentInput.up = false;
+    this.currentInput.down = false;
   }
 }

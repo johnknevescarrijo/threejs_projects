@@ -480,18 +480,19 @@ export class HUD {
       <div class="tv-ticker">
         <div class="ticker-badge">🔴 PLANTÃO ELEIÇÕES 2026</div>
         <div class="ticker-marquee">
-          DATA-FOLHA: Empate técnico no debate! ⚡ Lula dispara argumentos de picanha cósmica ⚡ Flávio pede questão de ordem e distribui chocolates ⚡ Renan abre live urgente com cortes rápidos ⚡ Caiado estremece o cerrado com berrante de ouro ⚡ Curry converte urnas de 3 pontos do meio da quadra! ⚡ TSE declara: proibido uso de golpes abaixo da cintura partidária!
+          DATA-FOLHA: Clássico do Arcade no Debate 2026! ⚡ Lula dispara Hadouken de picanha cósmica: "Faz o L, companheiro!" ⚡ Flávio Bolsonaro pede questão de ordem e lança trufas de chocolate direto do Senado ⚡ Renan Santos dispara o Livro Amarelo e invoca a Onça da Missão 14 ⚡ Ronaldo Caiado racha o plenário com o berrante: "Aqui em Goiás bandido muda de profissão ou muda de estado!" ⚡ Eduardo Cury arremessa urnas eletrônicas de 3 pontos do meio da quadra! ⚡ TSE declara: Rasteiras e Voadoras liberadas na corrida eleitoral!
         </div>
       </div>
 
-      <!-- Guia de Controles Rápidos -->
+      <!-- Guia de Controles Rápidos Estilo Street Fighter II -->
       <div class="controls-hint">
-        <span>🎮 P1: <span class="key-badge">A/D</span> Mover</span>
-        <span><span class="key-badge">W</span> Pular</span>
-        <span><span class="key-badge">S</span> Defender</span>
-        <span><span class="key-badge">F</span> Soco Rápido</span>
-        <span><span class="key-badge">G</span> Gancho</span>
-        <span><span class="key-badge">H</span> Chute</span>
+        <span>🎮 P1: <span class="key-badge">A/D</span> Mover (Dash: duplo toque)</span>
+        <span><span class="key-badge">S</span> Agachar (Segure Trás = Defender)</span>
+        <span><span class="key-badge">W + H</span> VOADORA!</span>
+        <span><span class="key-badge">S + H</span> RASTEIRA!</span>
+        <span><span class="key-badge">F / G</span> Jab / Gancho</span>
+        <span><span class="key-badge">U</span> Especial 1 (Hadouken)</span>
+        <span><span class="key-badge">I</span> Especial 2</span>
         <span><span class="key-badge">ESPAÇO</span> SUPER ESPECIAL!</span>
       </div>
 

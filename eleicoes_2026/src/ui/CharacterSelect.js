@@ -269,6 +269,7 @@ export class CharacterSelect {
             </div>
             <div class="card-name" style="color:${c.themeColor};">${c.name}</div>
             <div class="card-title">${c.title}</div>
+            <div style="font-size:10px; color:#facc15; font-weight:bold; margin-bottom:8px; text-align:center;">${c.party}</div>
 
             <div class="stat-row">
               <span>ATAQUE</span>
@@ -286,6 +287,13 @@ export class CharacterSelect {
               <span>CARISMA</span>
               <div class="stat-bar-bg"><div class="stat-bar-fill" style="width:${c.stats.carisma}%;"></div></div>
             </div>
+
+            <!-- 3 Especiais de Street Fighter II -->
+            <div style="margin-top:8px; border-top:1px solid #334155; padding-top:6px; font-size:10px; text-align:left; color:#94a3b8; line-height: 1.4;">
+              <div><b style="color:#38bdf8;">[U]</b> ${c.specials.special1.name}</div>
+              <div><b style="color:#f59e0b;">[I]</b> ${c.specials.special2.name}</div>
+              <div><b style="color:#ec4899;">[SUPER]</b> ${c.specials.super.name}</div>
+            </div>
           </div>
         `).join('')}
       </div>
@@ -293,9 +301,9 @@ export class CharacterSelect {
       <!-- Rodapé de Confirmação -->
       <div class="select-footer">
         <div class="selection-status">
-          <span class="tag-p1">P1: ${CHARACTERS[this.selectedP1].name.toUpperCase()}</span>
+          <span class="tag-p1">P1: ${CHARACTERS[this.selectedP1].name.toUpperCase()} (${CHARACTERS[this.selectedP1].number})</span>
           <span>VS</span>
-          <span class="tag-p2">${this.gameMode === 'pve' ? 'CPU' : 'P2'}: ${CHARACTERS[this.selectedP2].name.toUpperCase()}</span>
+          <span class="tag-p2">${this.gameMode === 'pve' ? 'CPU' : 'P2'}: ${CHARACTERS[this.selectedP2].name.toUpperCase()} (${CHARACTERS[this.selectedP2].number})</span>
         </div>
 
         <button class="btn-confirma-urna" id="btn-confirma">
@@ -312,7 +320,7 @@ export class CharacterSelect {
     switch (id) {
       case 'lula': return '🥩';
       case 'flavio': return '🍫';
-      case 'renan': return '⚡';
+      case 'renan': return '🐆'; // Onça-Pintada da Missão 14!
       case 'caiado': return '🤠';
       case 'curry': return '🏀';
       default: return '🗳️';

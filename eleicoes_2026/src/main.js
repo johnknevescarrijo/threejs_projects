@@ -168,7 +168,7 @@ class Game {
   processInputs(dt) {
     if (!this.f1 || !this.f2) return;
 
-    // Controles Jogador 1 (WASD + FGH + Espaço)
+    // Controles Jogador 1 (WASD + F/G/H + U/I + Espaço)
     const p1Input = {
       left: this.keys['KeyA'] || (this.gameMode === 'pve' && this.keys['ArrowLeft']),
       right: this.keys['KeyD'] || (this.gameMode === 'pve' && this.keys['ArrowRight']),
@@ -177,12 +177,14 @@ class Game {
       light: this.keys['KeyF'] || (this.gameMode === 'pve' && this.keys['KeyJ']),
       heavy: this.keys['KeyG'] || (this.gameMode === 'pve' && this.keys['KeyK']),
       kick: this.keys['KeyH'] || (this.gameMode === 'pve' && this.keys['KeyL']),
-      special: this.keys['Space'] || this.keys['KeyU']
+      special1: this.keys['KeyU'],
+      special2: this.keys['KeyI'],
+      special: this.keys['Space']
     };
 
     this.f1.handleInput(p1Input);
 
-    // Controles Jogador 2 (Setas + JKL / Numpad no modo 2P Local)
+    // Controles Jogador 2 (Setas + JKL + O/P / Numpad no modo 2P Local)
     if (this.gameMode === 'pvp') {
       const p2Input = {
         left: this.keys['ArrowLeft'],
@@ -192,6 +194,8 @@ class Game {
         light: this.keys['KeyJ'] || this.keys['Numpad1'],
         heavy: this.keys['KeyK'] || this.keys['Numpad2'],
         kick: this.keys['KeyL'] || this.keys['Numpad3'],
+        special1: this.keys['KeyO'] || this.keys['Numpad4'],
+        special2: this.keys['KeyP'] || this.keys['Numpad5'],
         special: this.keys['Enter'] || this.keys['Numpad0']
       };
       this.f2.handleInput(p2Input);
