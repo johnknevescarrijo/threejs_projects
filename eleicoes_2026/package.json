@@ -1,0 +1,17 @@
+{
+  "name": "eleicoes-2026-debate-mortal",
+  "version": "1.0.0",
+  "description": "Jogo de Luta 3D em Three.js - Estilo Charge/Caricatura Política",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
+}
