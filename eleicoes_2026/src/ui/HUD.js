@@ -422,6 +422,182 @@ export class HUD {
           border-radius: 4px;
           color: #facc15;
         }
+
+        /* Botão Guia de Golpes & Combos */
+        .btn-guide {
+          position: absolute;
+          top: 14px;
+          right: 140px;
+          background: rgba(30, 41, 59, 0.9);
+          border: 2px solid #f59e0b;
+          color: #fbbf24;
+          padding: 8px 14px;
+          border-radius: 8px;
+          font-size: 13px;
+          font-weight: 900;
+          cursor: pointer;
+          pointer-events: auto;
+          box-shadow: 0 2px 10px rgba(245, 158, 11, 0.3);
+          transition: transform 0.1s, background 0.1s;
+        }
+
+        .btn-guide:hover {
+          transform: scale(1.05);
+          background: rgba(245, 158, 11, 0.2);
+        }
+
+        /* Modal do Guia de Golpes e Combos */
+        .guide-modal {
+          position: absolute;
+          inset: 0;
+          background: rgba(10, 16, 26, 0.88);
+          backdrop-filter: blur(4px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 500;
+          pointer-events: auto;
+          animation: fadeIn 0.2s ease-out;
+        }
+
+        .guide-card {
+          background: linear-gradient(135deg, #1e293b, #0f172a);
+          border: 3px solid #f59e0b;
+          border-radius: 16px;
+          padding: 24px 32px;
+          max-width: 680px;
+          width: 90%;
+          color: #ffffff;
+          box-shadow: 0 0 40px rgba(0,0,0,0.8);
+        }
+
+        .guide-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          border-bottom: 2px solid #334155;
+          padding-bottom: 12px;
+          margin-bottom: 16px;
+        }
+
+        .guide-header h2 {
+          margin: 0;
+          color: #fbbf24;
+          font-size: 24px;
+          letter-spacing: 1px;
+        }
+
+        .guide-close {
+          background: none;
+          border: none;
+          color: #94a3b8;
+          font-size: 24px;
+          font-weight: 900;
+          cursor: pointer;
+        }
+
+        .guide-close:hover {
+          color: #ffffff;
+        }
+
+        .guide-section {
+          margin-bottom: 16px;
+        }
+
+        .guide-section h3 {
+          margin: 0 0 6px 0;
+          color: #38bdf8;
+          font-size: 16px;
+          letter-spacing: 0.5px;
+        }
+
+        .guide-section p {
+          margin: 4px 0;
+          font-size: 14px;
+          color: #cbd5e1;
+          line-height: 1.4;
+        }
+
+        /* Contador de Combo Estilizado */
+        .combo-counter-hud {
+          position: absolute;
+          top: 140px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          pointer-events: none;
+          z-index: 150;
+          animation: comboPop 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .combo-counter-p1 {
+          left: 14%;
+        }
+
+        .combo-counter-p2 {
+          right: 14%;
+        }
+
+        .combo-hits-number {
+          font-size: 56px;
+          font-weight: 900;
+          font-style: italic;
+          color: #fbbf24;
+          text-shadow: 4px 4px 0 #000, -3px -3px 0 #000, 3px -3px 0 #000, -3px 3px 0 #000;
+          line-height: 0.9;
+        }
+
+        .combo-hits-title {
+          font-size: 20px;
+          font-weight: 900;
+          letter-spacing: 1px;
+          color: #ffffff;
+          background: rgba(0, 0, 0, 0.75);
+          padding: 3px 12px;
+          border-radius: 6px;
+          border-left: 4px solid #f59e0b;
+          text-shadow: 2px 2px 4px #000;
+          margin-top: 4px;
+        }
+
+        @keyframes comboPop {
+          0% { transform: scale(0.6); opacity: 0.5; }
+          60% { transform: scale(1.25); opacity: 1; }
+          100% { transform: scale(1.0); opacity: 1; }
+        }
+
+        /* Banner de Counter Hit & First Attack */
+        .mechanic-banner {
+          position: absolute;
+          pointer-events: none;
+          font-weight: 900;
+          font-size: 24px;
+          color: #ffffff;
+          padding: 6px 18px;
+          border-radius: 8px;
+          text-shadow: 2px 2px 4px #000;
+          z-index: 140;
+          animation: bannerAnim 0.85s forwards;
+        }
+
+        .banner-counter {
+          background: linear-gradient(90deg, #dc2626, #b91c1c);
+          border: 2px solid #f87171;
+          box-shadow: 0 0 16px rgba(220, 38, 38, 0.7);
+        }
+
+        .banner-first-attack {
+          background: linear-gradient(90deg, #d97706, #b45309);
+          border: 2px solid #fcd34d;
+          box-shadow: 0 0 16px rgba(217, 119, 6, 0.7);
+        }
+
+        @keyframes bannerAnim {
+          0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+          20% { transform: translate(-50%, -50%) scale(1.15); opacity: 1; }
+          80% { transform: translate(-50%, -50%) scale(1.0); opacity: 1; }
+          100% { transform: translate(-50%, -80%) scale(0.85); opacity: 0; }
+        }
       </style>
 
       <div class="tv-header">
@@ -496,8 +672,45 @@ export class HUD {
         <span><span class="key-badge">ESPAÇO</span> SUPER ESPECIAL!</span>
       </div>
 
+      <!-- Botão Guia de Comandos e Combos -->
+      <button class="btn-guide" id="btn-toggle-guide">📜 GOLPES & COMBOS [TAB]</button>
+
       <!-- Botão de Áudio -->
       <button class="btn-audio" id="btn-toggle-audio">🔊 SOM: ON</button>
+
+      <!-- Guia Modal de Comandos e Combos -->
+      <div class="guide-modal" id="guide-modal" style="display: none;">
+        <div class="guide-card">
+          <div class="guide-header">
+            <h2>🥋 GUIA DE GOLPES & TARGET COMBOS</h2>
+            <button class="guide-close" id="btn-close-guide">✕</button>
+          </div>
+          <div class="guide-body">
+            <div class="guide-section">
+              <h3>⚡ COMBOS FLUIDOS & CANCELAMENTOS</h3>
+              <p>• <b>Target Combo Básico:</b> <span class="key-badge">F</span> (Soco Rápido) ➔ <span class="key-badge">G</span> (Gancho) ➔ <span class="key-badge">H</span> (Chute)</p>
+              <p>• <b>Target Combo Baixo:</b> <span class="key-badge">S + F</span> (Cutucão) ➔ <span class="key-badge">S + H</span> (Rasteira Knockdown!)</p>
+              <p>• <b>Special Cancel:</b> Qualquer soco ou chute que conecte no adversário pode ser cancelado imediatamente em <span class="key-badge">U</span> (Hadouken), <span class="key-badge">I</span> (Especial 2) ou <span class="key-badge">ESPAÇO</span> (Super)!</p>
+            </div>
+            <div class="guide-section">
+              <h3>🕹️ GOLPES CLÁSSICOS DE STREET FIGHTER</h3>
+              <p>• <b>Voadora Clássica (Overhead):</b> <span class="key-badge">W + H</span> (Salto + Chute — quebra defesa agachada!)</p>
+              <p>• <b>A Rasteira (Low Knockdown):</b> <span class="key-badge">S + H</span> (Quebra defesa em pé e derruba no chão!)</p>
+              <p>• <b>Shoryuken / Uppercut Antiaéreo:</b> <span class="key-badge">S + G</span> ou comando arcade <span class="key-badge">→ ↓ ↘ + G</span></p>
+              <p>• <b>Hadouken / Projétil:</b> <span class="key-badge">U</span> ou comando arcade <span class="key-badge">↓ ↘ → + F</span></p>
+              <p>• <b>Agarrão (Throw):</b> <span class="key-badge">→ + G</span> colado no adversário</p>
+              <p>• <b>Dash / Backdash:</b> Toque duplo rápido em <span class="key-badge">A</span> ou <span class="key-badge">D</span></p>
+            </div>
+            <div class="guide-section">
+              <h3>💥 MECÂNICAS AVANÇADAS</h3>
+              <p>• <b>Counter Hit (+20% Dano):</b> Intercepte o início de um golpe inimigo!</p>
+              <p>• <b>First Attack:</b> Primeiro acerto do round ganha +15% de Fundo Eleitoral!</p>
+              <p>• <b>Clash de Projéteis:</b> Especiais de mesmo nível colidem e se anulam no ar com choque sísmico!</p>
+              <p>• <b>Super Especial:</b> Com 100% de Fundo Eleitoral, pressione <span class="key-badge">ESPAÇO</span> para ativar a Aura Cósmica!</p>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <!-- Anúncio de Turno -->
       <div class="round-announcement" id="round-box">
@@ -522,6 +735,21 @@ export class HUD {
     document.getElementById('btn-toggle-audio').addEventListener('click', () => {
       const isMuted = sounds.toggleMute();
       document.getElementById('btn-toggle-audio').innerText = isMuted ? '🔇 SOM: OFF' : '🔊 SOM: ON';
+    });
+
+    document.getElementById('btn-toggle-guide').addEventListener('click', () => {
+      this.toggleGuideModal();
+    });
+
+    document.getElementById('btn-close-guide').addEventListener('click', () => {
+      this.toggleGuideModal(false);
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Tab') {
+        e.preventDefault();
+        this.toggleGuideModal();
+      }
     });
   }
 
@@ -641,5 +869,78 @@ export class HUD {
       modal.style.display = 'none';
       if (onRematch) onRematch();
     };
+  }
+
+  toggleGuideModal(forceState = null) {
+    const modal = document.getElementById('guide-modal');
+    if (!modal) return;
+    const isVisible = modal.style.display === 'flex';
+    const newState = forceState !== null ? forceState : !isVisible;
+    modal.style.display = newState ? 'flex' : 'none';
+  }
+
+  showComboCount(hits, worldPos, isP2 = false) {
+    const id = isP2 ? 'combo-box-p2' : 'combo-box-p1';
+    let el = document.getElementById(id);
+    if (!el) {
+      el = document.createElement('div');
+      el.id = id;
+      el.className = `combo-counter-hud ${isP2 ? 'combo-counter-p2' : 'combo-counter-p1'}`;
+      this.element.appendChild(el);
+    }
+
+    let title = `${hits} HITS COMBO!`;
+    if (hits === 3) title = '3 HITS - CPI INSTALADA! 📋';
+    else if (hits === 4) title = '4 HITS - IMPEACHMENT! ⚖️';
+    else if (hits >= 5) title = `${hits} HITS - MAIORIA ABSOLUTA! 🗳️`;
+
+    el.innerHTML = `
+      <span class="combo-hits-number">${hits}</span>
+      <span class="combo-hits-title">${title}</span>
+    `;
+
+    // Reinicia animação de escala
+    el.style.animation = 'none';
+    void el.offsetWidth;
+    el.style.animation = 'comboPop 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+
+    clearTimeout(el._timer);
+    el._timer = setTimeout(() => {
+      el.remove();
+    }, 1100);
+  }
+
+  showCounterHit(worldPos) {
+    const el = document.createElement('div');
+    el.className = 'mechanic-banner banner-counter';
+    el.innerText = '💥 COUNTER HIT! (+20% DANO)';
+
+    const screenX = window.innerWidth * 0.5 + worldPos.x * 38;
+    const screenY = window.innerHeight * 0.5 - worldPos.y * 38 - 35;
+
+    el.style.left = `${screenX}px`;
+    el.style.top = `${screenY}px`;
+    this.element.appendChild(el);
+
+    setTimeout(() => {
+      el.remove();
+    }, 850);
+  }
+
+  showFirstAttack(worldPos) {
+    const el = document.createElement('div');
+    el.className = 'mechanic-banner banner-first-attack';
+    el.innerText = '⚡ FIRST ATTACK! (+15% FUNDO ELEITORAL)';
+
+    const screenX = window.innerWidth * 0.5 + worldPos.x * 38;
+    const screenY = window.innerHeight * 0.5 - worldPos.y * 38 - 65;
+
+    el.style.left = `${screenX}px`;
+    el.style.top = `${screenY}px`;
+    this.element.appendChild(el);
+
+    setTimeout(() => {
+      el.remove();
+    }, 950);
   }
 }

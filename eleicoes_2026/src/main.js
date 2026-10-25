@@ -1,4 +1,9 @@
 import * as THREE from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+
 import { ArenaBrasilia } from './stage/ArenaBrasilia.js';
 import { Fighter } from './characters/Fighter.js';
 import { ParticleSystem } from './gfx/ParticleSystem.js';
@@ -14,10 +19,12 @@ class Game {
 
     // Inicialização Three.js
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x0a1122);
-    this.scene.fog = new THREE.FogExp2(0x0a1122, 0.018);
+    this.scene.background = new THREE.Color(0x030712);
+    // Nevoeiro suave para revelar o céu crepuscular e os monumentos ao fundo
+    this.scene.fog = new THREE.FogExp2(0x071126, 0.007);
 
-    this.camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.1, 100);
+    // Câmera com far ampliado para o Sky Dome de 140 unidades
+    this.camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.1, 300);
     this.camera.position.set(0, 3.2, 11);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -26,22 +33,39 @@ class Game {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.1;
+    this.renderer.toneMappingExposure = 1.15;
     this.container.appendChild(this.renderer.domElement);
+
+    // Pipeline de Pós-Processamento Gráfico (UnrealBloomPass)
+    this.composer = new EffectComposer(this.renderer);
+    const renderPass = new RenderPass(this.scene, this.camera);
+    this.composer.addPass(renderPass);
+
+    // Bloom elegante para neons, LEDs, feixes e faíscas brilharem intensamente
+    this.bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(window.innerWidth, window.innerHeight),
+      0.38, // strength
+      0.65, // radius
+      0.78  // threshold
+    );
+    this.composer.addPass(this.bloomPass);
+
+    const outputPass = new OutputPass();
+    this.composer.addPass(outputPass);
 
     this.clock = new THREE.Clock();
 
-    // Luzes da Arena
+    // Iluminação Monumental da Arena
     this.setupLights();
 
-    // Cenário e Partículas
+    // Cenário Monumental e Partículas
     this.arena = new ArenaBrasilia(this.scene);
     this.particles = new ParticleSystem(this.scene);
 
-    // Câmera Shake
+    // Câmera Shake Global
     this.cameraShake = { intensity: 0, duration: 0, timer: 0 };
 
-    // Interface
+    // Interface HUD
     this.hud = new HUD(this.container);
 
     // Sistema de Luta e Estados
@@ -63,40 +87,43 @@ class Game {
     // Evento Redimensionamento
     window.addEventListener('resize', () => this.onWindowResize());
 
-    // Loop
+    // Loop de Renderização
     this.animate = this.animate.bind(this);
     requestAnimationFrame(this.animate);
   }
 
   setupLights() {
-    // Luz ambiente para preenchimento
-    const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+    // 1. Luz ambiente para preenchimento de sombras
+    const ambient = new THREE.AmbientLight(0xffffff, 0.55);
     this.scene.add(ambient);
 
-    // Luz Direcional Principal (Holofote de estúdio / Sol poente de Brasília)
-    const dirLight = new THREE.DirectionalLight(0xfff5e6, 1.8);
-    dirLight.position.set(5, 14, 8);
+    // 2. Luz Hemisférica Crepuscular (Céu dourado/violeta do Planalto e solo azulado)
+    const hemiLight = new THREE.HemisphereLight(0xffd89b, 0x192a56, 0.65);
+    this.scene.add(hemiLight);
+
+    // 3. Luz Direcional Principal (Sol crepuscular de Brasília com sombra expandida)
+    const dirLight = new THREE.DirectionalLight(0xfff5e6, 1.85);
+    dirLight.position.set(6, 16, 9);
     dirLight.castShadow = true;
     dirLight.shadow.mapSize.width = 2048;
     dirLight.shadow.mapSize.height = 2048;
     dirLight.shadow.camera.near = 1;
-    dirLight.shadow.camera.far = 35;
-    dirLight.shadow.camera.left = -14;
-    dirLight.shadow.camera.right = 14;
-    dirLight.shadow.camera.top = 10;
-    dirLight.shadow.camera.bottom = -4;
+    dirLight.shadow.camera.far = 45;
+    dirLight.shadow.camera.left = -26;
+    dirLight.shadow.camera.right = 26;
+    dirLight.shadow.camera.top = 18;
+    dirLight.shadow.camera.bottom = -6;
     dirLight.shadow.bias = -0.0005;
     this.scene.add(dirLight);
 
-    // Luz de preenchimento azulada no fundo
-    const backLight = new THREE.DirectionalLight(0x4299e1, 1.0);
-    backLight.position.set(-6, 8, -10);
+    // 4. Luz de Preenchimento e Contorno (Rim Light azul)
+    const backLight = new THREE.DirectionalLight(0x00e5ff, 0.85);
+    backLight.position.set(0, 10, -14);
     this.scene.add(backLight);
   }
 
   setupInputListeners() {
     window.addEventListener('keydown', (e) => {
-      // Inicia o áudio na primeira interação do usuário
       sounds.ensureContext();
       this.keys[e.code] = true;
 
@@ -112,7 +139,6 @@ class Game {
       this.keys[e.code] = false;
     });
 
-    // Suporte a cliques na tela para garantir ativação de som
     window.addEventListener('pointerdown', () => {
       sounds.ensureContext();
     });
@@ -129,6 +155,8 @@ class Game {
     // Cria os novos lutadores com os modelos caricaturados 3D
     this.f1 = new Fighter(p1, false);
     this.f2 = new Fighter(p2, true);
+    this.f1.setParticleSystem(this.particles);
+    this.f2.setParticleSystem(this.particles);
 
     this.scene.add(this.f1.mesh);
     this.scene.add(this.f2.mesh);
@@ -143,19 +171,19 @@ class Game {
       this.aiController = null;
     }
 
-    // Cria o motor de combate
+    // Cria o motor de combate com callback de Camera Shake
     this.combatEngine = new CombatEngine(
       this.f1,
       this.f2,
       this.particles,
       this.hud,
       (winner) => {
-        // Ao finalizar partida, exibe tela e permite voltar à seleção
         this.characterSelect.show();
-      }
+      },
+      (intensity, duration) => this.triggerCameraShake(intensity, duration)
     );
 
-    // Inicia a empolgante trilha de debate
+    // Inicia a trilha sonora de debate
     sounds.startDebateMusic();
   }
 
@@ -206,7 +234,7 @@ class Game {
     }
   }
 
-  updateCamera() {
+  updateCamera(dt) {
     if (!this.f1 || !this.f2) return;
 
     const p1Pos = this.f1.getPosition();
@@ -216,44 +244,64 @@ class Game {
     const midX = (p1Pos.x + p2Pos.x) * 0.5;
     const dist = Math.abs(p1Pos.x - p2Pos.x);
 
-    // Zoom dinâmico da câmera de luta
-    const targetZ = Math.max(9.5, Math.min(15.5, 7.5 + dist * 0.65));
-    const targetY = 2.4 + dist * 0.08;
+    // Clamp de midX para o tablado expandido (-16 a +16)
+    const clampedMidX = Math.max(-16.0, Math.min(16.0, midX));
 
-    // Interpolação suave
-    this.camera.position.x += (midX - this.camera.position.x) * 0.08;
+    // Zoom dinâmico da câmera para arena monumental
+    let targetZ = Math.max(9.0, Math.min(21.0, 7.2 + dist * 0.58));
+    let targetY = 2.3 + dist * 0.09;
+
+    // Zoom dramático quando um Super Especial está sendo disparado
+    const isSuperActive =
+      (this.f1 && this.f1.state === 'SPECIAL_SUPER') ||
+      (this.f2 && this.f2.state === 'SPECIAL_SUPER');
+
+    if (isSuperActive) {
+      targetZ = Math.max(7.5, targetZ - 2.6);
+      targetY = Math.max(1.8, targetY - 0.35);
+    }
+
+    // Interpolação suave de posição
+    this.camera.position.x += (clampedMidX - this.camera.position.x) * 0.08;
     this.camera.position.y += (targetY - this.camera.position.y) * 0.08;
     this.camera.position.z += (targetZ - this.camera.position.z) * 0.08;
 
-    // Camera Shake em golpes
+    // Camera Shake global em impactos
     if (this.cameraShake.timer > 0) {
-      const dt = 0.016;
       this.cameraShake.timer -= dt;
-      const progress = this.cameraShake.timer / this.cameraShake.duration;
+      const progress = Math.max(0, this.cameraShake.timer / this.cameraShake.duration);
       const offset = this.cameraShake.intensity * progress;
       this.camera.position.x += (Math.random() - 0.5) * offset;
       this.camera.position.y += (Math.random() - 0.5) * offset;
+      this.camera.position.z += (Math.random() - 0.5) * offset * 0.4;
     }
 
-    this.camera.lookAt(midX, 2.0, 0);
+    this.camera.lookAt(clampedMidX, 2.0, 0);
+
+    // Leve inclinação (tilt roll) dramática no Super
+    if (isSuperActive) {
+      const tilt = this.f1.state === 'SPECIAL_SUPER' ? -0.03 : 0.03;
+      this.camera.rotation.z += tilt;
+    }
   }
 
   onWindowResize() {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.composer.setSize(window.innerWidth, window.innerHeight);
   }
 
   animate() {
     requestAnimationFrame(this.animate);
 
-    const dt = Math.min(this.clock.getDelta(), 0.1);
+    const dt = Math.min(this.clock.getDelta(), 0.05);
     const totalTime = this.clock.getElapsedTime();
 
     // Processa comandos
     this.processInputs(dt);
 
-    // Atualiza arena e holofotes
+    // Atualiza arena e animações dinâmicas
     this.arena.update(totalTime);
 
     // Atualiza partículas
@@ -264,11 +312,11 @@ class Game {
       this.combatEngine.update(dt, totalTime);
     }
 
-    // Atualiza câmera
-    this.updateCamera();
+    // Atualiza câmera com camera shake e zoom
+    this.updateCamera(dt);
 
-    // Renderiza cena
-    this.renderer.render(this.scene, this.camera);
+    // Renderização com Pós-Processamento Unreal Bloom
+    this.composer.render();
   }
 }
 

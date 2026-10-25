@@ -1,15 +1,18 @@
 import * as THREE from 'three';
 import { TextureGenerator } from './TextureGenerator.js';
+import { FIGHTER_STATE } from '../characters/Fighter.js';
+import { sounds } from '../sound/SoundManager.js';
 
 /**
  * ParticleSystem - Gerencia santinhos eleitorais voando, faíscas de impacto,
- * estrelas de desenho animado e efeitos de projéteis especiais.
+ * ondas de choque, poeira de passos e projéteis especiais com colisão.
  */
 export class ParticleSystem {
   constructor(scene) {
     this.scene = scene;
     this.particles = [];
     this.projectiles = [];
+    this.shockwaves = [];
 
     // Cache de texturas de santinhos oficiais
     this.santinhoTextures = {
@@ -108,6 +111,67 @@ export class ParticleSystem {
    */
   spawnBlockSparks(pos) {
     this.spawnHitSparks(pos, 0x00e5ff, 8);
+  }
+
+  /**
+   * Anel de Onda de Choque Luminoso estilo Street Fighter IV/V
+   */
+  spawnShockwaveRing(pos, color = 0xffe600, scale = 1.0) {
+    const ringGeo = new THREE.RingGeometry(0.3, 0.55, 32);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.95,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    });
+    const mesh = new THREE.Mesh(ringGeo, ringMat);
+    mesh.position.set(pos.x, pos.y, pos.z + 0.15);
+    this.scene.add(mesh);
+
+    this.shockwaves.push({
+      mesh,
+      life: 0.25,
+      maxLife: 0.25,
+      baseScale: scale
+    });
+  }
+
+  /**
+   * Poeira de Chão (disparada em Dash, pulo, aterrissagem e knockdown)
+   */
+  spawnDustCloud(pos, count = 6) {
+    const dustGeo = new THREE.SphereGeometry(0.12, 6, 6);
+    const dustMat = new THREE.MeshBasicMaterial({
+      color: 0xd2c29d,
+      transparent: true,
+      opacity: 0.55,
+      depthWrite: false
+    });
+
+    for (let i = 0; i < count; i++) {
+      const mesh = new THREE.Mesh(dustGeo, dustMat);
+      mesh.position.set(
+        pos.x + (Math.random() - 0.5) * 0.45,
+        0.08 + Math.random() * 0.08,
+        (Math.random() - 0.5) * 0.35
+      );
+      this.scene.add(mesh);
+
+      this.particles.push({
+        mesh,
+        vel: new THREE.Vector3(
+          (Math.random() - 0.5) * 3.8,
+          0.6 + Math.random() * 1.4,
+          (Math.random() - 0.5) * 1.5
+        ),
+        gravity: -1.2,
+        drag: 0.88,
+        life: 0.35,
+        decay: 2.8
+      });
+    }
   }
 
   /**
@@ -243,7 +307,24 @@ export class ParticleSystem {
   }
 
   update(dt) {
-    // Atualização de partículas comuns (santinhos, faíscas)
+    // 1. Atualização de Ondas de Choque (Shockwave Rings)
+    for (let i = this.shockwaves.length - 1; i >= 0; i--) {
+      const sw = this.shockwaves[i];
+      sw.life -= dt;
+      if (sw.life <= 0) {
+        this.scene.remove(sw.mesh);
+        sw.mesh.geometry?.dispose();
+        sw.mesh.material?.dispose();
+        this.shockwaves.splice(i, 1);
+        continue;
+      }
+      const progress = 1.0 - (sw.life / sw.maxLife);
+      const s = sw.baseScale * (0.6 + progress * 2.8);
+      sw.mesh.scale.set(s, s, s);
+      sw.mesh.material.opacity = (1.0 - progress) * 0.95;
+    }
+
+    // 2. Atualização de partículas comuns (santinhos, faíscas, poeira)
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
       p.life -= p.decay * dt;
@@ -278,7 +359,45 @@ export class ParticleSystem {
       }
     }
 
-    // Atualização de Projéteis Especiais
+    // 3. Colisão Projétil vs Projétil (Projectile Clash)
+    for (let i = 0; i < this.projectiles.length; i++) {
+      for (let j = i + 1; j < this.projectiles.length; j++) {
+        const prA = this.projectiles[i];
+        const prB = this.projectiles[j];
+        if (!prA.active || !prB.active) continue;
+        if (prA.targetFighter === prB.targetFighter) continue;
+
+        const dist = prA.mesh.position.distanceTo(prB.mesh.position);
+        if (dist < 1.1) {
+          const isASuper = prA.specialType === 'super';
+          const isBSuper = prB.specialType === 'super';
+
+          if ((!isASuper && !isBSuper) || (isASuper && isBSuper)) {
+            // Ambos do mesmo nível: anulam-se mutuamente!
+            prA.active = false;
+            prB.active = false;
+            const midPos = prA.mesh.position.clone().add(prB.mesh.position).multiplyScalar(0.5);
+            this.spawnHitSparks(midPos, 0xffd700, 32);
+            this.spawnShockwaveRing(midPos, 0xffd700, 1.8);
+            sounds.playPunchHeavy();
+          } else if (isASuper && !isBSuper) {
+            // Super de A destrói projétil comum de B e segue em frente!
+            prB.active = false;
+            this.spawnHitSparks(prB.mesh.position, 0xffd700, 20);
+            this.spawnShockwaveRing(prB.mesh.position, 0xffaa00, 1.3);
+            sounds.playPunchHeavy();
+          } else if (!isASuper && isBSuper) {
+            // Super de B destrói projétil comum de A e segue em frente!
+            prA.active = false;
+            this.spawnHitSparks(prA.mesh.position, 0xffd700, 20);
+            this.spawnShockwaveRing(prA.mesh.position, 0xffaa00, 1.3);
+            sounds.playPunchHeavy();
+          }
+        }
+      }
+    }
+
+    // 4. Atualização e movimentação de Projéteis Especiais
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const pr = this.projectiles[i];
       pr.time += dt;
@@ -325,17 +444,43 @@ export class ParticleSystem {
         }
       }
 
-      // Detecção de colisão com o oponente
+      // Detecção de colisão com o oponente (com checagem de bloqueio)
       if (pr.targetFighter && pr.active) {
-        const targetPos = pr.targetFighter.getPosition();
+        const defender = pr.targetFighter;
+        const targetPos = defender.getPosition();
         const dist = pr.mesh.position.distanceTo(targetPos);
 
-        // Se acertar o defensor
-        if (dist < 1.3 || (pr.isGroundWave && Math.abs(pr.mesh.position.x - targetPos.x) < 1.2 && targetPos.y < 0.5)) {
+        const isHit = dist < 1.3 || (pr.isGroundWave && Math.abs(pr.mesh.position.x - targetPos.x) < 1.2 && targetPos.y < 0.5);
+
+        if (isHit) {
           pr.active = false;
-          pr.onHit(pr.targetFighter);
-          this.spawnHitSparks(pr.mesh.position, 0xffffff, 24);
-          this.spawnSantinhos(targetPos, pr.targetFighter.characterData.id, 14);
+
+          const isStandingBlock = defender.state === FIGHTER_STATE.STAND_BLOCK;
+          const isCrouchingBlock = defender.state === FIGHTER_STATE.CROUCH_BLOCK;
+          let isBlocked = false;
+
+          if (pr.isGroundWave) {
+            // Onda sísmica no chão só pode ser defendida agachado!
+            if (isCrouchingBlock) isBlocked = true;
+          } else {
+            if (isStandingBlock || isCrouchingBlock) isBlocked = true;
+          }
+
+          if (isBlocked) {
+            // Bloqueio do projétil: Chip Damage, faíscas azuis e som de bloqueio!
+            const chipDamage = pr.specialType === 'super' ? 10 : 6;
+            defender.takeDamage(chipDamage, pr.direction, true, false);
+            sounds.playBlock();
+            this.spawnBlockSparks(pr.mesh.position);
+            this.spawnShockwaveRing(pr.mesh.position, 0x00e5ff, 0.9);
+          } else {
+            // Acerto limpo: Dano cheio
+            pr.onHit(defender);
+            this.spawnHitSparks(pr.mesh.position, 0xffffff, 24);
+            this.spawnShockwaveRing(pr.mesh.position, 0xff9900, 1.4);
+            this.spawnSantinhos(targetPos, defender.characterData.id, 14);
+          }
+
           this.scene.remove(pr.mesh);
           this.projectiles.splice(i, 1);
         }
@@ -346,7 +491,9 @@ export class ParticleSystem {
   clear() {
     this.particles.forEach(p => this.scene.remove(p.mesh));
     this.projectiles.forEach(pr => this.scene.remove(pr.mesh));
+    this.shockwaves.forEach(sw => this.scene.remove(sw.mesh));
     this.particles = [];
     this.projectiles = [];
+    this.shockwaves = [];
   }
 }

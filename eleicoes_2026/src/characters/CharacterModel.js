@@ -22,37 +22,99 @@ export class CharacterModel {
       velX: 0, velY: 0, velZ: 0
     };
 
+    // Temporizador de Hit Flash
+    this.hitFlashTimer = 0;
+
     this.buildModel();
   }
 
   buildModel() {
-    // Materiais
+    // Materiais Físicos com Clearcoat e Trama de Tecido Procedural
     const suitTexture = TextureGenerator.createSuitTexture(this.id);
     const faceTexture = TextureGenerator.createFaceTexture(this.id);
+    const suitBumpMap = TextureGenerator.createFabricBumpMap();
 
-    const suitMaterial = new THREE.MeshStandardMaterial({
+    const suitMaterial = new THREE.MeshPhysicalMaterial({
       map: suitTexture,
-      roughness: 0.7,
-      metalness: 0.1
+      bumpMap: suitBumpMap,
+      bumpScale: 0.015,
+      roughness: 0.55,
+      clearcoat: 0.12,
+      metalness: 0.05
     });
 
     const pantsColor = this.getPantsColor();
-    const pantsMaterial = new THREE.MeshStandardMaterial({
+    const pantsMaterial = new THREE.MeshPhysicalMaterial({
       color: pantsColor,
-      roughness: 0.8
+      bumpMap: suitBumpMap,
+      bumpScale: 0.015,
+      roughness: 0.65,
+      clearcoat: 0.08,
+      metalness: 0.03
     });
 
     const skinColor = this.id === 'curry' ? 0xd49b6a : 0xf7c59f;
-    const skinMaterial = new THREE.MeshStandardMaterial({
+    const skinMaterial = new THREE.MeshPhysicalMaterial({
       color: skinColor,
-      roughness: 0.6
+      roughness: 0.5,
+      clearcoat: 0.06,
+      metalness: 0.02
     });
 
-    const shoeMaterial = new THREE.MeshStandardMaterial({
+    const shoeMaterial = new THREE.MeshPhysicalMaterial({
       color: this.id === 'curry' ? 0x0d47a1 : 0x111111,
-      roughness: 0.3,
-      metalness: 0.4
+      roughness: 0.25,
+      clearcoat: 0.6,
+      metalness: 0.15
     });
+
+    // --- ANEL INDICADOR DE JOGADOR + SOMBRA DE CONTATO NO CHÃO ---
+    const groundGroup = new THREE.Group();
+    groundGroup.position.y = 0.02;
+    this.group.add(groundGroup);
+    this.groundRing = groundGroup;
+
+    // Sombra de contato escura embaixo dos pés
+    const shadowGeo = new THREE.CircleGeometry(0.68, 24);
+    shadowGeo.rotateX(-Math.PI / 2);
+    const shadowMat = new THREE.MeshBasicMaterial({
+      color: 0x000000,
+      opacity: 0.45,
+      transparent: true,
+      depthWrite: false
+    });
+    const shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
+    groundGroup.add(shadowMesh);
+
+    // Anel Neon luminoso indicador de pés
+    const ringGeo = new THREE.RingGeometry(0.72, 0.84, 36);
+    ringGeo.rotateX(-Math.PI / 2);
+    this.ringMat = new THREE.MeshBasicMaterial({
+      color: 0x00d4ff,
+      transparent: true,
+      opacity: 0.9,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    });
+    const ringMesh = new THREE.Mesh(ringGeo, this.ringMat);
+    groundGroup.add(ringMesh);
+    this.groundRingIndicator = ringMesh;
+
+    // --- AURA DE ENERGIA ELEITORAL (Cilindro pulsante translúcido) ---
+    const auraGeo = new THREE.CylinderGeometry(0.88, 1.25, 2.3, 24, 1, true);
+    this.auraMat = new THREE.MeshBasicMaterial({
+      color: 0xffd700,
+      transparent: true,
+      opacity: 0,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    });
+    const superAura = new THREE.Mesh(auraGeo, this.auraMat);
+    superAura.position.y = 1.2;
+    superAura.visible = false;
+    this.group.add(superAura);
+    this.superAura = superAura;
 
     // Raiz do corpo
     const bodyRoot = new THREE.Group();
@@ -79,7 +141,7 @@ export class CharacterModel {
 
     // Gola da camisa
     const collarGeo = new THREE.CylinderGeometry(0.24, 0.28, 0.15, 8);
-    const collarMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+    const collarMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.5, clearcoat: 0.1 });
     const collar = new THREE.Mesh(collarGeo, collarMat);
     collar.position.y = 0.95;
     bodyRoot.add(collar);
@@ -103,19 +165,101 @@ export class CharacterModel {
 
     // Formato da cabeça (estilo bobblehead)
     const headGeo = new THREE.SphereGeometry(0.68, 24, 24);
-    // Escalar ligeiramente para criar formato oval expressivo
     headGeo.scale(1.0, 1.15, 0.95);
 
-    const faceMaterial = new THREE.MeshStandardMaterial({
+    const faceMaterial = new THREE.MeshPhysicalMaterial({
       map: faceTexture,
-      roughness: 0.6,
-      metalness: 0.05
+      roughness: 0.5,
+      clearcoat: 0.08,
+      metalness: 0.02
     });
 
     const headMesh = new THREE.Mesh(headGeo, faceMaterial);
     headMesh.castShadow = true;
     headGroup.add(headMesh);
     this.parts.headMesh = headMesh;
+
+    // --- ORELHAS 3D ESCULPIDAS ---
+    const earGeo = new THREE.SphereGeometry(0.12, 10, 8);
+    earGeo.scale(0.42, 1.1, 0.75);
+
+    const leftEar = new THREE.Mesh(earGeo, skinMaterial);
+    leftEar.position.set(-0.66, 0.02, -0.05);
+    leftEar.rotation.y = -0.25;
+    leftEar.castShadow = true;
+    headGroup.add(leftEar);
+    this.parts.leftEar = leftEar;
+
+    const rightEar = new THREE.Mesh(earGeo, skinMaterial);
+    rightEar.position.set(0.66, 0.02, -0.05);
+    rightEar.rotation.y = 0.25;
+    rightEar.castShadow = true;
+    headGroup.add(rightEar);
+    this.parts.rightEar = rightEar;
+
+    // --- NARIZ 3D ESCULPIDO COM PERSONALIDADE ---
+    let noseGeo;
+    let nosePosY = -0.04;
+    let nosePosZ = 0.66;
+    let noseRotX = 0;
+
+    switch (this.id) {
+      case 'lula':
+        noseGeo = new THREE.SphereGeometry(0.15, 12, 12);
+        noseGeo.scale(1.25, 0.95, 1.25);
+        nosePosY = -0.06;
+        break;
+      case 'caiado':
+        noseGeo = new THREE.ConeGeometry(0.11, 0.32, 8);
+        noseGeo.scale(0.85, 1.1, 1.0);
+        noseRotX = Math.PI - 0.2;
+        nosePosY = -0.03;
+        break;
+      case 'flavio':
+        noseGeo = new THREE.CylinderGeometry(0.05, 0.12, 0.28, 8);
+        noseGeo.scale(0.9, 1.0, 1.1);
+        noseRotX = Math.PI - 0.15;
+        nosePosY = -0.02;
+        break;
+      case 'renan':
+        noseGeo = new THREE.ConeGeometry(0.1, 0.28, 8);
+        noseRotX = Math.PI - 0.1;
+        nosePosY = -0.02;
+        break;
+      case 'curry':
+      default:
+        noseGeo = new THREE.SphereGeometry(0.12, 10, 10);
+        noseGeo.scale(1.05, 0.95, 1.15);
+        nosePosY = -0.03;
+        break;
+    }
+
+    const noseMesh = new THREE.Mesh(noseGeo, skinMaterial);
+    noseMesh.position.set(0, nosePosY, nosePosZ);
+    if (noseRotX !== 0) noseMesh.rotation.x = noseRotX;
+    noseMesh.castShadow = true;
+    headGroup.add(noseMesh);
+    this.parts.noseMesh = noseMesh;
+
+    // --- SOBRANCELHAS 3D ARTICULADAS ---
+    const browGeo = new THREE.BoxGeometry(0.24, 0.055, 0.08);
+    const browColor = (this.id === 'lula' || this.id === 'caiado') ? 0xdfe4ea : (this.id === 'renan' ? 0x1a1a1a : 0x3e2723);
+    const browMat = new THREE.MeshStandardMaterial({
+      color: browColor,
+      roughness: 0.9
+    });
+
+    const leftEyebrow = new THREE.Mesh(browGeo, browMat);
+    leftEyebrow.position.set(-0.25, 0.22, 0.63);
+    leftEyebrow.rotation.z = 0.08;
+    headGroup.add(leftEyebrow);
+    this.parts.leftEyebrow = leftEyebrow;
+
+    const rightEyebrow = new THREE.Mesh(browGeo, browMat);
+    rightEyebrow.position.set(0.25, 0.22, 0.63);
+    rightEyebrow.rotation.z = -0.08;
+    headGroup.add(rightEyebrow);
+    this.parts.rightEyebrow = rightEyebrow;
 
     // Acessórios e detalhes de cabeça específicos de cada candidato
     this.addCharacterHeadAccessories(headGroup);
@@ -427,6 +571,61 @@ export class CharacterModel {
   }
 
   /**
+   * Define a cor do anel luminoso de contato no chão (P1 vs P2)
+   */
+  setPlayerIndicator(isP2) {
+    if (this.ringMat) {
+      this.ringMat.color.setHex(isP2 ? 0xff3344 : 0x00d4ff);
+    }
+  }
+
+  /**
+   * Atualiza a aura de energia eleitoral do lutador (quando especial >= 100 ou em Super)
+   */
+  updateSuperAura(dt, time, isSuperReady, isSpecialState) {
+    if (!this.superAura) return;
+    if (isSuperReady || isSpecialState) {
+      this.superAura.visible = true;
+      const pulseSpeed = isSpecialState ? 14 : 7;
+      const baseOpacity = isSpecialState ? 0.45 : 0.28;
+      this.auraMat.opacity = baseOpacity + 0.18 * Math.sin(time * pulseSpeed);
+      this.superAura.rotation.y += (isSpecialState ? 6.0 : 3.2) * dt;
+      const s = 1.0 + 0.05 * Math.sin(time * (pulseSpeed * 0.8));
+      this.superAura.scale.set(s, 1.0 + 0.08 * Math.cos(time * pulseSpeed), s);
+    } else {
+      this.superAura.visible = false;
+    }
+  }
+
+  /**
+   * Dispara um flash luminoso nos materiais do lutador ao receber um golpe limpo (90ms)
+   */
+  triggerHitFlash() {
+    this.hitFlashTimer = 0.09;
+    this.applyHitFlashColor(true);
+  }
+
+  applyHitFlashColor(active) {
+    this.group.traverse((child) => {
+      if (child.isMesh && child.material && child !== this.superAura && child !== this.groundRingIndicator) {
+        if (!child.userData.origEmissive) {
+          child.userData.origEmissive = child.material.emissive ? child.material.emissive.clone() : new THREE.Color(0x000000);
+          child.userData.origEmissiveIntensity = child.material.emissiveIntensity || 0;
+        }
+        if (child.material.emissive) {
+          if (active) {
+            child.material.emissive.setHex(0xffffff);
+            child.material.emissiveIntensity = 0.85;
+          } else {
+            child.material.emissive.copy(child.userData.origEmissive);
+            child.material.emissiveIntensity = child.userData.origEmissiveIntensity;
+          }
+        }
+      }
+    });
+  }
+
+  /**
    * Reseta rotações de todas as peças para pose neutra
    */
   resetPose() {
@@ -447,12 +646,22 @@ export class CharacterModel {
 
     this.parts.legR.rotation.set(0, 0, 0);
     this.parts.calfR.rotation.set(0, 0, 0);
+
+    if (this.parts.leftEyebrow) this.parts.leftEyebrow.rotation.z = 0.08;
+    if (this.parts.rightEyebrow) this.parts.rightEyebrow.rotation.z = -0.08;
   }
 
   /**
-   * Aplica física de mola divertida da cabeça cabeçuda (Bobblehead)
+   * Aplica física de mola divertida da cabeça cabeçuda (Bobblehead) e temporizador de hit flash
    */
   updateBobblehead(dt) {
+    if (this.hitFlashTimer > 0) {
+      this.hitFlashTimer -= dt;
+      if (this.hitFlashTimer <= 0) {
+        this.applyHitFlashColor(false);
+      }
+    }
+
     const k = 45; // Rigidez da mola
     const d = 5;  // Amortecimento
 
@@ -993,6 +1202,9 @@ export class CharacterModel {
   animateHurt(progress) {
     this.resetPose();
     const t = 1.0 - progress;
+
+    if (this.parts.leftEyebrow) this.parts.leftEyebrow.rotation.z = 0.28 * t;
+    if (this.parts.rightEyebrow) this.parts.rightEyebrow.rotation.z = -0.28 * t;
 
     this.parts.bodyRoot.position.z = -0.35 * t;
     this.parts.chest.rotation.x = -0.55 * t;

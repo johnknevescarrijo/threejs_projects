@@ -3,12 +3,13 @@ import { FIGHTER_STATE } from '../characters/Fighter.js';
 import { sounds } from '../sound/SoundManager.js';
 
 export class CombatEngine {
-  constructor(fighter1, fighter2, particleSystem, hud, onMatchEnd) {
+  constructor(fighter1, fighter2, particleSystem, hud, onMatchEnd, onCameraShake = null) {
     this.f1 = fighter1;
     this.f2 = fighter2;
     this.particles = particleSystem;
     this.hud = hud;
     this.onMatchEnd = onMatchEnd;
+    this.onCameraShake = onCameraShake;
 
     // Placar de Turnos ganhos
     this.p1Wins = 0;
@@ -43,6 +44,10 @@ export class CombatEngine {
       f2_super: false
     };
 
+    this.firstAttackHappened = false;
+    this.f1.setParticleSystem(this.particles);
+    this.f2.setParticleSystem(this.particles);
+
     this.startRound(1);
   }
 
@@ -52,6 +57,7 @@ export class CombatEngine {
     this.isRoundOver = false;
     this.timeScale = 1.0;
     this.slowMoTimer = 0;
+    this.firstAttackHappened = false;
     this.specialFired = {
       f1_spec1: false,
       f1_super: false,
@@ -61,6 +67,8 @@ export class CombatEngine {
 
     this.f1.reset(-4.5);
     this.f2.reset(4.5);
+    this.f1.setParticleSystem(this.particles);
+    this.f2.setParticleSystem(this.particles);
     this.f1.setOpponent(this.f2);
     this.f2.setOpponent(this.f1);
 
@@ -120,7 +128,7 @@ export class CombatEngine {
   /**
    * Pushbox Sólida Estilo Street Fighter II:
    * No chão, os dois bonecos se empurram fisicamente e não atravessam um ao outro.
-   * Mas se um pular no ar, ele pode voar por cima (Cross-up)!
+   * No ar, há repulsão suave para não sobreporem se um cair sobre a cabeça do outro!
    */
   handlePushbox(f1, f2) {
     const bothGrounded = f1.position.y <= 0.15 && f2.position.y <= 0.15;
@@ -143,6 +151,29 @@ export class CombatEngine {
         f1.mesh.position.copy(f1.position);
         f2.mesh.position.copy(f2.position);
       }
+    } else {
+      // Repulsão suave no ar / queda vertical para não sobreporem no mesmo ponto X
+      const dx = Math.abs(f1.position.x - f2.position.x);
+      const dy = Math.abs(f1.position.y - f2.position.y);
+      if (dx < 0.95 && dy < 1.8) {
+        const push = (0.95 - dx) * 0.5;
+        const dir = f1.position.x <= f2.position.x ? -1 : 1;
+
+        f1.position.x += dir * push;
+        f2.position.x -= dir * push;
+
+        f1.position.x = Math.max(-f1.stageLimit, Math.min(f1.stageLimit, f1.position.x));
+        f2.position.x = Math.max(-f2.stageLimit, Math.min(f2.stageLimit, f2.position.x));
+
+        f1.mesh.position.copy(f1.position);
+        f2.mesh.position.copy(f2.position);
+      }
+    }
+  }
+
+  triggerCameraShake(intensity = 0.35, duration = 0.25) {
+    if (this.onCameraShake) {
+      this.onCameraShake(intensity, duration);
     }
   }
 
@@ -151,6 +182,7 @@ export class CombatEngine {
    * - Overhead (Voadoras): quebra bloqueio agachado!
    * - Low (Rasteira): quebra bloqueio em pé e causa Knockdown!
    * - Mid: bloqueável por ambos.
+   * - Hitstop Simétrico + Hit Flash + Counter Hit + First Attack + Combos
    */
   checkHitboxes(attacker, defender) {
     if (attacker.isHitboxActive && !attacker.hasHitCurrentAttack) {
@@ -179,38 +211,81 @@ export class CombatEngine {
 
         if (isBlocked) {
           // Bloqueio bem sucedido
+          attacker.applyHitstop(0.05);
+          defender.applyHitstop(0.06);
           defender.takeDamage(attacker.attackData.damage, attacker.facing, true, false);
           sounds.playBlock();
           this.particles.spawnBlockSparks(hitPos);
           this.hud.showComicWord('DEFENDEU!', hitPos);
+          this.triggerCameraShake(0.12, 0.12);
+          // Bloqueio quebra sequência de combo
+          attacker.comboCount = 0;
         } else {
           // Golpe acertado em cheio!
-          defender.takeDamage(attacker.attackData.damage, attacker.facing, false, isKnockdownAttack);
+          // 1. Hitstop Simétrico (Atacante + Defensor)
+          attacker.applyHitstop(0.065);
+          defender.applyHitstop(0.075);
+          defender.model.triggerHitFlash();
+
+          let damage = attacker.attackData.damage;
+
+          // 2. Detecção de COUNTER HIT (acertou no startup do ataque do oponente)
+          const isCounterHit = (defender.attackData && defender.stateTimer < defender.attackData.startup);
+          if (isCounterHit) {
+            damage = Math.round(damage * 1.2);
+            this.hud.showCounterHit(hitPos);
+            this.triggerCameraShake(0.5, 0.3);
+          }
+
+          // 3. Detecção de FIRST ATTACK (primeiro golpe do turno)
+          if (!this.firstAttackHappened) {
+            this.firstAttackHappened = true;
+            attacker.specialMeter = Math.min(100, attacker.specialMeter + 15);
+            this.hud.showFirstAttack(hitPos);
+          }
+
+          defender.takeDamage(damage, attacker.facing, false, isKnockdownAttack);
           attacker.specialMeter = Math.min(100, attacker.specialMeter + attacker.attackData.specialGain);
+
+          // 4. Sistema de Contador de Combos
+          attacker.comboCount = (attacker.comboCount || 0) + 1;
+          attacker.comboResetTimer = 1.0;
+          if (attacker.comboCount >= 2) {
+            this.hud.showComboCount(attacker.comboCount, hitPos, attacker.isPlayer2);
+          }
 
           // Sons e efeitos específicos
           if (attacker.state === FIGHTER_STATE.CROUCH_KICK) {
             // A RASTEIRA CLÁSSICA DERRUBOU!
             sounds.playKick();
             this.particles.spawnHitSparks(hitPos, 0xffd600, 20);
+            this.particles.spawnShockwaveRing(hitPos, 0xffd600, 1.25);
             this.hud.showComicWord('RASTEIRA!', hitPos);
+            this.triggerCameraShake(0.42, 0.25);
           } else if (attacker.state === FIGHTER_STATE.JUMP_KICK) {
             // VOADORA CLÁSSICA!
             sounds.playKick();
             this.particles.spawnHitSparks(hitPos, 0xff3d00, 22);
+            this.particles.spawnShockwaveRing(hitPos, 0xff3d00, 1.35);
             this.hud.showComicWord('VOADORA!', hitPos);
+            this.triggerCameraShake(0.45, 0.26);
           } else if (attacker.state === FIGHTER_STATE.CROUCH_HEAVY) {
             // UPPERCUT ANTIAÉREO!
             sounds.playPunchHeavy();
             this.particles.spawnHitSparks(hitPos, 0xff9100, 24);
+            this.particles.spawnShockwaveRing(hitPos, 0xff9100, 1.4);
             this.hud.showComicWord('SHORYUKEN!', hitPos);
+            this.triggerCameraShake(0.48, 0.28);
           } else if (attacker.state === FIGHTER_STATE.ATTACK_HEAVY) {
             sounds.playPunchHeavy();
             this.particles.spawnHitSparks(hitPos, 0xff9100, 18);
+            this.particles.spawnShockwaveRing(hitPos, 0xffa500, 1.2);
             this.hud.showComicWord(this.comicWords[Math.floor(Math.random() * this.comicWords.length)], hitPos);
+            this.triggerCameraShake(0.38, 0.22);
           } else {
             sounds.playPunchLight();
             this.particles.spawnHitSparks(hitPos, 0xffffff, 10);
+            this.triggerCameraShake(0.16, 0.14);
           }
 
           // Voam santinhos eleitorais do candidato atingido!
@@ -249,6 +324,7 @@ export class CombatEngine {
             hitTarget.takeDamage(24, attacker.facing, false, false);
             sounds.playPunchHeavy();
             this.hud.showComicWord('ACERTOU!', hitTarget.getPosition());
+            this.triggerCameraShake(0.52, 0.28);
           },
           'special1'
         );
@@ -277,6 +353,7 @@ export class CombatEngine {
             hitTarget.takeDamage(38, attacker.facing, false, true); // Causa Knockdown devastador!
             sounds.playPunchHeavy();
             this.hud.showComicWord('IMPUGNADO!', hitTarget.getPosition());
+            this.triggerCameraShake(0.75, 0.45);
           },
           'super'
         );
@@ -290,6 +367,7 @@ export class CombatEngine {
     this.isRoundOver = true;
     this.timeScale = 0.18; // Efeito de câmera lenta Capcom no K.O.!
     this.slowMoTimer = 1.4;
+    this.triggerCameraShake(0.85, 0.55);
 
     // Toca o autêntico som de encerramento da Urna Eletrônica!
     sounds.playUrnaSound();

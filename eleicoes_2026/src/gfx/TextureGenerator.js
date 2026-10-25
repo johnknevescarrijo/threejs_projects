@@ -5,10 +5,71 @@ import * as THREE from 'three';
  * Não depende de nenhum download externo! Rápido, leve e com estilo cartunesco autêntico.
  */
 export class TextureGenerator {
+  static _cache = {};
+
+  /**
+   * Textura procedural de trama fina de tecido para terno/roupa (Bump Map)
+   */
+  static createFabricBumpMap() {
+    if (this._cache['fabric_bump']) return this._cache['fabric_bump'];
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+
+    // Base neutra de bump (cinza médio)
+    ctx.fillStyle = '#808080';
+    ctx.fillRect(0, 0, 128, 128);
+
+    // Trama de tecido fina (fine cross-hatch weave)
+    for (let x = 0; x < 128; x += 4) {
+      for (let y = 0; y < 128; y += 4) {
+        const isAlt = ((x / 4) + (y / 4)) % 2 === 0;
+        ctx.fillStyle = isAlt ? '#929292' : '#6e6e6e';
+        ctx.fillRect(x, y, 4, 4);
+
+        // Fio vertical e horizontal micro
+        ctx.fillStyle = isAlt ? '#a2a2a2' : '#5a5a5a';
+        ctx.fillRect(x + 1, y, 2, 4);
+        ctx.fillStyle = isAlt ? '#5a5a5a' : '#a2a2a2';
+        ctx.fillRect(x, y + 1, 4, 2);
+      }
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(6, 6);
+    this._cache['fabric_bump'] = texture;
+    return texture;
+  }
+
+  /**
+   * Helper para sombreamento radial e profundidade de volume no rosto 3D
+   */
+  static drawFaceVolumeShading(ctx, highlightColor, shadowColor) {
+    const grad = ctx.createRadialGradient(256, 210, 50, 256, 256, 270);
+    grad.addColorStop(0, highlightColor);
+    grad.addColorStop(0.65, 'rgba(0, 0, 0, 0)');
+    grad.addColorStop(1, shadowColor);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 512, 512);
+
+    const jawGrad = ctx.createLinearGradient(0, 370, 0, 512);
+    jawGrad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    jawGrad.addColorStop(1, 'rgba(0, 0, 0, 0.16)');
+    ctx.fillStyle = jawGrad;
+    ctx.fillRect(0, 370, 512, 142);
+  }
+
   /**
    * Gera textura de rosto caricaturado estilo charge para o candidato
    */
   static createFaceTexture(characterId) {
+    const cacheKey = `face_${characterId}`;
+    if (this._cache[cacheKey]) return this._cache[cacheKey];
+
     const canvas = document.createElement('canvas');
     canvas.width = 512;
     canvas.height = 512;
@@ -40,6 +101,7 @@ export class TextureGenerator {
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
+    this._cache[cacheKey] = texture;
     return texture;
   }
 
@@ -48,6 +110,7 @@ export class TextureGenerator {
     // Tom de pele caloroso com bochechas avermelhadas de palanque
     ctx.fillStyle = '#f7c59f';
     ctx.fillRect(0, 0, 512, 512);
+    this.drawFaceVolumeShading(ctx, 'rgba(255, 235, 220, 0.45)', 'rgba(200, 115, 75, 0.35)');
 
     // Bochechas rosadas
     ctx.fillStyle = 'rgba(235, 90, 90, 0.28)';
@@ -137,6 +200,7 @@ export class TextureGenerator {
   static drawFlavioFace(ctx) {
     ctx.fillStyle = '#fce2c8';
     ctx.fillRect(0, 0, 512, 512);
+    this.drawFaceVolumeShading(ctx, 'rgba(255, 245, 235, 0.45)', 'rgba(195, 125, 80, 0.32)');
 
     // Topete penteado castanho alinhado
     ctx.fillStyle = '#4a3321';
@@ -189,6 +253,7 @@ export class TextureGenerator {
   static drawRenanFace(ctx) {
     ctx.fillStyle = '#ffdcb5';
     ctx.fillRect(0, 0, 512, 512);
+    this.drawFaceVolumeShading(ctx, 'rgba(255, 240, 225, 0.45)', 'rgba(185, 110, 70, 0.32)');
 
     // Topete moderno e lateral raspada degradê
     ctx.fillStyle = '#221e1a';
@@ -254,6 +319,7 @@ export class TextureGenerator {
   static drawCaiadoFace(ctx) {
     ctx.fillStyle = '#fcdbb6';
     ctx.fillRect(0, 0, 512, 512);
+    this.drawFaceVolumeShading(ctx, 'rgba(255, 238, 220, 0.45)', 'rgba(180, 105, 65, 0.38)');
 
     // Rosto maduro com marcas de expressão firmes do sertão
     ctx.strokeStyle = '#cc9068';
@@ -325,6 +391,7 @@ export class TextureGenerator {
   static drawCurryFace(ctx) {
     ctx.fillStyle = '#d49b6a'; // Tom de pele bronzeado/dourado
     ctx.fillRect(0, 0, 512, 512);
+    this.drawFaceVolumeShading(ctx, 'rgba(240, 185, 135, 0.45)', 'rgba(135, 75, 35, 0.42)');
 
     // Cabelo estilo fade moderno com corte desenhado
     ctx.fillStyle = '#1c130d';
@@ -391,11 +458,20 @@ export class TextureGenerator {
   }
 
   /**
-   * Auxiliar para desenhar olhos cartunescos e expressivos
+   * Auxiliar para desenhar olhos cartunescos e expressivos com reflexos especulares 3D
    */
   static drawCartoonEyes(ctx, lx, ly, rx, ry, irisColor, isLula = false) {
     [ { x: lx, y: ly }, { x: rx, y: ry } ].forEach((eye, idx) => {
-      // Globo ocular grande
+      const isRight = idx === 1;
+      const irisOffsetX = isRight ? -5 : 5;
+
+      // Sombra na cavidade ocular
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
+      ctx.beginPath();
+      ctx.ellipse(eye.x, eye.y + 4, 48, 44, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Esclera (Globo ocular)
       ctx.fillStyle = '#ffffff';
       ctx.strokeStyle = '#1a1a1a';
       ctx.lineWidth = 5;
@@ -404,31 +480,100 @@ export class TextureGenerator {
       ctx.fill();
       ctx.stroke();
 
-      // Íris
-      ctx.fillStyle = irisColor;
+      // Sombra sob a pálpebra superior
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
       ctx.beginPath();
-      ctx.arc(eye.x + (idx === 0 ? 5 : -5), eye.y, 22, 0, Math.PI * 2);
+      ctx.ellipse(eye.x, eye.y - 18, 40, 16, 0, 0, Math.PI * 2);
       ctx.fill();
+
+      // Íris com gradiente vertical de profundidade
+      const irisX = eye.x + irisOffsetX;
+      const irisGrad = ctx.createLinearGradient(irisX, eye.y - 22, irisX, eye.y + 22);
+      irisGrad.addColorStop(0, '#0a0a0a');
+      irisGrad.addColorStop(0.5, irisColor);
+      irisGrad.addColorStop(1, '#ffffff33');
+      ctx.fillStyle = irisGrad;
+      ctx.beginPath();
+      ctx.arc(irisX, eye.y, 22, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Borda sutil da íris
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.45)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
 
       // Pupila
       ctx.fillStyle = '#000000';
       ctx.beginPath();
-      ctx.arc(eye.x + (idx === 0 ? 5 : -5), eye.y, 12, 0, Math.PI * 2);
+      ctx.arc(irisX, eye.y, 12, 0, Math.PI * 2);
       ctx.fill();
 
-      // Brilho no olhar (estilo anime/cartoon)
+      // Brilhos especulares múltiplos estilizados
       ctx.fillStyle = '#ffffff';
       ctx.beginPath();
-      ctx.arc(eye.x - 4, eye.y - 8, 7, 0, Math.PI * 2);
-      ctx.arc(eye.x + 8, eye.y + 4, 3, 0, Math.PI * 2);
+      ctx.ellipse(irisX - 6, eye.y - 8, 8, 6, -0.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+      ctx.beginPath();
+      ctx.arc(irisX + 7, eye.y + 7, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+      ctx.beginPath();
+      ctx.arc(irisX - 2, eye.y + 9, 2, 0, Math.PI * 2);
       ctx.fill();
     });
+  }
+
+  /**
+   * Helper para sombreamento de iluminação e volume do paletó
+   */
+  static drawSuitLighting(ctx) {
+    const suitGrad = ctx.createLinearGradient(0, 0, 512, 0);
+    suitGrad.addColorStop(0, 'rgba(0, 0, 0, 0.38)');
+    suitGrad.addColorStop(0.2, 'rgba(255, 255, 255, 0.05)');
+    suitGrad.addColorStop(0.5, 'rgba(0, 0, 0, 0)');
+    suitGrad.addColorStop(0.8, 'rgba(255, 255, 255, 0.05)');
+    suitGrad.addColorStop(1, 'rgba(0, 0, 0, 0.38)');
+    ctx.fillStyle = suitGrad;
+    ctx.fillRect(0, 0, 512, 512);
+  }
+
+  /**
+   * Helper para lapelas com sombra de oclusão
+   */
+  static drawLapelsWithShadow(ctx, strokeCol) {
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.42)';
+    ctx.lineWidth = 22;
+    ctx.beginPath();
+    ctx.moveTo(130, 0);
+    ctx.lineTo(200, 260);
+    ctx.lineTo(130, 380);
+    ctx.moveTo(382, 0);
+    ctx.lineTo(312, 260);
+    ctx.lineTo(382, 380);
+    ctx.stroke();
+
+    ctx.strokeStyle = strokeCol;
+    ctx.lineWidth = 14;
+    ctx.beginPath();
+    ctx.moveTo(130, 0);
+    ctx.lineTo(200, 260);
+    ctx.lineTo(130, 380);
+    ctx.moveTo(382, 0);
+    ctx.lineTo(312, 260);
+    ctx.lineTo(382, 380);
+    ctx.stroke();
   }
 
   /**
    * Textura do Terno com Gravata e Acessório Temático
    */
   static createSuitTexture(characterId) {
+    const cacheKey = `suit_${characterId}`;
+    if (this._cache[cacheKey]) return this._cache[cacheKey];
+
     const canvas = document.createElement('canvas');
     canvas.width = 512;
     canvas.height = 512;
@@ -439,6 +584,7 @@ export class TextureGenerator {
         // Terno cinza chumbo escuro
         ctx.fillStyle = '#1c2128';
         ctx.fillRect(0, 0, 512, 512);
+        this.drawSuitLighting(ctx);
 
         // Camisa branca no centro
         ctx.fillStyle = '#f0f3f6';
@@ -470,17 +616,8 @@ export class TextureGenerator {
           ctx.stroke();
         }
 
-        // Lapela do Paletó
-        ctx.strokeStyle = '#11151a';
-        ctx.lineWidth = 14;
-        ctx.beginPath();
-        ctx.moveTo(130, 0);
-        ctx.lineTo(200, 260);
-        ctx.lineTo(130, 380);
-        ctx.moveTo(382, 0);
-        ctx.lineTo(312, 260);
-        ctx.lineTo(382, 380);
-        ctx.stroke();
+        // Lapela com sombra
+        this.drawLapelsWithShadow(ctx, '#11151a');
 
         // Estrela Vermelha no paletó (Lapela esquerda)
         this.drawStar(ctx, 160, 240, 5, 24, 11, '#ff1744', '#ffd600');
@@ -490,6 +627,7 @@ export class TextureGenerator {
         // Terno Azul Marinho Nobre
         ctx.fillStyle = '#0d223a';
         ctx.fillRect(0, 0, 512, 512);
+        this.drawSuitLighting(ctx);
 
         // Camisa branca
         ctx.fillStyle = '#f8fafd';
@@ -521,17 +659,8 @@ export class TextureGenerator {
           ctx.stroke();
         }
 
-        // Lapela
-        ctx.strokeStyle = '#071320';
-        ctx.lineWidth = 14;
-        ctx.beginPath();
-        ctx.moveTo(130, 0);
-        ctx.lineTo(200, 260);
-        ctx.lineTo(130, 380);
-        ctx.moveTo(382, 0);
-        ctx.lineTo(312, 260);
-        ctx.lineTo(382, 380);
-        ctx.stroke();
+        // Lapela com sombra
+        this.drawLapelsWithShadow(ctx, '#071320');
 
         // Broche da Bandeira do Brasil na lapela
         ctx.fillStyle = '#2e7d32';
@@ -554,6 +683,7 @@ export class TextureGenerator {
         // Terno Slim Moderno Preto da MISSÃO 14
         ctx.fillStyle = '#14171a';
         ctx.fillRect(0, 0, 512, 512);
+        this.drawSuitLighting(ctx);
 
         // Camisa preta com detalhe amarelo do Partido Missão
         ctx.fillStyle = '#1e2124';
@@ -575,6 +705,9 @@ export class TextureGenerator {
         ctx.closePath();
         ctx.fill();
 
+        // Lapela com sombra
+        this.drawLapelsWithShadow(ctx, '#0a0d10');
+
         // Emblema da ONÇA-PINTADA e MISSÃO 14 no peito
         ctx.fillStyle = '#ffcc00';
         ctx.font = 'bold 22px sans-serif';
@@ -587,6 +720,7 @@ export class TextureGenerator {
         // Terno Clássico Cinza Médio / Nobre do Coronel
         ctx.fillStyle = '#3e444a';
         ctx.fillRect(0, 0, 512, 512);
+        this.drawSuitLighting(ctx);
 
         // Camisa branca de colarinho alto
         ctx.fillStyle = '#ffffff';
@@ -608,6 +742,9 @@ export class TextureGenerator {
         ctx.closePath();
         ctx.fill();
 
+        // Lapela com sombra
+        this.drawLapelsWithShadow(ctx, '#272c30');
+
         // Broche "44" da União Brasil na lapela
         ctx.fillStyle = '#d4af37';
         ctx.font = 'bold 22px impact, sans-serif';
@@ -625,6 +762,7 @@ export class TextureGenerator {
         // Terno Azul Royal executivo / inovação tecnológica
         ctx.fillStyle = '#1a3b8b';
         ctx.fillRect(0, 0, 512, 512);
+        this.drawSuitLighting(ctx);
 
         // Camisa branca/dourada
         ctx.fillStyle = '#fffdf0';
@@ -646,6 +784,9 @@ export class TextureGenerator {
         ctx.closePath();
         ctx.fill();
 
+        // Lapela com sombra
+        this.drawLapelsWithShadow(ctx, '#0f2459');
+
         // Logo de 3 Pontos e Parque Tecnológico
         ctx.fillStyle = '#ffc107';
         ctx.font = 'bold 28px impact, sans-serif';
@@ -658,6 +799,7 @@ export class TextureGenerator {
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
+    this._cache[cacheKey] = texture;
     return texture;
   }
 
@@ -665,6 +807,9 @@ export class TextureGenerator {
    * Textura de Santinho Eleitoral (papeizinhos que voam em pancadas)
    */
   static createSantinhoTexture(characterId, numberStr) {
+    const cacheKey = `santinho_${characterId}_${numberStr}`;
+    if (this._cache[cacheKey]) return this._cache[cacheKey];
+
     const canvas = document.createElement('canvas');
     canvas.width = 128;
     canvas.height = 180;
@@ -717,6 +862,8 @@ export class TextureGenerator {
    * Textura do frontal da URNA ELETRÔNICA
    */
   static createUrnaTexture() {
+    if (this._cache['urna']) return this._cache['urna'];
+
     const canvas = document.createElement('canvas');
     canvas.width = 512;
     canvas.height = 384;
@@ -792,6 +939,7 @@ export class TextureGenerator {
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
+    this._cache['urna'] = texture;
     return texture;
   }
 
@@ -799,6 +947,8 @@ export class TextureGenerator {
    * Textura de Picanha Grelhada Suculenta (Projétil Especial do Lula)
    */
   static createPicanhaTexture() {
+    if (this._cache['picanha']) return this._cache['picanha'];
+
     const canvas = document.createElement('canvas');
     canvas.width = 256;
     canvas.height = 256;
@@ -834,6 +984,7 @@ export class TextureGenerator {
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
+    this._cache['picanha'] = texture;
     return texture;
   }
 
@@ -841,6 +992,8 @@ export class TextureGenerator {
    * Textura de Caixa de Bombom dourada (Projétil Especial do Flávio)
    */
   static createBombomTexture() {
+    if (this._cache['bombom']) return this._cache['bombom'];
+
     const canvas = document.createElement('canvas');
     canvas.width = 256;
     canvas.height = 256;
@@ -869,6 +1022,7 @@ export class TextureGenerator {
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
+    this._cache['bombom'] = texture;
     return texture;
   }
 
@@ -909,6 +1063,8 @@ export class TextureGenerator {
    * Textura do LIVRO AMARELO do Partido Missão (Projétil do Renan)
    */
   static createLivroAmareloTexture() {
+    if (this._cache['livro']) return this._cache['livro'];
+
     const canvas = document.createElement('canvas');
     canvas.width = 256;
     canvas.height = 320;
@@ -950,6 +1106,7 @@ export class TextureGenerator {
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
+    this._cache['livro'] = texture;
     return texture;
   }
 
@@ -957,6 +1114,8 @@ export class TextureGenerator {
    * Textura de Onda Sonora de Berrante (Projétil Acústico do Caiado)
    */
   static createBerranteWaveTexture() {
+    if (this._cache['berrante']) return this._cache['berrante'];
+
     const canvas = document.createElement('canvas');
     canvas.width = 256;
     canvas.height = 256;
@@ -985,6 +1144,7 @@ export class TextureGenerator {
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
+    this._cache['berrante'] = texture;
     return texture;
   }
 }

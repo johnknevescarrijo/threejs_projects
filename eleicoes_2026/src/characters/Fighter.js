@@ -95,7 +95,7 @@ export class Fighter {
     this.invincibilityTimer = 0;
 
     // Limites de Arena
-    this.stageLimit = 10.5;
+    this.stageLimit = 20.5;
 
     // Hurtbox e Hitbox
     this.hurtbox = new THREE.Box3();
@@ -104,6 +104,20 @@ export class Fighter {
 
     // Oponente
     this.opponent = null;
+
+    // Sistema de Partículas e Poeira
+    this.particles = null;
+
+    // Sistema de Contador de Combos
+    this.comboCount = 0;
+    this.comboResetTimer = 0;
+
+    // Indicador P1 / P2 no anel do chão
+    this.model.setPlayerIndicator(this.isPlayer2);
+  }
+
+  setParticleSystem(particles) {
+    this.particles = particles;
   }
 
   getPosition() {
@@ -129,6 +143,8 @@ export class Fighter {
     this.jumpAirTime = 0;
     this.hitstopTimer = 0;
     this.invincibilityTimer = 0;
+    this.comboCount = 0;
+    this.comboResetTimer = 0;
     this.inputBuffer = [];
     this.model.resetPose();
   }
@@ -146,31 +162,48 @@ export class Fighter {
   }
 
   /**
-   * Verifica se o buffer contém comando clássico de Hadouken (↓ ↘ → + Soco)
+   * Verifica se o buffer contém comando clássico de Hadouken (↓ ↘ → + Soco) em progressão temporal (< 0.40s)
    */
   checkMotionHadouken() {
     if (this.inputBuffer.length < 3) return false;
-    let foundDown = false;
-    let foundForward = false;
+    const now = performance.now() * 0.001;
+    let downTime = -1;
+
     for (let i = 0; i < this.inputBuffer.length; i++) {
       const e = this.inputBuffer[i];
-      if (e.dir === 'down' || e.dir === 'down_forward') foundDown = true;
-      if (foundDown && (e.dir === 'forward' || e.dir === 'down_forward')) foundForward = true;
+      if (now - e.time > 0.40) continue;
+
+      if (e.dir === 'down' || e.dir === 'down_forward') {
+        if (downTime < 0) downTime = e.time;
+      } else if (e.dir === 'forward' && downTime > 0 && e.time >= downTime) {
+        return true;
+      }
     }
-    return foundDown && foundForward;
+    return false;
   }
 
   /**
-   * Verifica se o buffer contém comando de Shoryuken (→ ↓ ↘ + Soco)
+   * Verifica se o buffer contém comando de Shoryuken (→ ↓ ↘ + Soco) em progressão temporal (< 0.40s)
    */
   checkMotionShoryuken() {
     if (this.inputBuffer.length < 3) return false;
+    const now = performance.now() * 0.001;
     let step = 0;
+    let stepTime = 0;
+
     for (let i = 0; i < this.inputBuffer.length; i++) {
       const e = this.inputBuffer[i];
-      if (step === 0 && e.dir === 'forward') step = 1;
-      else if (step === 1 && (e.dir === 'down' || e.dir === 'down_forward')) step = 2;
-      else if (step === 2 && (e.dir === 'forward' || e.dir === 'down_forward')) return true;
+      if (now - e.time > 0.40) continue;
+
+      if (step === 0 && e.dir === 'forward') {
+        step = 1;
+        stepTime = e.time;
+      } else if (step === 1 && (e.dir === 'down' || e.dir === 'down_forward') && e.time >= stepTime) {
+        step = 2;
+        stepTime = e.time;
+      } else if (step === 2 && (e.dir === 'forward' || e.dir === 'down_forward') && e.time >= stepTime) {
+        return true;
+      }
     }
     return false;
   }
@@ -207,7 +240,57 @@ export class Fighter {
       FIGHTER_STATE.SPECIAL_2
     ].includes(this.state);
 
-    if (isAttackingGrounded) return;
+    if (isAttackingGrounded) {
+      // TARGET COMBOS & SPECIAL CANCELS:
+      // Se o golpe atual conectou no oponente (this.hasHitCurrentAttack === true), permite cancelar imediatamente!
+      if (this.hasHitCurrentAttack) {
+        // 1. Cancelamento para Golpes Especiais
+        if (input.special && this.specialMeter >= 100) {
+          this.executeSpecial('super');
+          return;
+        }
+        if (input.special1 || (input.light && this.checkMotionHadouken())) {
+          this.executeSpecial('special1');
+          return;
+        }
+        if (input.special2 || (input.heavy && this.checkMotionShoryuken())) {
+          this.executeSpecial('special2');
+          return;
+        }
+
+        // 2. Target Combos Normais:
+        // ATTACK_LIGHT -> ATTACK_HEAVY ou ATTACK_KICK
+        if (this.state === FIGHTER_STATE.ATTACK_LIGHT) {
+          if (input.heavy) {
+            this.executeAttack('heavy');
+            return;
+          }
+          if (input.kick) {
+            this.executeAttack('kick');
+            return;
+          }
+        }
+        // ATTACK_HEAVY -> ATTACK_KICK
+        else if (this.state === FIGHTER_STATE.ATTACK_HEAVY) {
+          if (input.kick) {
+            this.executeAttack('kick');
+            return;
+          }
+        }
+        // CROUCH_LIGHT -> CROUCH_KICK ou CROUCH_HEAVY
+        else if (this.state === FIGHTER_STATE.CROUCH_LIGHT) {
+          if (input.kick) {
+            this.executeCrouchAttack('kick');
+            return;
+          }
+          if (input.heavy) {
+            this.executeCrouchAttack('heavy');
+            return;
+          }
+        }
+      }
+      return;
+    }
 
     // Direcionais relativos ao oponente (Frente e Trás de SF2)
     const isHoldingForward = (this.facing === 1 && input.right) || (this.facing === -1 && input.left);
@@ -322,6 +405,7 @@ export class Fighter {
       this.velocity.y = 12.2;
       this.state = FIGHTER_STATE.JUMP;
       this.jumpAirTime = 0;
+      this.particles?.spawnDustCloud(this.position, 8);
 
       if (isHoldingForward) {
         this.jumpType = 'forward';
@@ -353,6 +437,7 @@ export class Fighter {
           this.stateDuration = 0.22;
           this.velocity.x = this.facing * 9.2;
           this.lastTapDir = null;
+          this.particles?.spawnDustCloud(this.position, 6);
           return;
         } else {
           // Backdash de Esquiva
@@ -362,6 +447,7 @@ export class Fighter {
           this.velocity.x = -this.facing * 7.5;
           this.velocity.y = 3.2;
           this.lastTapDir = null;
+          this.particles?.spawnDustCloud(this.position, 6);
           return;
         }
       }
@@ -646,6 +732,7 @@ export class Fighter {
       this.stateDuration = this.health <= 0 ? 3.0 : 1.1; // Se zerou vida é derrota, senão acorda
       this.velocity.x = knockbackDir * 4.0;
       this.velocity.y = 5.2;
+      this.particles?.spawnDustCloud(this.position, 10);
     } else {
       // Hit Stun normal
       this.state = FIGHTER_STATE.HURT;
@@ -704,6 +791,7 @@ export class Fighter {
         this.position.y = 0;
         this.velocity.y = 0;
         this.jumpAirTime = 0;
+        this.particles?.spawnDustCloud(this.position, 7);
 
         // Se aterrissou de um pulo ou ataque aéreo, volta ao IDLE e ajusta facing imediatamente!
         if ([FIGHTER_STATE.JUMP, FIGHTER_STATE.JUMP_KICK, FIGHTER_STATE.JUMP_PUNCH, FIGHTER_STATE.DASH_BACKWARD].includes(this.state)) {
@@ -783,6 +871,18 @@ export class Fighter {
     // 9. Atualização das Animações no Modelo 3D
     this.updateAnimation(totalTime);
     this.model.updateBobblehead(dt);
+
+    // 10. Atualização de Combo Timer e Aura de Energia Eleitoral
+    if (this.comboResetTimer > 0) {
+      this.comboResetTimer -= dt;
+      if (this.comboResetTimer <= 0) {
+        this.comboCount = 0;
+      }
+    }
+
+    const isSuperReady = this.specialMeter >= 100;
+    const isSpecialState = this.state === FIGHTER_STATE.SPECIAL_SUPER;
+    this.model.updateSuperAura(dt, totalTime, isSuperReady, isSpecialState);
   }
 
   updateAnimation(totalTime) {
