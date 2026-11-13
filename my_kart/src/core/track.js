@@ -35,7 +35,6 @@ export class Track {
     this.buildTrackGeometry();
     this.buildStartFinishAndGrid();
     this.buildBoostPads();
-    this.buildShortcutGeometry();
     this.buildCurbsAndGuardrails();
     this.buildStartGantry();
     this.buildGrandstands();
@@ -57,37 +56,24 @@ export class Track {
       new THREE.Vector3(212, 0, 55),
       new THREE.Vector3(190, 0, -30),       // Back straight
       new THREE.Vector3(150, 0, -92),       // Technical Chicane
-      new THREE.Vector3(110, 0, -115),
-      new THREE.Vector3(92, 0, -175),       // Sweeping loop entry
-      new THREE.Vector3(112, 0, -245),      // Turn 3
-      new THREE.Vector3(80, 0, -305),
+      new THREE.Vector3(114, 0, -124),
+      new THREE.Vector3(96, 0, -180),       // Sweeping loop entry
+      new THREE.Vector3(108, 0, -245),      // Turn 3
+      new THREE.Vector3(78, 0, -305),
       new THREE.Vector3(18, 0, -342),       // Hairpin entry
       new THREE.Vector3(-62, 0, -332),      // Hairpin apex
       new THREE.Vector3(-112, 0, -280),     // Hairpin exit
-      new THREE.Vector3(-142, 0, -210),     // Shortcut exit zone
-      new THREE.Vector3(-172, 0, -138),
-      new THREE.Vector3(-152, 0, -38),      // Flowing S-bend
-      new THREE.Vector3(-110, 0, 22),
-      new THREE.Vector3(-48, 0, 42),        // Final corner into main straight
-      new THREE.Vector3(-18, 0, -4)
+      new THREE.Vector3(-145, 0, -210),     // Back sweeping section
+      new THREE.Vector3(-156, 0, -142),
+      new THREE.Vector3(-135, 0, -98),      // Wide final sweeping corner
+      new THREE.Vector3(-85, 0, -82),
+      new THREE.Vector3(-30, 0, -68),
+      new THREE.Vector3(-3, 0, -36)         // Smooth aligned entry into main straight
     ];
 
     this.curve = new THREE.CatmullRomCurve3(controlPoints, true, 'catmullrom', 0.45);
     this.totalLength = this.curve.getLength();
-
-    // Off-road shortcut: cuts across the hairpin/S-bend at ground level
-    const pStart = this.curve.getPointAt(TRACK_CONFIG.SHORTCUT_START_PROGRESS);
-    const pEnd = this.curve.getPointAt(TRACK_CONFIG.SHORTCUT_END_PROGRESS);
-    const midPoint = new THREE.Vector3()
-      .addVectors(pStart, pEnd)
-      .multiplyScalar(0.5)
-      .add(new THREE.Vector3(-8, 0, 0));
-
-    this.shortcutCurve = new THREE.CatmullRomCurve3([
-      pStart,
-      midPoint,
-      pEnd
-    ], false, 'catmullrom', 0.5);
+    this.shortcutCurve = null;
 
     // Item box spawn checkpoints along the track
     this.itemBoxProgressPoints = [0.07, 0.19, 0.31, 0.44, 0.56, 0.69, 0.81, 0.92];
@@ -102,12 +88,7 @@ export class Track {
       { t: 0.92, isDouble: false, movingLateral: 0 }
     ];
 
-    // Off-road shortcut item box checkpoints
-    this.shortcutItemBoxConfigs = [
-      { t: 0.50, isDouble: true }
-    ];
-
-    // No floating aerial item boxes (ground-level classic race)
+    this.shortcutItemBoxConfigs = [];
     this.aerialItemBoxConfigs = [];
 
     // Turbo boost pad locations along the track: { t, lateralOffset }
@@ -115,6 +96,7 @@ export class Track {
       { t: 0.15, lateral: -3.5 },
       { t: 0.34, lateral: 2.5 },
       { t: 0.48, lateral: 0.0 },
+      { t: 0.63, lateral: -2.0 },
       { t: 0.79, lateral: -2.5 },
       { t: 0.94, lateral: 3.0 }
     ];
@@ -811,13 +793,10 @@ export class Track {
       const s0 = this.samples[i];
       const s1 = this.samples[(i + 1) % this.sampleCount];
 
-      // Leave gap on shortcut side between t = 0.56 and t = 0.70
-      const inShortcutZone = (s0.t >= TRACK_CONFIG.SHORTCUT_START_PROGRESS - 0.025 && s0.t <= TRACK_CONFIG.SHORTCUT_END_PROGRESS + 0.025);
-
       const stripeColor = (Math.floor(i / 4) % 2 === 0) ? cSilver : cRed;
 
-      // Left Rail (skip if in shortcut zone and shortcut is on left)
-      const sides = inShortcutZone ? [-1] : [1, -1];
+      // Continuous closed guardrails on both sides of the circuit
+      const sides = [1, -1];
 
       sides.forEach(side => {
         const b0 = s0.bankedBinormal;
@@ -1966,19 +1945,76 @@ export class Track {
       }
     }
 
-    const sample = this.samples[closestIdx];
-    const diff = new THREE.Vector3().subVectors(worldPos, sample.point);
+    // Continuous projection onto the closest piecewise-linear spline segment
+    const n = this.sampleCount;
+    const prevIdx = (closestIdx - 1 + n) % n;
+    const nextIdx = (closestIdx + 1) % n;
 
-    const binormal = sample.bankedBinormal || sample.binormal;
-    const lateralOffset = diff.dot(binormal);
+    const projectOnSegment = (idxA, idxB) => {
+      const sA = this.samples[idxA];
+      const sB = this.samples[idxB];
+      const abX = sB.point.x - sA.point.x;
+      const abY = sB.point.y - sA.point.y;
+      const abZ = sB.point.z - sA.point.z;
+      const abLenSq = abX * abX + abY * abY + abZ * abZ;
+      let u = 0;
+      if (abLenSq > 1e-6) {
+        u = ((worldPos.x - sA.point.x) * abX + (worldPos.y - sA.point.y) * abY + (worldPos.z - sA.point.z) * abZ) / abLenSq;
+        u = Math.max(0, Math.min(1, u));
+      }
+      const px = sA.point.x + abX * u;
+      const py = sA.point.y + abY * u;
+      const pz = sA.point.z + abZ * u;
+      const dx = worldPos.x - px;
+      const dy = worldPos.y - py;
+      const dz = worldPos.z - pz;
+      return { sA, sB, u, distSq: dx * dx + dy * dy + dz * dz, px, py, pz };
+    };
+
+    const segPrev = projectOnSegment(prevIdx, closestIdx);
+    const segNext = projectOnSegment(closestIdx, nextIdx);
+    const best = segPrev.distSq <= segNext.distSq ? segPrev : segNext;
+
+    const { sA, sB, u } = best;
+    const interpPoint = new THREE.Vector3(best.px, best.py, best.pz);
+    const interpTangent = new THREE.Vector3().lerpVectors(sA.tangent, sB.tangent, u).normalize();
+    const interpBinormal = new THREE.Vector3().lerpVectors(sA.binormal, sB.binormal, u).normalize();
+    const interpBankedBinormal = new THREE.Vector3()
+      .lerpVectors(sA.bankedBinormal || sA.binormal, sB.bankedBinormal || sB.binormal, u)
+      .normalize();
+    const interpBankedNormal = new THREE.Vector3()
+      .lerpVectors(sA.bankedNormal || sA.normal, sB.bankedNormal || sB.normal, u)
+      .normalize();
+    const interpBankAngle = (sA.bankAngle || 0) + ((sB.bankAngle || 0) - (sA.bankAngle || 0)) * u;
+
+    const tA = sA.t;
+    let tStep = sB.t - sA.t;
+    if (tStep < 0) tStep += 1.0; // Wrap across t = 1 -> 0
+    const interpT = (tA + u * tStep) % 1.0;
+
+    const sample = {
+      t: interpT,
+      distance: interpT * this.totalLength,
+      point: interpPoint,
+      tangent: interpTangent,
+      normal: interpBankedNormal,
+      binormal: interpBinormal,
+      bankedBinormal: interpBankedBinormal,
+      bankedNormal: interpBankedNormal,
+      bankAngle: interpBankAngle,
+      curvature: sA.curvature + (sB.curvature - sA.curvature) * u
+    };
+
+    const diff = new THREE.Vector3().subVectors(worldPos, interpPoint);
+    const lateralOffset = diff.dot(interpBankedBinormal);
     const isOffRoad = Math.abs(lateralOffset) > this.halfWidth + 0.8;
     const isOnCurb = Math.abs(lateralOffset) > this.halfWidth && !isOffRoad;
 
     return {
       index: closestIdx,
-      t: sample.t,
+      t: interpT,
       sample,
-      distanceSq: closestDistSq,
+      distanceSq: best.distSq,
       lateralOffset,
       isOffRoad,
       isOnCurb
@@ -1987,10 +2023,18 @@ export class Track {
 
   getWaypointAtProgress(t, lateralOffset = 0) {
     const wrappedT = ((t % 1.0) + 1.0) % 1.0;
-    const sampleIdx = Math.floor(wrappedT * this.sampleCount);
-    const sample = this.samples[sampleIdx];
-    if (sample && sample.bankedBinormal) {
-      return new THREE.Vector3().copy(sample.point).addScaledVector(sample.bankedBinormal, lateralOffset);
+    if (this.samples && this.samples.length === this.sampleCount) {
+      const exactIdx = wrappedT * this.sampleCount;
+      const idx0 = Math.floor(exactIdx) % this.sampleCount;
+      const idx1 = (idx0 + 1) % this.sampleCount;
+      const frac = exactIdx - Math.floor(exactIdx);
+      const s0 = this.samples[idx0];
+      const s1 = this.samples[idx1];
+      const pt = new THREE.Vector3().lerpVectors(s0.point, s1.point, frac);
+      const bin = new THREE.Vector3()
+        .lerpVectors(s0.bankedBinormal || s0.binormal, s1.bankedBinormal || s1.binormal, frac)
+        .normalize();
+      return pt.addScaledVector(bin, lateralOffset);
     }
     const point = this.curve.getPointAt(wrappedT);
     const tangent = this.curve.getTangentAt(wrappedT);
