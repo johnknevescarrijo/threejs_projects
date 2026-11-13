@@ -339,6 +339,23 @@ class GameApp {
         this.itemBoxes.push(itemBox);
       });
     }
+
+    // 3. Floating aerial item boxes suspended after jump ramps
+    if (this.track.aerialItemBoxConfigs) {
+      this.track.aerialItemBoxConfigs.forEach(cfg => {
+        const pos = this.track.getWaypointAtProgress(cfg.t, cfg.lateral || 0);
+        pos.y += cfg.aerialY || 3.5;
+        const sampleIdx = Math.floor(cfg.t * this.track.sampleCount);
+        const sample = this.track.samples[sampleIdx] || this.track.samples[0];
+        const itemBox = new ItemBox(pos, this.scene, {
+          isDouble: cfg.isDouble,
+          movingLateral: 0,
+          tangent: sample.tangent,
+          binormal: sample.binormal
+        });
+        this.itemBoxes.push(itemBox);
+      });
+    }
   }
 
   spawnCoins() {
