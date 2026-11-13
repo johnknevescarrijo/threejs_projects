@@ -9,7 +9,7 @@ import { Track } from './core/track.js';
 import { FollowCamera } from './core/camera.js';
 import { ParticleSystem } from './core/particles.js';
 import { Kart } from './entities/kart.js';
-import { ItemBox } from './entities/itemBox.js';
+import { ItemBox, TrackCoin } from './entities/itemBox.js';
 import { ItemManager } from './entities/item.js';
 import { SensorSystem } from './ai/sensors.js';
 import { AIController } from './ai/aiController.js';
@@ -36,6 +36,7 @@ class GameApp {
     this.allKarts = [];
     this.aiControllers = [];
     this.itemBoxes = [];
+    this.coins = [];
     this.itemManager = null;
     this.sensorSystem = null;
     this.soundSystem = null;
@@ -44,6 +45,7 @@ class GameApp {
 
     this.spacePressed = false;
     this.shiftPressed = false;
+    this.isHoldingShieldKey = false;
     this.playerInputs = {
       accelerate: false,
       brake: false,
@@ -106,8 +108,9 @@ class GameApp {
     this.sensorSystem = new SensorSystem(this.scene);
     this.itemManager = new ItemManager(this.scene, this.soundSystem, this.particleSystem);
 
-    // 6. Spawn Item Boxes at Strategic Waypoint Intervals
+    // 6. Spawn Item Boxes & Coins at Strategic Waypoints
     this.spawnItemBoxes();
+    this.spawnCoins();
 
     // 7. Spawn Grid of Racers (1 Player + 7 AI)
     this.spawnRacers();
@@ -299,15 +302,53 @@ class GameApp {
   }
 
   spawnItemBoxes() {
-    this.track.itemBoxProgressPoints.forEach(progressT => {
-      const offsets = [-5, 0, 5];
-      offsets.forEach(offset => {
-        const pos = this.track.getWaypointAtProgress(progressT, offset);
-        pos.y += 0.5;
-        const itemBox = new ItemBox(pos, this.scene);
+    // 1. Eight strategic track rows
+    if (this.track.itemBoxRowConfigs) {
+      this.track.itemBoxRowConfigs.forEach(row => {
+        const offsets = [-5.5, -1.8, 1.8, 5.5];
+        const sampleIdx = Math.floor(row.t * this.track.sampleCount);
+        const sample = this.track.samples[sampleIdx] || this.track.samples[0];
+
+        offsets.forEach(offset => {
+          const pos = this.track.getWaypointAtProgress(row.t, offset);
+          pos.y += 0.55;
+          const itemBox = new ItemBox(pos, this.scene, {
+            isDouble: row.isDouble,
+            movingLateral: row.movingLateral,
+            tangent: sample.tangent,
+            binormal: sample.binormal
+          });
+          this.itemBoxes.push(itemBox);
+        });
+      });
+    }
+
+    // 2. Off-road shortcut checkpoints (Double Item Boxes)
+    if (this.track.shortcutCurve && this.track.shortcutItemBoxConfigs) {
+      this.track.shortcutItemBoxConfigs.forEach(cfg => {
+        const pt = this.track.shortcutCurve.getPointAt(cfg.t);
+        const tan = this.track.shortcutCurve.getTangentAt(cfg.t).normalize();
+        const binormal = new THREE.Vector3().crossVectors(tan, new THREE.Vector3(0, 1, 0)).normalize();
+        pt.y += 0.55;
+        const itemBox = new ItemBox(pt, this.scene, {
+          isDouble: cfg.isDouble,
+          movingLateral: 0,
+          tangent: tan,
+          binormal: binormal
+        });
         this.itemBoxes.push(itemBox);
       });
-    });
+    }
+  }
+
+  spawnCoins() {
+    if (typeof this.track.getCoinSpawnPositions === 'function') {
+      const coinPositions = this.track.getCoinSpawnPositions();
+      coinPositions.forEach(pos => {
+        const coin = new TrackCoin(pos, this.scene);
+        this.coins.push(coin);
+      });
+    }
   }
 
   spawnRacers() {
@@ -418,7 +459,37 @@ class GameApp {
       }
 
       if (key === 'e' || key === 'enter') {
-        this.usePlayerItem();
+        if (this.countdownTimer <= 0) {
+          if (this.playerKart.goldenMushroomTimer > 0) {
+            this.playerKart.applyBoost(1.25, 26);
+            if (this.soundSystem) this.soundSystem.playItemUse('GOLDEN_MUSHROOM');
+            if (this.particleSystem) this.particleSystem.emitBurst(this.playerKart.position, 0xfbbf24, 14, 8);
+            this.hud.showNotification('👑 BOOST DOURADO!', 0.8);
+          } else if (this.playerKart.heldItem) {
+            const item = this.playerKart.heldItem;
+            if (item === ITEM_TYPES.BANANA || item === ITEM_TYPES.GREEN_SHELL || item === ITEM_TYPES.RED_SHELL) {
+              this.isHoldingShieldKey = true;
+              this.playerKart.isHoldingShield = true;
+              this.playerKart.updateHeldItemVisual();
+            } else {
+              this.usePlayerItem();
+            }
+          }
+        }
+      }
+
+      if (key === 'f') {
+        if (this.playerKart.heldItem) {
+          const item = this.playerKart.heldItem;
+          if (item === ITEM_TYPES.BANANA || item === ITEM_TYPES.GREEN_SHELL || item === ITEM_TYPES.RED_SHELL) {
+            this.playerKart.isHoldingShield = !this.playerKart.isHoldingShield;
+            this.playerKart.updateHeldItemVisual();
+            this.hud.showNotification(
+              this.playerKart.isHoldingShield ? '🛡️ ESCUDO TRASEIRO ATIVO' : '🛡️ ESCUDO DESATIVADO',
+              1.0
+            );
+          }
+        }
       }
 
       if (key === 'c') {
@@ -458,6 +529,14 @@ class GameApp {
       if (key === 'q' || key === 'v') {
         this.followCamera.lookBack = false;
       }
+
+      if (key === 'e' || key === 'enter') {
+        if (this.isHoldingShieldKey) {
+          this.isHoldingShieldKey = false;
+          this.playerKart.isHoldingShield = false;
+          this.usePlayerItem();
+        }
+      }
     });
   }
 
@@ -474,9 +553,11 @@ class GameApp {
       track: this.track
     });
 
-    this.playerKart.heldItem = null;
-    this.playerKart.updateHeldItemVisual();
-    this.hud.clearItemSlot();
+    this.playerKart.consumeHeldItem();
+    this.playerKart.isHoldingShield = false;
+    if (!this.playerKart.heldItem) {
+      this.hud.clearItemSlot();
+    }
   }
 
   onWindowResize() {
@@ -556,9 +637,10 @@ class GameApp {
 
     const deltaTime = Math.min(this.clock.getDelta(), 0.05);
 
-    // 1. Update Track & Item Boxes & Particles
+    // 1. Update Track & Item Boxes & Coins & Particles
     this.track.update(deltaTime);
     this.itemBoxes.forEach(box => box.update(deltaTime));
+    this.coins.forEach(coin => coin.update(deltaTime));
     this.particleSystem.update(deltaTime);
 
     // 2. Check Starting Countdown
@@ -580,8 +662,9 @@ class GameApp {
         }
       }
 
-      // 3. Check Item Box & Boost Pad Collection
+      // 3. Check Item Box, Coin & Boost Pad Collection
       this.checkItemBoxCollisions();
+      this.checkCoinCollisions();
       this.checkBoostPadCollisions();
 
       // 4. Update AI Controllers (4-layer decision pipeline)
@@ -684,9 +767,30 @@ class GameApp {
     }
   }
 
+  checkCoinCollisions() {
+    for (const coin of this.coins) {
+      if (!coin.active) continue;
+      for (const kart of this.allKarts) {
+        if (kart.position.distanceTo(coin.position) < coin.radius + 1.25) {
+          if (coin.collect()) {
+            kart.addCoin();
+            if (kart.isPlayer) {
+              this.soundSystem.playCoinCollect();
+              if (this.particleSystem) {
+                this.particleSystem.emitBurst(coin.position, 0xfacc15, 12, 6);
+              }
+            }
+          }
+          break;
+        }
+      }
+    }
+  }
+
   checkItemBoxCollisions() {
     this.allKarts.forEach(kart => {
-      if (kart.heldItem) return;
+      // If both slots are full, cannot collect another item
+      if (kart.heldItem && kart.secondaryItem) return;
 
       for (const box of this.itemBoxes) {
         if (!box.active) continue;
@@ -694,18 +798,44 @@ class GameApp {
         if (dist < box.radius + 1.2) {
           box.collect();
           if (this.particleSystem) {
-            this.particleSystem.emitBurst(box.position, 0x38bdf8, 16, 9);
+            this.particleSystem.emitBurst(box.position, box.isDouble ? 0xfacc15 : 0x38bdf8, 18, 10);
           }
 
-          const item = this.rollItemForKart(kart);
-
-          if (kart.isPlayer) {
-            this.soundSystem.playItemBoxCollect();
-            this.hud.triggerItemRoulette(item, () => {
-              kart.assignItem(item);
-            });
+          if (box.isDouble) {
+            if (!kart.heldItem) {
+              const item1 = this.rollItemForKart(kart);
+              const item2 = this.rollItemForKart(kart);
+              if (kart.isPlayer) {
+                this.soundSystem.playItemBoxCollect();
+                this.hud.triggerItemRoulette(item1, item2, () => {
+                  kart.assignItem(item1, true, item2);
+                });
+              } else {
+                kart.assignItem(item1, true, item2);
+              }
+            } else if (!kart.secondaryItem) {
+              const item2 = this.rollItemForKart(kart);
+              if (kart.isPlayer) {
+                this.soundSystem.playItemBoxCollect();
+                this.hud.triggerItemRoulette(kart.heldItem, item2, () => {
+                  kart.assignItem(item2);
+                });
+              } else {
+                kart.assignItem(item2);
+              }
+            }
           } else {
-            kart.assignItem(item);
+            const item = this.rollItemForKart(kart);
+            if (kart.isPlayer) {
+              this.soundSystem.playItemBoxCollect();
+              const pItem = kart.heldItem ? kart.heldItem : item;
+              const sItem = kart.heldItem ? item : null;
+              this.hud.triggerItemRoulette(pItem, sItem, () => {
+                kart.assignItem(item);
+              });
+            } else {
+              kart.assignItem(item);
+            }
           }
           break;
         }
@@ -716,22 +846,29 @@ class GameApp {
   rollItemForKart(kart) {
     const pos = kart.racePosition;
     if (pos === 1) {
-      return Math.random() < 0.65 ? ITEM_TYPES.BANANA : ITEM_TYPES.GREEN_SHELL;
+      const r = Math.random();
+      if (r < 0.45) return ITEM_TYPES.BANANA;
+      if (r < 0.75) return ITEM_TYPES.GREEN_SHELL;
+      return ITEM_TYPES.FAKE_ITEM_BOX;
     } else if (pos <= 3) {
       const r = Math.random();
-      if (r < 0.4) return ITEM_TYPES.GREEN_SHELL;
-      if (r < 0.75) return ITEM_TYPES.RED_SHELL;
-      return ITEM_TYPES.BOOST_MUSHROOM;
+      if (r < 0.30) return ITEM_TYPES.GREEN_SHELL;
+      if (r < 0.65) return ITEM_TYPES.RED_SHELL;
+      if (r < 0.85) return ITEM_TYPES.BOOST_MUSHROOM;
+      return ITEM_TYPES.FAKE_ITEM_BOX;
     } else if (pos <= 6) {
       const r = Math.random();
-      if (r < 0.4) return ITEM_TYPES.RED_SHELL;
-      if (r < 0.8) return ITEM_TYPES.BOOST_MUSHROOM;
+      if (r < 0.25) return ITEM_TYPES.RED_SHELL;
+      if (r < 0.50) return ITEM_TYPES.BOOST_MUSHROOM;
+      if (r < 0.70) return ITEM_TYPES.GOLDEN_MUSHROOM;
+      if (r < 0.85) return ITEM_TYPES.SUPER_STAR;
       return ITEM_TYPES.LIGHTNING;
     } else {
       const r = Math.random();
-      if (r < 0.35) return ITEM_TYPES.BLUE_SHELL;
-      if (r < 0.7) return ITEM_TYPES.LIGHTNING;
-      return ITEM_TYPES.BOOST_MUSHROOM;
+      if (r < 0.25) return ITEM_TYPES.BLUE_SHELL;
+      if (r < 0.50) return ITEM_TYPES.SUPER_STAR;
+      if (r < 0.75) return ITEM_TYPES.GOLDEN_MUSHROOM;
+      return ITEM_TYPES.LIGHTNING;
     }
   }
 
@@ -747,6 +884,19 @@ class GameApp {
         const minSpacing = 2.35;
 
         if (dist < minSpacing && dist > 0.001) {
+          // If a kart is Star-powered, ramming spin-outs the other kart!
+          if (k1.isStarred && !k2.isStarred) {
+            k2.triggerSpinOut();
+            if (this.particleSystem) {
+              this.particleSystem.emitBurst(k2.position, 0xfacc15, 20, 10);
+            }
+          } else if (k2.isStarred && !k1.isStarred) {
+            k1.triggerSpinOut();
+            if (this.particleSystem) {
+              this.particleSystem.emitBurst(k1.position, 0xfacc15, 20, 10);
+            }
+          }
+
           const overlap = (minSpacing - dist) * 0.5;
           const normal = delta.clone().normalize();
 
