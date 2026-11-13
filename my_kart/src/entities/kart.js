@@ -535,7 +535,7 @@ export class Kart {
         this.soundSystem.playLapPass();
       }
     } else if (this.prevLapProgress < 0.12 && this.lapProgress > 0.88) {
-      this.currentLap = Math.max(1, this.currentLap - 1);
+      this.currentLap = Math.max(0, this.currentLap - 1);
     }
     this.prevLapProgress = this.lapProgress;
     this.totalDistance = (this.currentLap - 1) * track.totalLength + this.lapProgress * track.totalLength;
@@ -1040,27 +1040,60 @@ export class Kart {
       this.mesh.rotation.z = THREE.MathUtils.lerp(this.mesh.rotation.z, targetMeshRoll, deltaTime * 12);
     }
 
-    // Wall collision clamping & active rebound deflection (skip left wall at shortcut entrance/exit)
-    const inShortcutGap = (
-      proj.lateralOffset > 0 &&
-      this.lapProgress >= TRACK_CONFIG.SHORTCUT_START_PROGRESS - 0.025 &&
-      this.lapProgress <= TRACK_CONFIG.SHORTCUT_END_PROGRESS + 0.025
-    );
+    // Continuous impenetrable wall collision clamping & smooth sliding deflection along track tangent
+    this.enforceBarrierConstraint(track);
+  }
 
-    const barrierLimit = track.halfWidth + 2.3;
-    if (!inShortcutGap && Math.abs(proj.lateralOffset) > barrierLimit) {
+  /**
+   * Enforces an impenetrable barrier boundary along the track guardrails,
+   * deflecting velocity smoothly along the track tangent even on 90-degree or multi-kart impacts.
+   */
+  enforceBarrierConstraint(track) {
+    const barrierLimit = track.halfWidth + 1.85;
+
+    for (let pass = 0; pass < 2; pass++) {
+      const proj = track.getSplineProjection(this.position, this.lapProgress);
+      if (Math.abs(proj.lateralOffset) <= barrierLimit) {
+        break;
+      }
+
+      const sample = proj.sample;
       const sign = Math.sign(proj.lateralOffset);
-      const pushDist = (Math.abs(proj.lateralOffset) - barrierLimit) + 0.35;
-      const pushBack = new THREE.Vector3().copy(sample.binormal).multiplyScalar(-sign * pushDist);
-      this.position.add(pushBack);
+      const b = sample.bankedBinormal || sample.binormal;
+      const excess = Math.abs(proj.lateralOffset) - (barrierLimit - 0.08);
 
-      // Re-orient yaw gently along track tangent using shortest-angle lerp!
-      const tangentYaw = Math.atan2(sample.tangent.x, sample.tangent.z);
-      this.yaw = lerpAngle(this.yaw, tangentYaw, 0.16);
-      this.setRotation(this.yaw);
+      // Push position strictly back inside the barrier while preserving forward progress along tangent
+      this.position.addScaledVector(b, -sign * excess);
+      this.lapProgress = proj.t;
 
-      if (this.speed > 0) {
-        this.speed = Math.max(9.0, this.speed * 0.92);
+      if (pass === 0) {
+        // Remove any outward velocity component regardless of forward/reverse travel
+        const velSign = this.speed >= 0 ? 1 : -1;
+        const outwardVel = this.moveDirection.dot(b) * sign * velSign;
+        if (outwardVel > 0) {
+          this.moveDirection.addScaledVector(b, -sign * velSign * outwardVel);
+          const tangentDot = this.moveDirection.dot(sample.tangent);
+          if (this.moveDirection.lengthSq() < 0.04 || (this.speed >= 0 && tangentDot < -0.2)) {
+            this.moveDirection.copy(sample.tangent);
+          } else {
+            this.moveDirection.normalize();
+          }
+        }
+
+        // Gently align yaw with the track tangent so karts slide instead of wedging into the wall
+        const tangentYaw = Math.atan2(sample.tangent.x, sample.tangent.z);
+        this.yaw = lerpAngle(this.yaw, tangentYaw, 0.45);
+        this.setRotation(this.yaw);
+        this.isDrifting = false;
+        this.driftChargeTime = 0;
+        this.driftStage = 0;
+        this.sparkMeshes.forEach(s => { s.visible = false; });
+
+        if (this.speed > 0) {
+          this.speed = Math.max(18.0, this.speed * 0.96);
+        } else if (this.speed < 0) {
+          this.speed = Math.min(0, this.speed * 0.5);
+        }
       }
     }
 

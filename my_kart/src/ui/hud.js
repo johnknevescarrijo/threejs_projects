@@ -234,7 +234,7 @@ export class HUD {
     if (this.raceTimerEl) {
       this.raceTimerEl.textContent = this.formatTime(raceTime);
     }
-    const currentLap = Math.min(playerKart.currentLap, TRACK_CONFIG.TOTAL_LAPS);
+    const currentLap = Math.max(1, Math.min(playerKart.currentLap, TRACK_CONFIG.TOTAL_LAPS));
     if (this.lapNumEl) {
       this.lapNumEl.textContent = `${currentLap} / ${TRACK_CONFIG.TOTAL_LAPS}`;
     }
