@@ -1594,7 +1594,7 @@ export class Track {
     } else {
       groundTex = ProceduralTextures.createGrassTexture();
       groundMat = new THREE.MeshStandardMaterial({
-        map: grassTex,
+        map: groundTex,
         roughness: 0.88,
         metalness: 0.04
       });
