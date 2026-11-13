@@ -97,6 +97,36 @@ Conforme estipulado no [`AGENTS.MD`](file:///home/john/Programacao/Estudos/three
 * **Sistema de Partículas 3D (`InstancedMesh`):** Faíscas físicas de drift (azul/laranja), labaredas nos escapamentos duplos, poeira/grama no off-road, ondas de choque do Casco Azul e raios caindo do céu.
 * **Largada 3-2-1-GO! e Arrancada Turbo (*Rocket Start*):** Semáforo 3D no pórtico sincronizado com a contagem regressiva e bônus de turbo ao segurar o acelerador no tempo certo.
 
+### 4.6. Sistema de Moedas, Slot Duplo de Itens e Escudo Traseiro (Feature 1)
+* **Moedas na Pista (0–10):** Coletar moedas adiciona +1.2% de velocidade máxima contínua (máximo de +12%) e confere um micro-boost instantâneo de velocidade. Ao sofrer impacto de armas ou obstáculos, o piloto perde até 3 moedas físicas.
+* **Slot Duplo de Itens & Caixas 2X:** Suporte a dois slots de armazenamento de power-ups simultâneos (Primário e Secundário), com roleta dupla de itens e caixas duplas douradas (`2X`) posicionadas estrategicamente na pista e atalhos.
+* **Escudo Traseiro Ativo:** Segurar a tecla de disparo (**`E`**) ou pressionar **`F`** trava cascas de banana ou cascos na traseira do chassi do kart, absorvendo impactos diretos de projéteis rivais (Cascos Verdes e Vermelhos).
+* **Novos Itens de Combate:**
+  * `SUPER_STAR`: Efeito rainbow estroboscópico, velocidade extra (+18 km/h), aceleração multiplicada por 1.4x e imunidade completa a danos e obstáculos.
+  * `GOLDEN_MUSHROOM`: Dispara rajadas turbo repetidas ilimitadas por 5.5s.
+  * `FAKE_ITEM_BOX`: Caixa armadilha vermelha/alaranjada com ponto de interrogação `?` invertido.
+
+### 4.7. Balística Vertical, Rampas de Salto, Manobras Aéreas e Ultra Mini-Turbo (Feature 2)
+* **Gravidade e Física Vertical:** Implementação de velocidade vertical $v_y$, gravidade ($g = 25\text{ m/s}^2$) e rotação de arqueamento balístico (*pitch*) em voo.
+* **Quatro Rampas de Salto 3D:** Construídas com chevrons direcionais de impulsão e lips de neon pulsantes nos trechos $t = 0.12, 0.38, 0.85$ e no atalho off-road.
+* **Sistema de Manobras Aéreas (*Trick Stunts*):** Pressionar a tecla de salto/drift ao passar pela crista da rampa ou em voo ativa acrobacias 3D dinâmicas (giro 360° em Y ou *barrel roll* helicoidal em X/Z), concedendo **Trick Boost** com efeito de partículas ao aterrissar.
+* **Ultra Mini-Turbo (Estágio 3 - Roxo/Magenta):** Estágio superior de drift carregado aos 3.4s, concedendo surto de 2.7s a +42 km/h.
+* **Caixas e Moedas Aéreas:** Colecionáveis suspensos em arcos verticais pós-rampa acessíveis apenas via salto perfeitamente alinhado.
+
+### 4.8. Redesign de Pista, Banking 3D, Túnel Neon, Perigos e Seletor de 3 Circuitos (Feature 3)
+* **Banking 3D nas Curvas:** Cálculo automático da curvatura transversal suave com peralte lateral de até $\approx 9.2^\circ$ ($0.16\text{ rad}$), orientando asfalto, zebras, guardrails e a física de inclinação (*roll*) dos karts.
+* **Túnel Iluminado em Neon ($t \in [0.44, 0.53]$):** Arcos estruturais octogonais com anéis de néon multicoloridos em onda senoidal de intensidade luminosa e teto aerodinâmico escuro translúcido.
+* **Pilares de Viaduto Estruturais:** Suportes arquitetônicos duplos de concreto armado e anéis de aço que descem das seções elevadas da pista ($y > 2.8\text{m}$) até o solo, eliminando qualquer visual de estrada flutuante.
+* **Zonas Especiais de Superfície:**
+  * **Gelo (`ICE`):** 2 trechos azul-translúcidos reflexivos que concedem +5% de top speed e reduzem o grip lateral, permitindo longos drifts controlados.
+  * **Lama (`MUD`):** 3 manchas viscosas nas chicanes que reduzem velocidade e aceleração em ~50%, a menos que o piloto utilize turbo ou estrela.
+* **Obstáculos Dinâmicos da Pista (`this.hazards`):** 4 pilares/martelos oscilantes suspensos por pórticos de trilho com textura diagonal de advertência amarelo/preto e núcleo neon vermelho pulsante, com evasão ativa pela IA e colisão que causa spin-out.
+* **Seletor de 3 Circuitos Temáticos (`CIRCUITS`):**
+  * Alternância via botão **`PISTA [T]`** ou atalho de teclado **`T`**, salvo com persistência em `sessionStorage`:
+    1. `GRAND_PRIX`: Copa Solar clássica ensolarada, grama verde, lago central e montanhas.
+    2. `SUNSET_DUNES`: Deserto ao pôr-do-sol crepúsculo com areia dourada, 3 grandes pirâmides egípcias 3D no horizonte, oásis de água turquesa e palmeiras.
+    3. `CYBER_NEON`: Metrópole noturna cyberpunk synthwave com mais de 40 arranha-céus 3D iluminados por faixas neon cyan/magenta, asfalto digital e iluminação retrowave.
+
 ---
 
 ## 5. Diretrizes para Manutenção e Próximos Passos
