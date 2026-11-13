@@ -92,7 +92,7 @@ export class SensorSystem {
       }
     }
 
-    // Check against ground hazards (Bananas)
+    // Check against ground hazards (Bananas) and dynamic track hazards
     for (const trap of groundTraps) {
       const toTrap = new THREE.Vector3().subVectors(trap.position, kartPos);
       const dist = toTrap.length();
@@ -103,6 +103,22 @@ export class SensorSystem {
         if (dist < frontDistance) {
           frontDistance = dist;
           frontObstacle = { type: 'trap', entity: trap, distance: dist };
+        }
+      }
+    }
+
+    if (track.hazards) {
+      for (const hazard of track.hazards) {
+        const toHazard = new THREE.Vector3().subVectors(hazard.currentPos, kartPos);
+        const dist = toHazard.length();
+        if (dist < 0.001) continue;
+        const dotForward = toHazard.clone().divideScalar(dist).dot(forward);
+
+        if (dotForward > 0.82 && dist < frontRayDist) {
+          if (dist < frontDistance) {
+            frontDistance = dist;
+            frontObstacle = { type: 'hazard', entity: hazard, distance: dist };
+          }
         }
       }
     }
@@ -121,7 +137,7 @@ export class SensorSystem {
     }
 
     let closestBoostPad = null;
-    let closestBoostPadDist = 22;
+    let closestBoostPadDist = 30;
     if (track.boostPads) {
       for (const pad of track.boostPads) {
         const toPad = new THREE.Vector3().subVectors(pad.position, kartPos);

@@ -111,11 +111,11 @@ export const SENSOR_CONFIG = {
 };
 
 export const DDA_CONFIG = {
-  AHEAD_TIME_THRESHOLD: 4.0,   // +4s advantage
-  AHEAD_SPEED_PENALTY: 0.04,   // -4% max speed
-  BEHIND_TIME_THRESHOLD: 4.0,  // -4s disadvantage
-  BEHIND_ACCEL_BOOST: 0.06,    // +6% acceleration
-  BEHIND_SPEED_BOOST: 0.03,    // +3% max speed
+  AHEAD_TIME_THRESHOLD: 2.8,   // +2.8s advantage
+  AHEAD_SPEED_PENALTY: 0.025,  // -2.5% max speed when far ahead
+  BEHIND_TIME_THRESHOLD: 0.8,  // -0.8s disadvantage triggers catch-up
+  BEHIND_ACCEL_BOOST: 0.45,    // up to +45% acceleration
+  BEHIND_SPEED_BOOST: 0.22,    // up to +22% max speed
   SLIPSTREAM_DISTANCE: 14,     // meters behind rival
   SLIPSTREAM_CONE_ANGLE: 0.25, // radians
   SLIPSTREAM_TIME_TO_BOOST: 1.5,
