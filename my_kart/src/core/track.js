@@ -33,16 +33,10 @@ export class Track {
     this.initCurves();
     this.precomputeSamples();
     this.buildTrackGeometry();
-    this.buildTrackFoundation();
-    this.buildViaductPillars();
     this.buildStartFinishAndGrid();
     this.buildBoostPads();
-    this.buildJumpRamps();
     this.buildShortcutGeometry();
     this.buildCurbsAndGuardrails();
-    this.buildSurfaceZones();
-    this.buildDynamicHazards();
-    this.buildNeonTunnel();
     this.buildStartGantry();
     this.buildGrandstands();
     this.buildTrackChevronsAndBillboards();
@@ -51,43 +45,43 @@ export class Track {
   }
 
   initCurves() {
-    // Elevated arcade circuit (all points y >= 0 so terrain never clips road)
+    // Ground-level classic arcade circuit (flat y = 0 so kart stays planted on the road)
     const controlPoints = [
-      new THREE.Vector3(0, 0.2, 0),         // Start / Finish straight
-      new THREE.Vector3(0, 0.2, 85),
-      new THREE.Vector3(18, 2.5, 165),
-      new THREE.Vector3(55, 5.5, 215),      // Turn 1 sweeping right climb
-      new THREE.Vector3(125, 8.0, 235),
-      new THREE.Vector3(195, 6.5, 200),
-      new THREE.Vector3(225, 4.0, 138),     // Turn 2 right into fast back-straight
-      new THREE.Vector3(212, 1.5, 55),
-      new THREE.Vector3(190, 0.4, -30),     // Fast valley
-      new THREE.Vector3(150, 1.8, -92),     // Technical Chicane
-      new THREE.Vector3(110, 4.5, -115),
-      new THREE.Vector3(92, 8.5, -175),     // Hill climb into high panoramic loop
-      new THREE.Vector3(112, 11.0, -245),   // High altitude Turn 3
-      new THREE.Vector3(80, 9.0, -305),
-      new THREE.Vector3(18, 6.0, -342),     // Hairpin entry
-      new THREE.Vector3(-62, 3.5, -332),    // Hairpin apex
-      new THREE.Vector3(-112, 2.0, -280),   // Hairpin exit
-      new THREE.Vector3(-142, 1.2, -210),   // Shortcut exit zone
-      new THREE.Vector3(-172, 0.5, -138),
-      new THREE.Vector3(-152, 0.4, -38),    // Flowing S-bend
-      new THREE.Vector3(-110, 1.2, 22),
-      new THREE.Vector3(-48, 0.4, 42),      // Final corner into main straight
-      new THREE.Vector3(-18, 0.2, -4)
+      new THREE.Vector3(0, 0, 0),           // Start / Finish straight
+      new THREE.Vector3(0, 0, 85),
+      new THREE.Vector3(18, 0, 165),
+      new THREE.Vector3(55, 0, 215),        // Turn 1 sweeping right
+      new THREE.Vector3(125, 0, 235),
+      new THREE.Vector3(195, 0, 200),
+      new THREE.Vector3(225, 0, 138),       // Turn 2 right into fast back-straight
+      new THREE.Vector3(212, 0, 55),
+      new THREE.Vector3(190, 0, -30),       // Back straight
+      new THREE.Vector3(150, 0, -92),       // Technical Chicane
+      new THREE.Vector3(110, 0, -115),
+      new THREE.Vector3(92, 0, -175),       // Sweeping loop entry
+      new THREE.Vector3(112, 0, -245),      // Turn 3
+      new THREE.Vector3(80, 0, -305),
+      new THREE.Vector3(18, 0, -342),       // Hairpin entry
+      new THREE.Vector3(-62, 0, -332),      // Hairpin apex
+      new THREE.Vector3(-112, 0, -280),     // Hairpin exit
+      new THREE.Vector3(-142, 0, -210),     // Shortcut exit zone
+      new THREE.Vector3(-172, 0, -138),
+      new THREE.Vector3(-152, 0, -38),      // Flowing S-bend
+      new THREE.Vector3(-110, 0, 22),
+      new THREE.Vector3(-48, 0, 42),        // Final corner into main straight
+      new THREE.Vector3(-18, 0, -4)
     ];
 
     this.curve = new THREE.CatmullRomCurve3(controlPoints, true, 'catmullrom', 0.45);
     this.totalLength = this.curve.getLength();
 
-    // Off-road shortcut: cuts across the hairpin/S-bend
+    // Off-road shortcut: cuts across the hairpin/S-bend at ground level
     const pStart = this.curve.getPointAt(TRACK_CONFIG.SHORTCUT_START_PROGRESS);
     const pEnd = this.curve.getPointAt(TRACK_CONFIG.SHORTCUT_END_PROGRESS);
     const midPoint = new THREE.Vector3()
       .addVectors(pStart, pEnd)
       .multiplyScalar(0.5)
-      .add(new THREE.Vector3(-8, 1.8, 0));
+      .add(new THREE.Vector3(-8, 0, 0));
 
     this.shortcutCurve = new THREE.CatmullRomCurve3([
       pStart,
@@ -95,31 +89,26 @@ export class Track {
       pEnd
     ], false, 'catmullrom', 0.5);
 
-    // Item box spawn checkpoints along the track (8 strategic rows with double & moving boxes)
+    // Item box spawn checkpoints along the track
     this.itemBoxProgressPoints = [0.07, 0.19, 0.31, 0.44, 0.56, 0.69, 0.81, 0.92];
     this.itemBoxRowConfigs = [
       { t: 0.07, isDouble: false, movingLateral: 0 },
-      { t: 0.19, isDouble: false, movingLateral: 2.2 }, // Moving row
-      { t: 0.31, isDouble: true,  movingLateral: 0 },   // Double box row
+      { t: 0.19, isDouble: false, movingLateral: 0 },
+      { t: 0.31, isDouble: true,  movingLateral: 0 },
       { t: 0.44, isDouble: false, movingLateral: 0 },
-      { t: 0.56, isDouble: true,  movingLateral: 2.2 }, // Double & moving row
+      { t: 0.56, isDouble: true,  movingLateral: 0 },
       { t: 0.69, isDouble: false, movingLateral: 0 },
-      { t: 0.81, isDouble: true,  movingLateral: 0 },   // Double box row
+      { t: 0.81, isDouble: true,  movingLateral: 0 },
       { t: 0.92, isDouble: false, movingLateral: 0 }
     ];
 
     // Off-road shortcut item box checkpoints
     this.shortcutItemBoxConfigs = [
-      { t: 0.35, isDouble: true },
-      { t: 0.70, isDouble: true }
+      { t: 0.50, isDouble: true }
     ];
 
-    // High floating aerial item boxes suspended after jump ramps
-    this.aerialItemBoxConfigs = [
-      { t: 0.138, lateral: 0, isDouble: true, aerialY: 3.4 }, // Floating after Ramp 1 (t = 0.12)
-      { t: 0.398, lateral: 0, isDouble: false, aerialY: 3.6 }, // Floating after Ramp 2 (t = 0.38)
-      { t: 0.868, lateral: 0, isDouble: true, aerialY: 3.9 }  // Floating after Ramp 4 (t = 0.85)
-    ];
+    // No floating aerial item boxes (ground-level classic race)
+    this.aerialItemBoxConfigs = [];
 
     // Turbo boost pad locations along the track: { t, lateralOffset }
     this.boostPadConfigs = [
@@ -156,8 +145,6 @@ export class Track {
       });
     }
 
-    // Curvature & raw 3D banking calculation
-    const rawBankAngles = new Float32Array(this.sampleCount);
     for (let i = 0; i < this.sampleCount; i++) {
       const current = this.samples[i];
       const prevIdx = (i - 10 + this.sampleCount) % this.sampleCount;
@@ -167,33 +154,6 @@ export class Track {
 
       const dot = Math.max(-1, Math.min(1, prev.tangent.dot(next.tangent)));
       current.curvature = Math.acos(dot);
-
-      // Signed cross product around Y to determine curve direction
-      const crossY = prev.tangent.x * next.tangent.z - prev.tangent.z * next.tangent.x;
-      // Banking: curve right (crossY > 0) -> bank left side up (-angle in Three.js roll)
-      // curve left (crossY < 0) -> bank right side up (+angle)
-      const maxBank = 0.16; // ~9.2 degrees maximum arcade banking
-      rawBankAngles[i] = THREE.MathUtils.clamp(-crossY * 0.42, -maxBank, maxBank);
-    }
-
-    // Smooth banking angles with a wide Gaussian-weighted filter to ensure zero abrupt twists
-    const filterRadius = 16;
-    for (let i = 0; i < this.sampleCount; i++) {
-      let sum = 0;
-      let count = 0;
-      for (let r = -filterRadius; r <= filterRadius; r++) {
-        const idx = (i + r + this.sampleCount) % this.sampleCount;
-        const weight = 1 - Math.abs(r) / (filterRadius + 1);
-        sum += rawBankAngles[idx] * weight;
-        count += weight;
-      }
-      const smoothBank = sum / count;
-      const sample = this.samples[i];
-      sample.bankAngle = smoothBank;
-
-      // Rotate binormal and normal vectors around tangent axis by smoothBank
-      sample.bankedBinormal = sample.binormal.clone().applyAxisAngle(sample.tangent, smoothBank);
-      sample.bankedNormal = sample.normal.clone().applyAxisAngle(sample.tangent, smoothBank);
     }
   }
 
@@ -234,8 +194,9 @@ export class Track {
       const i2 = i0 + 2;
       const i3 = i0 + 3;
 
-      indices.push(i0, i1, i2);
-      indices.push(i1, i3, i2);
+      // Counter-clockwise winding when viewed from above (+Y normal)
+      indices.push(i0, i2, i1);
+      indices.push(i1, i2, i3);
     }
 
     geometry.setIndex(indices);
@@ -251,7 +212,8 @@ export class Track {
     const material = new THREE.MeshStandardMaterial({
       map: asphaltTex,
       roughness: isCyber ? 0.45 : 0.78,
-      metalness: isCyber ? 0.35 : 0.12
+      metalness: isCyber ? 0.35 : 0.12,
+      side: THREE.DoubleSide
     });
 
     this.trackMesh = new THREE.Mesh(geometry, material);
@@ -694,16 +656,16 @@ export class Track {
       const left = new THREE.Vector3().copy(p).addScaledVector(binormal, width * 0.5);
       const right = new THREE.Vector3().copy(p).addScaledVector(binormal, -width * 0.5);
 
-      positions.push(left.x, left.y + 0.08, left.z);
-      positions.push(right.x, right.y + 0.08, right.z);
+      positions.push(left.x, left.y + 0.04, left.z);
+      positions.push(right.x, right.y + 0.04, right.z);
 
       uvs.push(0, i * 0.5);
       uvs.push(1, i * 0.5);
 
       if (i < segments) {
         const i0 = i * 2;
-        indices.push(i0, i0 + 1, i0 + 2);
-        indices.push(i0 + 1, i0 + 3, i0 + 2);
+        indices.push(i0, i0 + 2, i0 + 1);
+        indices.push(i0 + 1, i0 + 2, i0 + 3);
       }
     }
 
@@ -717,7 +679,8 @@ export class Track {
     const mat = new THREE.MeshStandardMaterial({
       map: dirtTex,
       roughness: 0.92,
-      metalness: 0.05
+      metalness: 0.05,
+      side: THREE.DoubleSide
     });
 
     const shortcutMesh = new THREE.Mesh(geo, mat);
@@ -729,11 +692,12 @@ export class Track {
     const midTan = this.shortcutCurve.getTangentAt(0.5).normalize();
     const padGeo = new THREE.PlaneGeometry(3.8, 6.5).rotateX(-Math.PI / 2);
     const padMat = new THREE.MeshBasicMaterial({
-      map: this.boostPadTexture
+      map: this.boostPadTexture,
+      side: THREE.DoubleSide
     });
     const padMesh = new THREE.Mesh(padGeo, padMat);
     padMesh.position.copy(midPos);
-    padMesh.position.y += 0.14;
+    padMesh.position.y += 0.08;
     padMesh.rotation.y = Math.atan2(midTan.x, midTan.z);
     this.environmentGroup.add(padMesh);
     this.boostPads.push({
@@ -747,7 +711,7 @@ export class Track {
 
   buildCurbsAndGuardrails() {
     const curbWidth = 1.45;
-    const curbHeight = 0.2;
+    const curbHeight = 0.16;
     const red = new THREE.Color(0xef4444);
     const white = new THREE.Color(0xf8fafc);
     const blue = new THREE.Color(0x3b82f6);
@@ -797,7 +761,7 @@ export class Track {
       indices.push(vertIdx, vertIdx + 1, vertIdx + 2, vertIdx + 1, vertIdx + 3, vertIdx + 2);
       vertIdx += 4;
 
-      // Right curb
+      // Right curb (reverse winding so normal points +Y)
       const rInner = new THREE.Vector3().copy(s0.point).addScaledVector(b0, -this.halfWidth).addScaledVector(n0, curbHeight);
       const rOuter = new THREE.Vector3().copy(s0.point).addScaledVector(b0, -(this.halfWidth + curbWidth)).addScaledVector(n0, curbHeight * 0.35);
       const rInnerNext = new THREE.Vector3().copy(s1.point).addScaledVector(b1, -this.halfWidth).addScaledVector(n1, curbHeight);
@@ -809,7 +773,7 @@ export class Track {
       positions.push(rOuterNext.x, rOuterNext.y, rOuterNext.z);
 
       for (let k = 0; k < 4; k++) colors.push(curbColor.r, curbColor.g, curbColor.b);
-      indices.push(vertIdx, vertIdx + 1, vertIdx + 2, vertIdx + 1, vertIdx + 3, vertIdx + 2);
+      indices.push(vertIdx, vertIdx + 2, vertIdx + 1, vertIdx + 1, vertIdx + 2, vertIdx + 3);
       vertIdx += 4;
     }
 
@@ -822,7 +786,8 @@ export class Track {
     const curbMat = new THREE.MeshStandardMaterial({
       vertexColors: true,
       roughness: 0.55,
-      metalness: 0.1
+      metalness: 0.1,
+      side: THREE.DoubleSide
     });
     this.curbsMesh = new THREE.Mesh(curbGeo, curbMat);
     this.curbsMesh.receiveShadow = true;
@@ -1555,20 +1520,20 @@ export class Track {
       const lakeDz = (z - 45) / 75;
       const lakeDist = lakeDx * lakeDx + lakeDz * lakeDz;
 
-      if (lakeDist < 1.0 && distToTrack > 22) {
-        pos.setY(i, -2.8);
-      } else if (distToTrack < 24) {
-        // Keep terrain cleanly below the road bed
-        pos.setY(i, Math.min(-0.4, nearestRoadY - 0.75));
+      if (lakeDist < 1.0 && distToTrack > 26) {
+        pos.setY(i, -1.2);
+      } else if (distToTrack < 36) {
+        // Keep terrain completely flat at y = 0.0 flush with the road and curbs
+        pos.setY(i, 0.0);
       } else {
-        // Scenic rolling hills & outer mountains
-        const outerFactor = Math.min(1.0, (distToTrack - 24) / 85);
+        // Gentle scenic rolling hills & outer mountains far from the track
+        const outerFactor = Math.min(1.0, (distToTrack - 36) / 110);
         const hill = (
-          Math.sin(x * 0.018) * Math.cos(z * 0.018) * 14 +
-          Math.sin(x * 0.04 + 1.2) * Math.sin(z * 0.035) * 6
+          Math.sin(x * 0.018) * Math.cos(z * 0.018) * 10 +
+          Math.sin(x * 0.04 + 1.2) * Math.sin(z * 0.035) * 4
         ) * outerFactor;
-        const perimeterMountain = Math.max(0, (Math.sqrt(x * x + z * z) - 340) * 0.22);
-        pos.setY(i, -0.4 + Math.max(0, hill) + perimeterMountain);
+        const perimeterMountain = Math.max(0, (Math.sqrt(x * x + z * z) - 360) * 0.18);
+        pos.setY(i, Math.max(0, hill) + perimeterMountain);
       }
     }
     groundGeo.computeVertexNormals();
@@ -1622,7 +1587,7 @@ export class Track {
       opacity: 0.88
     });
     this.waterMesh = new THREE.Mesh(waterGeo, waterMat);
-    this.waterMesh.position.set(85, -0.65, 45);
+    this.waterMesh.position.set(85, -0.05, 45);
     this.waterMesh.scale.set(0.9, 1, 1.25);
     this.environmentGroup.add(this.waterMesh);
 
@@ -1697,7 +1662,7 @@ export class Track {
         const checkProj = this.getSplineProjection(palmPos);
         if (Math.abs(checkProj.lateralOffset) < this.halfWidth + 6.0) return;
 
-        palmPos.y = Math.min(0, s.point.y - 0.4);
+        palmPos.y = 0;
 
         const palmGroup = new THREE.Group();
         palmGroup.position.copy(palmPos);
@@ -1827,7 +1792,7 @@ export class Track {
         const lakeDz = (treePos.z - 45) / 75;
         if (lakeDx * lakeDx + lakeDz * lakeDz < 1.05) return;
 
-        treePos.y = Math.min(0, s.point.y - 0.4);
+        treePos.y = 0;
 
         const treeGroup = new THREE.Group();
         const trunk = new THREE.Mesh(trunkGeo, trunkMat);
@@ -2086,34 +2051,10 @@ export class Track {
       }
     });
 
-    // Aerial arc coins reward skilled jumpers after ramps 1, 3 and 4
-    const aerialCoinSequences = [
-      // Arc after Ramp 1 (t = 0.12)
-      { tStart: 0.130, count: 3, step: 0.005, lateral: 0, yArc: [2.5, 3.4, 2.7] },
-      // Arc after Ramp 4 (t = 0.85)
-      { tStart: 0.860, count: 3, step: 0.005, lateral: 0, yArc: [2.6, 3.7, 2.8] }
-    ];
-
-    aerialCoinSequences.forEach(seq => {
-      for (let i = 0; i < seq.count; i++) {
-        const t = (seq.tStart + i * seq.step) % 1.0;
-        const pos = this.getWaypointAtProgress(t, seq.lateral);
-        pos.y += seq.yArc[i] || 2.8;
-        list.push(pos);
-      }
-    });
-
     if (this.shortcutCurve) {
       [0.2, 0.4, 0.6, 0.8].forEach(scT => {
         const pt = this.shortcutCurve.getPointAt(scT);
         pt.y += 0.25;
-        list.push(pt);
-      });
-
-      // Aerial coin arc over the canyon after shortcut ramp
-      [0.54, 0.61, 0.68].forEach((scT, idx) => {
-        const pt = this.shortcutCurve.getPointAt(scT);
-        pt.y += [2.4, 3.4, 2.5][idx];
         list.push(pt);
       });
     }

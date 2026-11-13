@@ -75,28 +75,28 @@ export const CIRCUITS = {
 export const CIRCUIT_LIST = ['GRAND_PRIX', 'SUNSET_DUNES', 'CYBER_NEON'];
 
 export const PHYSICS_CONFIG = {
-  GRAVITY: 25,
+  GRAVITY: 38,
   MAX_FORWARD_SPEED: 48,
   REVERSE_MAX_SPEED: 18,
-  ACCELERATION: 28,
-  BRAKING: 45,
-  DECELERATION: 12,
-  OFFROAD_DRAG_FACTOR: 0.45,
-  STEER_SPEED: 2.8,
-  DRIFT_STEER_MULTIPLIER: 1.45,
-  DRIFT_MIN_SPEED_RATIO: 0.70, // 70% of max speed to start drift
+  ACCELERATION: 32,
+  BRAKING: 48,
+  DECELERATION: 16,
+  OFFROAD_DRAG_FACTOR: 0.48,
+  STEER_SPEED: 2.6,
+  DRIFT_STEER_MULTIPLIER: 1.35,
+  DRIFT_MIN_SPEED_RATIO: 0.65, // 65% of max speed to start drift
   DRIFT_MIN_CURVE_ANGLE: 0.61,  // ~35 degrees in radians (35 * PI / 180 = 0.6108)
   DRIFT_CHARGE_RATE: 1.0,
-  MINI_TURBO_STAGE1_TIME: 1.2,  // Blue stage
-  MINI_TURBO_STAGE2_TIME: 2.4,  // Orange stage
-  MINI_TURBO_STAGE3_TIME: 3.4,  // Ultra Mini-Turbo (Purple / Magenta stage)
-  MINI_TURBO_BOOST_DURATIONS: [0, 0.9, 1.8, 2.7], // Boost seconds for stage 0, 1, 2, 3
-  MINI_TURBO_BOOST_SPEEDS: [0, 18, 30, 42],      // Boost speed addition
+  MINI_TURBO_STAGE1_TIME: 1.1,  // Blue stage
+  MINI_TURBO_STAGE2_TIME: 2.2,  // Orange stage
+  MINI_TURBO_STAGE3_TIME: 3.2,  // Ultra Mini-Turbo (Purple / Magenta stage)
+  MINI_TURBO_BOOST_DURATIONS: [0, 0.9, 1.7, 2.5], // Boost seconds for stage 0, 1, 2, 3
+  MINI_TURBO_BOOST_SPEEDS: [0, 16, 26, 36],      // Boost speed addition
   TRICK_BOOST_DURATION: 1.4,
-  TRICK_BOOST_SPEED: 26,
-  LATERAL_GRIP: 9.0,
-  DRIFT_LATERAL_GRIP: 3.4,
-  SPIN_DURATION: 1.5,
+  TRICK_BOOST_SPEED: 24,
+  LATERAL_GRIP: 18.0,
+  DRIFT_LATERAL_GRIP: 5.8,
+  SPIN_DURATION: 1.4,
   RESPAWN_DURATION: 1.2
 };
 
