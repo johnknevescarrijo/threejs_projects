@@ -697,6 +697,21 @@ class GameApp {
 
       // 5. Update Kart Physics
       this.playerKart.update(deltaTime, this.playerInputs, this.track);
+
+      // Check Trick Landing Stunt feedback
+      if (this.playerKart.justLandedTrick) {
+        this.hud.showNotification('✨ TRICK BOOST! +TURBO!', 1.6);
+        this.followCamera.addShake(0.32);
+        this.playerKart.justLandedTrick = false;
+      }
+
+      // Check Ultra Mini-Turbo feedback
+      if (this.playerKart.justReleasedUltraMiniTurbo) {
+        this.hud.showNotification('💜 ULTRA MINI-TURBO! (ROXO)', 1.7);
+        this.followCamera.addShake(0.36);
+        this.playerKart.justReleasedUltraMiniTurbo = false;
+      }
+
       this.aiControllers.forEach(controller => {
         controller.kart.update(deltaTime, controller.inputs, this.track);
       });

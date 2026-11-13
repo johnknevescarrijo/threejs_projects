@@ -280,6 +280,7 @@ export class AIController {
     const driftChance = (this.ddaSpeedMod < 1.0) ? this.archetype.driftEagerness * 0.5 : this.archetype.driftEagerness;
 
     const shouldStartDrift = (
+      !this.kart.isAirborne &&
       lookaheadCurvature.angle >= PHYSICS_CONFIG.DRIFT_MIN_CURVE_ANGLE &&
       speedRatio >= PHYSICS_CONFIG.DRIFT_MIN_SPEED_RATIO &&
       Math.random() < driftChance
@@ -288,10 +289,29 @@ export class AIController {
     if (!this.kart.isDrifting && shouldStartDrift) {
       this.inputs.drift = true;
     } else if (this.kart.isDrifting) {
-      const desiredStage = this.archetype.id === ARCHETYPE_IDS.TECHNICAL ? 2 : 1;
+      // Technical racers can charge up to Stage 3 Ultra Mini-Turbo in sweeping turns!
+      let desiredStage = 1;
+      if (this.archetype.id === ARCHETYPE_IDS.TECHNICAL) {
+        desiredStage = lookaheadCurvature.angle > 0.55 ? 3 : 2;
+      } else if (lookaheadCurvature.angle > 0.75) {
+        desiredStage = 2;
+      }
+
       const turnFlattened = lookaheadCurvature.angle < 0.25;
       if (this.kart.driftStage >= desiredStage || turnFlattened) {
         this.inputs.drift = false;
+      }
+    }
+
+    // D. Jump Ramp Stunt & Trick Boost Action
+    // When airborne or passing the lip of a jump ramp, trigger trick stunt with high probability!
+    const rampCheck = this.track.getRampInfluence(this.kart.position);
+    const atRampLip = rampCheck.onRamp && rampCheck.atLip;
+    const inAirUnperformed = this.kart.isAirborne && !this.kart.hasPerformedTrick && this.kart.airTime < 0.65;
+
+    if ((atRampLip || inAirUnperformed) && !this.kart.hasPerformedTrick) {
+      if (Math.random() < Math.min(0.95, this.archetype.precision + 0.25)) {
+        this.inputs.drift = true;
       }
     }
   }
