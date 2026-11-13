@@ -40,6 +40,7 @@ export class Kart {
     this.forward = new THREE.Vector3(0, 0, 1);
     this.up = new THREE.Vector3(0, 1, 0);
     this.right = new THREE.Vector3(-1, 0, 0);
+    this.moveDirection = new THREE.Vector3(0, 0, 1);
 
     this.speed = 0;
     this.yaw = 0;
@@ -55,14 +56,24 @@ export class Kart {
     this.braking = PHYSICS_CONFIG.BRAKING;
     this.steerSpeed = PHYSICS_CONFIG.STEER_SPEED;
 
-    // Drift & Hop State
+    // Drift, Lateral Slip & Hop State
     this.isDrifting = false;
     this.driftDirection = 0; // 1 for left, -1 for right
     this.driftChargeTime = 0;
-    this.driftStage = 0; // 0: None, 1: Blue, 2: Orange
+    this.driftStage = 0; // 0: None, 1: Blue, 2: Orange, 3: Ultra Purple
     this.hopY = 0;
     this.hopVel = 0;
     this.visualSlipAngle = 0;
+
+    // Real Vertical Physics, Airtime & Jump Ramps Trick Boost
+    this.verticalVelocity = 0;
+    this.isAirborne = false;
+    this.airTime = 0;
+    this.hasPerformedTrick = false;
+    this.trickSpinProgress = 0;
+    this.trickVariant = 0;
+    this.justLandedTrick = false;
+    this.justReleasedUltraMiniTurbo = false;
 
     // Boost & Mini-Turbo
     this.boostTimer = 0;
@@ -450,6 +461,9 @@ export class Kart {
   setPosition(x, y, z) {
     this.position.set(x, y, z);
     this.mesh.position.set(x, y, z);
+    this.verticalVelocity = 0;
+    this.isAirborne = false;
+    this.airTime = 0;
   }
 
   setRotation(yaw) {
@@ -459,6 +473,9 @@ export class Kart {
     this.forward.set(Math.sin(yaw), 0, Math.cos(yaw)).normalize();
     // Right-hand side of kart (forward x up): (-cos(yaw), 0, sin(yaw))
     this.right.set(-Math.cos(yaw), 0, Math.sin(yaw)).normalize();
+    if (!this.moveDirection || this.moveDirection.lengthSq() < 0.1) {
+      this.moveDirection = this.forward.clone();
+    }
   }
 
   /**
@@ -640,34 +657,89 @@ export class Kart {
       this.setRotation(this.yaw);
     }
 
-    // 8. Dynamic Chassis Suspension (Body Roll, Pitch, Drift Slip Angle & Hop)
+    // Vectorial movement interpolation:
+    // Firm grip in normal driving, authentic lateral drift inertia when drifting!
+    const grip = this.isDrifting ? PHYSICS_CONFIG.DRIFT_LATERAL_GRIP : PHYSICS_CONFIG.LATERAL_GRIP;
+    this.moveDirection.lerp(this.forward, Math.min(1.0, grip * deltaTime)).normalize();
+
+    // 8. Jump Ramp Detection & Launch
+    const rampInfo = track.getRampInfluence(this.position);
+    if (rampInfo.onRamp && rampInfo.atLip && !this.isAirborne && this.speed > 18) {
+      const speedRatio = Math.min(1.3, this.speed / this.baseMaxSpeed);
+      this.verticalVelocity = rampInfo.launchVy * (0.8 + 0.28 * speedRatio);
+      this.isAirborne = true;
+      this.airTime = 0;
+      this.hasPerformedTrick = false;
+      this.trickSpinProgress = 0;
+    }
+
+    // Trick Stunt Action (press drift at ramp lip or mid-air)
+    const nearRampLip = (rampInfo.onRamp && rampInfo.atLip);
+    const inAirForTrick = (this.isAirborne && !this.hasPerformedTrick && this.airTime < 0.75);
+    if (inputs.drift && (nearRampLip || inAirForTrick) && !this.hasPerformedTrick) {
+      this.hasPerformedTrick = true;
+      this.trickSpinProgress = 0.001;
+      this.trickVariant = (this.trickVariant + 1) % 2;
+      this.verticalVelocity = Math.max(this.verticalVelocity + 2.5, 8.5);
+
+      if (this.particleSystem) {
+        const p = this.position.clone().add(new THREE.Vector3(0, 0.6, 0));
+        this.particleSystem.emitBurst(p, 0x38bdf8, 14, 8);
+        this.particleSystem.emitBurst(p, 0xfacc15, 14, 8);
+      }
+      if (this.isPlayer && this.soundSystem) {
+        this.soundSystem.playTrickAction();
+      }
+    }
+
+    // 9. Dynamic Chassis Suspension (Body Roll, Pitch, Drift Slip Angle, Hop & Trick Stunts)
     if (this.bodyGroup) {
       const targetSlip = this.isDrifting ? this.driftDirection * 0.28 : 0;
       this.visualSlipAngle = THREE.MathUtils.lerp(this.visualSlipAngle, targetSlip, deltaTime * 10);
-      this.bodyGroup.rotation.y = this.visualSlipAngle;
 
       const targetRoll = steerInput * 0.11 + (this.isDrifting ? this.driftDirection * 0.14 : 0);
       const accelPitch = (inputs.accelerate ? -0.035 : 0) + (inputs.brake ? 0.055 : 0) - (this.isBoosting ? 0.045 : 0);
-      this.bodyGroup.rotation.z = THREE.MathUtils.lerp(this.bodyGroup.rotation.z, targetRoll, deltaTime * 10);
-      this.bodyGroup.rotation.x = THREE.MathUtils.lerp(this.bodyGroup.rotation.x, accelPitch, deltaTime * 8);
+
+      if (this.hasPerformedTrick && this.trickSpinProgress > 0) {
+        this.trickSpinProgress += deltaTime * 2.8;
+        if (this.trickSpinProgress > 1.0) this.trickSpinProgress = 1.0;
+        const spinAngle = this.trickSpinProgress * Math.PI * 2;
+
+        if (this.trickVariant === 0) {
+          // Helicopter 360° flat-spin around Y
+          this.bodyGroup.rotation.y = this.visualSlipAngle + spinAngle;
+          this.bodyGroup.rotation.z = THREE.MathUtils.lerp(this.bodyGroup.rotation.z, targetRoll, deltaTime * 10);
+          this.bodyGroup.rotation.x = THREE.MathUtils.lerp(this.bodyGroup.rotation.x, accelPitch, deltaTime * 8);
+        } else {
+          // Diagonal barrel roll / corkscrew around X and Z
+          this.bodyGroup.rotation.y = this.visualSlipAngle;
+          this.bodyGroup.rotation.x = THREE.MathUtils.lerp(this.bodyGroup.rotation.x, Math.sin(spinAngle) * 0.85, deltaTime * 12);
+          this.bodyGroup.rotation.z = THREE.MathUtils.lerp(this.bodyGroup.rotation.z, Math.sin(spinAngle) * 1.1 + (this.driftDirection * 0.14), deltaTime * 12);
+        }
+      } else {
+        this.bodyGroup.rotation.y = this.visualSlipAngle;
+        this.bodyGroup.rotation.z = THREE.MathUtils.lerp(this.bodyGroup.rotation.z, targetRoll, deltaTime * 10);
+        this.bodyGroup.rotation.x = THREE.MathUtils.lerp(this.bodyGroup.rotation.x, accelPitch, deltaTime * 8);
+      }
+
       this.bodyGroup.position.y = this.hopY;
     }
 
-    // 9. Integrate position and surface alignment
+    // 10. Integrate position and surface alignment
     this.integratePosition(deltaTime, track);
 
-    // 10. Wheel rolling animation
+    // 11. Wheel rolling animation
     const rollSpeed = (this.speed / 0.45) * deltaTime;
     this.wheels.forEach(w => {
       w.rotation.x += rollSpeed;
     });
 
-    // 11. Rotate held item visual slightly
+    // 12. Rotate held item visual slightly
     if (this.heldItemAnchor && this.heldItemAnchor.children.length > 0) {
       this.heldItemAnchor.children[0].rotation.y += deltaTime * 2.5;
     }
 
-    // 12. Sound update for player
+    // 13. Sound update for player
     if (this.isPlayer && this.soundSystem) {
       this.soundSystem.updateEngine(Math.abs(this.speed) / this.baseMaxSpeed);
     }
@@ -688,8 +760,8 @@ export class Kart {
 
     const steerDir = inputs.steerLeft ? 1 : (inputs.steerRight ? -1 : (inputs.steerAngle ? Math.sign(inputs.steerAngle) : 0));
 
-    // Start drift condition: drift pressed, steering, speed >= 70%
-    if (inputs.drift && !this.isDrifting && speedRatio >= PHYSICS_CONFIG.DRIFT_MIN_SPEED_RATIO && steerDir !== 0) {
+    // Start drift condition: drift pressed, steering, speed >= 70% (cannot start while airborne)
+    if (inputs.drift && !this.isDrifting && !this.isAirborne && speedRatio >= PHYSICS_CONFIG.DRIFT_MIN_SPEED_RATIO && steerDir !== 0) {
       this.isDrifting = true;
       this.driftDirection = steerDir;
       this.driftChargeTime = 0;
@@ -732,6 +804,18 @@ export class Kart {
           }
         }
 
+        // Stage 3: Purple / Magenta sparks (3.4s) - Ultra Mini-Turbo!
+        if (this.driftChargeTime >= PHYSICS_CONFIG.MINI_TURBO_STAGE3_TIME && this.driftStage < 3) {
+          this.driftStage = 3;
+          this.sparkMeshes.forEach(s => {
+            s.material.color.setHex(0xd946ef);
+            s.visible = true;
+          });
+          if (this.isPlayer && this.soundSystem) {
+            this.soundSystem.playDriftSparks(3);
+          }
+        }
+
         // Emit 3D spark particles from rear wheels
         if (this.driftStage > 0) {
           this.sparkMeshes.forEach(s => {
@@ -751,9 +835,14 @@ export class Kart {
 
   releaseMiniTurbo() {
     if (this.driftStage > 0) {
-      const boostDuration = PHYSICS_CONFIG.MINI_TURBO_BOOST_DURATIONS[this.driftStage];
-      const boostSpeed = PHYSICS_CONFIG.MINI_TURBO_BOOST_SPEEDS[this.driftStage];
+      const stage = this.driftStage;
+      const boostDuration = PHYSICS_CONFIG.MINI_TURBO_BOOST_DURATIONS[stage];
+      const boostSpeed = PHYSICS_CONFIG.MINI_TURBO_BOOST_SPEEDS[stage];
       this.applyBoost(boostDuration, boostSpeed);
+
+      if (stage === 3 && this.isPlayer) {
+        this.justReleasedUltraMiniTurbo = true;
+      }
 
       if (this.isPlayer && this.soundSystem) {
         this.soundSystem.playMiniTurbo();
@@ -865,7 +954,8 @@ export class Kart {
   }
 
   integratePosition(deltaTime, track) {
-    this.position.addScaledVector(this.forward, this.speed * deltaTime);
+    // Vectorial forward displacement based on moveDirection (authentic lateral drift)
+    this.position.addScaledVector(this.moveDirection, this.speed * deltaTime);
 
     const proj = track.getSplineProjection(this.position, this.lapProgress);
     const sample = proj.sample;
@@ -880,13 +970,51 @@ export class Kart {
       }
     }
 
-    const targetY = surfaceY + 0.08;
-    this.position.y = THREE.MathUtils.lerp(this.position.y, targetY, deltaTime * 16);
+    const rampInfo = track.getRampInfluence(this.position);
+    const effectiveSurfaceY = surfaceY + (rampInfo.onRamp ? rampInfo.rampHeight : 0);
+    const groundTargetY = effectiveSurfaceY + 0.08;
 
-    // Align pitch with track hill slope
-    const targetSlopePitch = -Math.asin(THREE.MathUtils.clamp(sample.tangent.y, -0.5, 0.5));
-    this.slopePitch = THREE.MathUtils.lerp(this.slopePitch, targetSlopePitch, deltaTime * 10);
-    this.mesh.rotation.x = this.slopePitch;
+    if (this.isAirborne) {
+      this.airTime += deltaTime;
+      this.verticalVelocity -= PHYSICS_CONFIG.GRAVITY * deltaTime;
+      this.position.y += this.verticalVelocity * deltaTime;
+
+      // Landing detection: kart touches ground surface on downward vertical velocity
+      if (this.position.y <= groundTargetY && this.verticalVelocity <= 0) {
+        this.position.y = groundTargetY;
+        this.verticalVelocity = 0;
+        this.isAirborne = false;
+
+        // Reward successful trick stunt landing with Mini-Turbo Boost!
+        if (this.hasPerformedTrick) {
+          this.applyBoost(PHYSICS_CONFIG.TRICK_BOOST_DURATION, PHYSICS_CONFIG.TRICK_BOOST_SPEED);
+          this.justLandedTrick = true;
+          if (this.particleSystem) {
+            this.particleSystem.emitBurst(this.position.clone(), 0x00f2fe, 18, 9);
+          }
+        }
+
+        this.hasPerformedTrick = false;
+        this.trickSpinProgress = 0;
+        this.airTime = 0;
+      }
+
+      // Smooth pitch rotation in air following ballistic arc
+      const airbornePitch = -Math.atan2(this.verticalVelocity, Math.max(12, Math.abs(this.speed))) * 0.65;
+      this.mesh.rotation.x = THREE.MathUtils.lerp(this.mesh.rotation.x, airbornePitch, deltaTime * 8);
+    } else {
+      // Ground contact: smoothly align Y with surface
+      this.position.y = THREE.MathUtils.lerp(this.position.y, groundTargetY, deltaTime * 18);
+
+      // Align pitch with track hill slope and ramp incline
+      let targetSlopePitch = -Math.asin(THREE.MathUtils.clamp(sample.tangent.y, -0.5, 0.5));
+      if (rampInfo.onRamp && rampInfo.ramp) {
+        const rampPitch = Math.atan2(rampInfo.ramp.height, rampInfo.ramp.length);
+        targetSlopePitch -= rampPitch * 0.65;
+      }
+      this.slopePitch = THREE.MathUtils.lerp(this.slopePitch, targetSlopePitch, deltaTime * 10);
+      this.mesh.rotation.x = this.slopePitch;
+    }
 
     // Wall collision clamping & active rebound deflection (skip left wall at shortcut entrance/exit)
     const inShortcutGap = (
@@ -924,6 +1052,12 @@ export class Kart {
     this.setPosition(sample.x, sample.y + 0.3, sample.z);
     this.setRotation(yaw);
     this.speed = 16;
+    this.verticalVelocity = 0;
+    this.isAirborne = false;
+    this.airTime = 0;
+    this.hasPerformedTrick = false;
+    this.trickSpinProgress = 0;
+    this.moveDirection.copy(this.forward);
     this.isSpinning = false;
     this.isDrifting = false;
     this.isShocked = false;

@@ -76,19 +76,35 @@ export class ParticleSystem {
   }
 
   emitDriftSparks(worldPos, kartRight, kartForward, stage) {
-    const color = stage === 2 ? (Math.random() > 0.35 ? 0xff7b00 : 0xffd000) : (Math.random() > 0.35 ? 0x00d2ff : 0x70e1f5);
-    for (let i = 0; i < 2; i++) {
+    let color;
+    let scale = 0.7;
+    let particleCount = 2;
+    let speedMod = 1.0;
+
+    if (stage === 3) {
+      color = Math.random() > 0.4 ? 0xd946ef : 0xf0abfc; // Ultra mini-turbo neon purple / magenta
+      scale = 1.25;
+      particleCount = 3;
+      speedMod = 1.4;
+    } else if (stage === 2) {
+      color = Math.random() > 0.35 ? 0xff7b00 : 0xffd000;
+      scale = 0.95;
+    } else {
+      color = Math.random() > 0.35 ? 0x00d2ff : 0x70e1f5;
+    }
+
+    for (let i = 0; i < particleCount; i++) {
       const vel = new THREE.Vector3()
-        .addScaledVector(kartForward, -4 - Math.random() * 5)
-        .addScaledVector(kartRight, (Math.random() - 0.5) * 6)
-        .add(new THREE.Vector3(0, 2.0 + Math.random() * 3.5, 0));
+        .addScaledVector(kartForward, (-4 - Math.random() * 5) * speedMod)
+        .addScaledVector(kartRight, (Math.random() - 0.5) * 6 * speedMod)
+        .add(new THREE.Vector3(0, (2.0 + Math.random() * 3.5) * speedMod, 0));
 
       this.spawn({
         position: worldPos,
         velocity: vel,
         color,
-        scale: stage === 2 ? 0.95 : 0.7,
-        lifetime: 0.22 + Math.random() * 0.14,
+        scale: scale * (0.85 + Math.random() * 0.3),
+        lifetime: 0.22 + Math.random() * 0.16,
         gravity: 16
       });
     }

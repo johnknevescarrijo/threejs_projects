@@ -339,6 +339,23 @@ class GameApp {
         this.itemBoxes.push(itemBox);
       });
     }
+
+    // 3. Floating aerial item boxes suspended after jump ramps
+    if (this.track.aerialItemBoxConfigs) {
+      this.track.aerialItemBoxConfigs.forEach(cfg => {
+        const pos = this.track.getWaypointAtProgress(cfg.t, cfg.lateral || 0);
+        pos.y += cfg.aerialY || 3.5;
+        const sampleIdx = Math.floor(cfg.t * this.track.sampleCount);
+        const sample = this.track.samples[sampleIdx] || this.track.samples[0];
+        const itemBox = new ItemBox(pos, this.scene, {
+          isDouble: cfg.isDouble,
+          movingLateral: 0,
+          tangent: sample.tangent,
+          binormal: sample.binormal
+        });
+        this.itemBoxes.push(itemBox);
+      });
+    }
   }
 
   spawnCoins() {
@@ -680,6 +697,21 @@ class GameApp {
 
       // 5. Update Kart Physics
       this.playerKart.update(deltaTime, this.playerInputs, this.track);
+
+      // Check Trick Landing Stunt feedback
+      if (this.playerKart.justLandedTrick) {
+        this.hud.showNotification('✨ TRICK BOOST! +TURBO!', 1.6);
+        this.followCamera.addShake(0.32);
+        this.playerKart.justLandedTrick = false;
+      }
+
+      // Check Ultra Mini-Turbo feedback
+      if (this.playerKart.justReleasedUltraMiniTurbo) {
+        this.hud.showNotification('💜 ULTRA MINI-TURBO! (ROXO)', 1.7);
+        this.followCamera.addShake(0.36);
+        this.playerKart.justReleasedUltraMiniTurbo = false;
+      }
+
       this.aiControllers.forEach(controller => {
         controller.kart.update(deltaTime, controller.inputs, this.track);
       });

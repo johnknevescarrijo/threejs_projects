@@ -14,6 +14,8 @@ export class Track {
     this.samples = [];
     this.itemBoxLocations = [];
     this.boostPads = [];
+    this.ramps = [];
+    this.rampLipMaterials = [];
     this.gantryLights = [];
     this.spectatorInstanced = null;
     this.spectatorCount = 0;
@@ -29,6 +31,7 @@ export class Track {
     this.buildTrackGeometry();
     this.buildStartFinishAndGrid();
     this.buildBoostPads();
+    this.buildJumpRamps();
     this.buildShortcutGeometry();
     this.buildCurbsAndGuardrails();
     this.buildStartGantry();
@@ -100,6 +103,13 @@ export class Track {
     this.shortcutItemBoxConfigs = [
       { t: 0.35, isDouble: true },
       { t: 0.70, isDouble: true }
+    ];
+
+    // High floating aerial item boxes suspended after jump ramps
+    this.aerialItemBoxConfigs = [
+      { t: 0.138, lateral: 0, isDouble: true, aerialY: 3.4 }, // Floating after Ramp 1 (t = 0.12)
+      { t: 0.398, lateral: 0, isDouble: false, aerialY: 3.6 }, // Floating after Ramp 2 (t = 0.38)
+      { t: 0.868, lateral: 0, isDouble: true, aerialY: 3.9 }  // Floating after Ramp 4 (t = 0.85)
     ];
 
     // Turbo boost pad locations along the track: { t, lateralOffset }
@@ -342,6 +352,217 @@ export class Track {
         lateralOffset: cfg.lateral,
         radius: 3.6,
         mesh: padMesh
+      });
+    });
+  }
+
+  buildJumpRamps() {
+    this.ramps = [];
+    this.rampLipMaterials = [];
+
+    const rampConfigs = [
+      {
+        id: 'ramp_1',
+        t: 0.12,
+        lateral: 0,
+        length: 13.0,
+        width: 8.8,
+        height: 2.4,
+        launchVy: 11.8,
+        neonColor: 0xff6600,
+        accentColor: 0xffb703
+      },
+      {
+        id: 'ramp_2',
+        t: 0.38,
+        lateral: 0,
+        length: 14.0,
+        width: 9.2,
+        height: 2.6,
+        launchVy: 12.8,
+        neonColor: 0xd946ef,
+        accentColor: 0x38bdf8
+      },
+      {
+        id: 'ramp_3_shortcut',
+        isShortcut: true,
+        scT: 0.48,
+        length: 11.5,
+        width: 7.8,
+        height: 2.5,
+        launchVy: 13.0,
+        neonColor: 0x00f2fe,
+        accentColor: 0xfacc15
+      },
+      {
+        id: 'ramp_4',
+        t: 0.85,
+        lateral: 0,
+        length: 14.0,
+        width: 9.0,
+        height: 2.7,
+        launchVy: 13.5,
+        neonColor: 0xff2a5f,
+        accentColor: 0xffe600
+      }
+    ];
+
+    rampConfigs.forEach(cfg => {
+      let startPos, forward, binormal, up;
+
+      if (cfg.isShortcut) {
+        startPos = this.shortcutCurve.getPointAt(cfg.scT);
+        forward = this.shortcutCurve.getTangentAt(cfg.scT).normalize();
+        binormal = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+        up = new THREE.Vector3().crossVectors(binormal, forward).normalize();
+      } else {
+        const sampleIdx = Math.floor(cfg.t * this.sampleCount);
+        const sample = this.samples[sampleIdx] || this.samples[0];
+        startPos = this.getWaypointAtProgress(cfg.t, cfg.lateral);
+        forward = sample.tangent.clone().normalize();
+        binormal = sample.binormal.clone().normalize();
+        up = sample.normal.clone().normalize();
+      }
+
+      const rampGroup = new THREE.Group();
+
+      const w = cfg.width;
+      const h = cfg.height;
+      const len = cfg.length;
+      const halfW = w * 0.5;
+
+      const positions = [];
+      const normals = [];
+      const uvs = [];
+      const indices = [];
+
+      // Face 1: Incline ramp surface (from z=0 to z=len)
+      positions.push(
+        -halfW, 0.05, 0,
+         halfW, 0.05, 0,
+        -halfW, h, len,
+         halfW, h, len
+      );
+      const slopeNorm = new THREE.Vector3(0, len, -h).normalize();
+      for (let k = 0; k < 4; k++) normals.push(slopeNorm.x, slopeNorm.y, slopeNorm.z);
+      uvs.push(0, 0, 1, 0, 0, 1, 1, 1);
+      indices.push(0, 1, 3, 0, 3, 2);
+
+      // Face 2: Back vertical drop (lip)
+      const baseIdx2 = positions.length / 3;
+      positions.push(
+        -halfW, h, len,
+         halfW, h, len,
+        -halfW, 0.05, len,
+         halfW, 0.05, len
+      );
+      for (let k = 0; k < 4; k++) normals.push(0, 0, 1);
+      uvs.push(0, 1, 1, 1, 0, 0, 1, 0);
+      indices.push(baseIdx2, baseIdx2 + 1, baseIdx2 + 3, baseIdx2, baseIdx2 + 3, baseIdx2 + 2);
+
+      // Face 3: Left triangle side
+      const baseIdx3 = positions.length / 3;
+      positions.push(
+        -halfW, 0.05, 0,
+        -halfW, h, len,
+        -halfW, 0.05, len
+      );
+      for (let k = 0; k < 3; k++) normals.push(-1, 0, 0);
+      uvs.push(0, 0, 1, 1, 1, 0);
+      indices.push(baseIdx3, baseIdx3 + 1, baseIdx3 + 2);
+
+      // Face 4: Right triangle side
+      const baseIdx4 = positions.length / 3;
+      positions.push(
+        halfW, 0.05, 0,
+        halfW, 0.05, len,
+        halfW, h, len
+      );
+      for (let k = 0; k < 3; k++) normals.push(1, 0, 0);
+      uvs.push(0, 0, 1, 0, 1, 1);
+      indices.push(baseIdx4, baseIdx4 + 1, baseIdx4 + 2);
+
+      const rampGeo = new THREE.BufferGeometry();
+      rampGeo.setIndex(indices);
+      rampGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      rampGeo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+      rampGeo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+
+      const rampMat = new THREE.MeshStandardMaterial({
+        color: 0x222638,
+        roughness: 0.55,
+        metalness: 0.28
+      });
+      const rampMesh = new THREE.Mesh(rampGeo, rampMat);
+      rampMesh.castShadow = true;
+      rampMesh.receiveShadow = true;
+      rampGroup.add(rampMesh);
+
+      // Neon Lip Glowing Bar across the high launch lip
+      const lipGeo = new THREE.BoxGeometry(w + 0.4, 0.38, 0.65);
+      const lipMat = new THREE.MeshStandardMaterial({
+        color: cfg.neonColor,
+        emissive: cfg.neonColor,
+        emissiveIntensity: 1.8,
+        roughness: 0.2,
+        metalness: 0.8
+      });
+      this.rampLipMaterials.push(lipMat);
+      const lipMesh = new THREE.Mesh(lipGeo, lipMat);
+      lipMesh.position.set(0, h, len);
+      rampGroup.add(lipMesh);
+
+      // Chevrons indicadoras de salto na subida (>>>>>)
+      const chevronMat = new THREE.MeshStandardMaterial({
+        color: cfg.accentColor,
+        emissive: cfg.accentColor,
+        emissiveIntensity: 1.5,
+        roughness: 0.2,
+        metalness: 0.6
+      });
+      [-halfW * 0.65, 0, halfW * 0.65].forEach(chevX => {
+        for (let ch = 1; ch <= 3; ch++) {
+          const zProg = ch / 4;
+          const chevGeo = new THREE.ConeGeometry(0.55, 1.4, 3);
+          chevGeo.rotateX(-Math.PI / 2 + Math.atan2(h, len));
+          const chevMesh = new THREE.Mesh(chevGeo, chevronMat);
+          chevMesh.position.set(chevX, zProg * h + 0.08, zProg * len);
+          rampGroup.add(chevMesh);
+        }
+      });
+
+      // Laterais listradas de advertência (curb rails)
+      [-halfW - 0.06, halfW + 0.06].forEach(xSide => {
+        const curbSideGeo = new THREE.BoxGeometry(0.18, 0.45, len);
+        const curbSideMat = new THREE.MeshStandardMaterial({
+          color: 0xfacc15,
+          roughness: 0.35,
+          metalness: 0.25
+        });
+        const curbSide = new THREE.Mesh(curbSideGeo, curbSideMat);
+        curbSide.position.set(xSide, h * 0.5, len * 0.5);
+        curbSide.rotation.x = -Math.atan2(h, len);
+        rampGroup.add(curbSide);
+      });
+
+      // Posicionar e rotacionar no mundo
+      rampGroup.position.copy(startPos);
+      const rotMatrix = new THREE.Matrix4().makeBasis(binormal, up, forward);
+      rampGroup.quaternion.setFromRotationMatrix(rotMatrix);
+
+      this.environmentGroup.add(rampGroup);
+
+      this.ramps.push({
+        id: cfg.id,
+        baseStartPos: startPos.clone(),
+        forward: forward.clone(),
+        binormal: binormal.clone(),
+        up: up.clone(),
+        length: len,
+        width: w,
+        height: h,
+        launchVy: cfg.launchVy,
+        meshGroup: rampGroup
       });
     });
   }
@@ -906,6 +1127,53 @@ export class Track {
     if (this.cloudsGroup) {
       this.cloudsGroup.rotation.y += deltaTime * 0.008;
     }
+    if (this.rampLipMaterials && this.rampLipMaterials.length > 0) {
+      const pulse = 1.6 + 0.45 * Math.sin(performance.now() * 0.007);
+      this.rampLipMaterials.forEach(mat => {
+        mat.emissiveIntensity = pulse;
+      });
+    }
+  }
+
+  /**
+   * Checks if a world position is influenced by a 3D jump ramp.
+   * Returns ramp height offset, lip status, and launch vertical velocity.
+   */
+  getRampInfluence(worldPos) {
+    if (!this.ramps || this.ramps.length === 0) {
+      return { onRamp: false, rampHeight: 0, atLip: false, launchVy: 0, ramp: null };
+    }
+
+    for (let i = 0; i < this.ramps.length; i++) {
+      const ramp = this.ramps[i];
+      const deltaX = worldPos.x - ramp.baseStartPos.x;
+      const deltaY = worldPos.y - ramp.baseStartPos.y;
+      const deltaZ = worldPos.z - ramp.baseStartPos.z;
+
+      // Project onto ramp forward (Z) and binormal (X)
+      const longDist = deltaX * ramp.forward.x + deltaY * ramp.forward.y + deltaZ * ramp.forward.z;
+      const latDist = deltaX * ramp.binormal.x + deltaY * ramp.binormal.y + deltaZ * ramp.binormal.z;
+
+      // Lateral tolerance: kart within ramp width
+      if (Math.abs(latDist) <= ramp.width * 0.54) {
+        // Longitudinal check: from ramp entry to just beyond the launch lip
+        if (longDist >= -0.6 && longDist <= ramp.length + 1.6) {
+          const progress = Math.max(0, Math.min(1.0, longDist / ramp.length));
+          const rampHeight = progress * ramp.height;
+          // Lip is reached in the final 1.8 meters before leaving the ramp edge
+          const atLip = longDist >= (ramp.length - 1.8);
+          return {
+            onRamp: true,
+            rampHeight,
+            atLip,
+            launchVy: ramp.launchVy,
+            ramp
+          };
+        }
+      }
+    }
+
+    return { onRamp: false, rampHeight: 0, atLip: false, launchVy: 0, ramp: null };
   }
 
   /**
@@ -1027,10 +1295,34 @@ export class Track {
       }
     });
 
+    // Aerial arc coins reward skilled jumpers after ramps 1, 3 and 4
+    const aerialCoinSequences = [
+      // Arc after Ramp 1 (t = 0.12)
+      { tStart: 0.130, count: 3, step: 0.005, lateral: 0, yArc: [2.5, 3.4, 2.7] },
+      // Arc after Ramp 4 (t = 0.85)
+      { tStart: 0.860, count: 3, step: 0.005, lateral: 0, yArc: [2.6, 3.7, 2.8] }
+    ];
+
+    aerialCoinSequences.forEach(seq => {
+      for (let i = 0; i < seq.count; i++) {
+        const t = (seq.tStart + i * seq.step) % 1.0;
+        const pos = this.getWaypointAtProgress(t, seq.lateral);
+        pos.y += seq.yArc[i] || 2.8;
+        list.push(pos);
+      }
+    });
+
     if (this.shortcutCurve) {
       [0.2, 0.4, 0.6, 0.8].forEach(scT => {
         const pt = this.shortcutCurve.getPointAt(scT);
         pt.y += 0.25;
+        list.push(pt);
+      });
+
+      // Aerial coin arc over the canyon after shortcut ramp
+      [0.54, 0.61, 0.68].forEach((scT, idx) => {
+        const pt = this.shortcutCurve.getPointAt(scT);
+        pt.y += [2.4, 3.4, 2.5][idx];
         list.push(pt);
       });
     }

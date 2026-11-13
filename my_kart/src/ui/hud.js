@@ -270,10 +270,31 @@ export class HUD {
     }
 
     if (this.driftBarEl) {
-      if (playerKart.isDrifting) {
-        const pct = Math.min(100, (playerKart.driftChargeTime / 2.4) * 100);
+      if (playerKart.isAirborne) {
+        this.driftBarEl.style.width = '100%';
+        if (playerKart.hasPerformedTrick) {
+          this.driftBarEl.style.background = 'linear-gradient(90deg, #38bdf8, #facc15)';
+          if (this.driftLabelEl) {
+            this.driftLabelEl.textContent = '✨ MANOBRA AÉREA! (TRICK ATIVO)';
+            this.driftLabelEl.style.color = '#facc15';
+          }
+        } else {
+          this.driftBarEl.style.background = '#38bdf8';
+          if (this.driftLabelEl) {
+            this.driftLabelEl.textContent = '✈️ [ESPAÇO] MANOBRA NA RAMPA!';
+            this.driftLabelEl.style.color = '#38bdf8';
+          }
+        }
+      } else if (playerKart.isDrifting) {
+        const pct = Math.min(100, (playerKart.driftChargeTime / 3.4) * 100);
         this.driftBarEl.style.width = `${pct}%`;
-        if (playerKart.driftStage === 2) {
+        if (playerKart.driftStage === 3) {
+          this.driftBarEl.style.background = '#d946ef';
+          if (this.driftLabelEl) {
+            this.driftLabelEl.textContent = '💜 ULTRA MINI-TURBO PRONTO!';
+            this.driftLabelEl.style.color = '#f0abfc';
+          }
+        } else if (playerKart.driftStage === 2) {
           this.driftBarEl.style.background = '#f97316';
           if (this.driftLabelEl) {
             this.driftLabelEl.textContent = '🔥 SUPER-TURBO PRONTO!';

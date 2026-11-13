@@ -24,8 +24,13 @@ export const PHYSICS_CONFIG = {
   DRIFT_CHARGE_RATE: 1.0,
   MINI_TURBO_STAGE1_TIME: 1.2,  // Blue stage
   MINI_TURBO_STAGE2_TIME: 2.4,  // Orange stage
-  MINI_TURBO_BOOST_DURATIONS: [0, 0.9, 1.8], // Boost seconds for stage 0, 1, 2
-  MINI_TURBO_BOOST_SPEEDS: [0, 18, 30],      // Boost speed addition
+  MINI_TURBO_STAGE3_TIME: 3.4,  // Ultra Mini-Turbo (Purple / Magenta stage)
+  MINI_TURBO_BOOST_DURATIONS: [0, 0.9, 1.8, 2.7], // Boost seconds for stage 0, 1, 2, 3
+  MINI_TURBO_BOOST_SPEEDS: [0, 18, 30, 42],      // Boost speed addition
+  TRICK_BOOST_DURATION: 1.4,
+  TRICK_BOOST_SPEED: 26,
+  LATERAL_GRIP: 9.0,
+  DRIFT_LATERAL_GRIP: 3.4,
   SPIN_DURATION: 1.5,
   RESPAWN_DURATION: 1.2
 };

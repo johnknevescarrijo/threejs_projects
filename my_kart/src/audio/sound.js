@@ -160,7 +160,7 @@ export class SoundSystem {
     const gain = this.ctx.createGain();
 
     osc.type = 'square';
-    const freq = stage === 1 ? 520 : 780;
+    const freq = stage === 1 ? 520 : (stage === 2 ? 780 : 1080);
     osc.frequency.setValueAtTime(freq, now);
     osc.frequency.exponentialRampToValueAtTime(freq + 150, now + 0.12);
 
@@ -171,6 +171,26 @@ export class SoundSystem {
     gain.connect(this.ctx.destination);
     osc.start(now);
     osc.stop(now + 0.15);
+  }
+
+  playTrickAction() {
+    this.ensureContext();
+    if (!this.ctx || this.isMuted) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(440, now);
+    osc.frequency.exponentialRampToValueAtTime(1320, now + 0.22);
+
+    gain.gain.setValueAtTime(0.24, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.31);
   }
 
   playMiniTurbo() {
