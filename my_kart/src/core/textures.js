@@ -433,4 +433,34 @@ export class ProceduralTextures {
     tex.colorSpace = THREE.SRGBColorSpace;
     return tex;
   }
+
+  static createHazardStripeTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = '#facc15'; // Bright safety yellow
+    ctx.fillRect(0, 0, 256, 256);
+
+    // Diagonal black hazard stripes
+    ctx.fillStyle = '#0f172a';
+    const stripeWidth = 32;
+    for (let x = -256; x < 512; x += stripeWidth * 2) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x + stripeWidth, 0);
+      ctx.lineTo(x + stripeWidth + 256, 256);
+      ctx.lineTo(x + 256, 256);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(2, 2);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
 }

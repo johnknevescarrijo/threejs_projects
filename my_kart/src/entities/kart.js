@@ -101,6 +101,7 @@ export class Kart {
     // Surface Status
     this.isOffRoad = false;
     this.isOnCurb = false;
+    this.currentSurfaceType = null;
 
     // Slipstream (Vácuo)
     this.isDrafting = false;
@@ -515,6 +516,7 @@ export class Kart {
     this.lapProgress = proj.t;
     this.isOffRoad = proj.isOffRoad;
     this.isOnCurb = proj.isOnCurb;
+    this.currentSurfaceType = (track.getSurfaceZone ? track.getSurfaceZone(this.lapProgress, proj.lateralOffset) : null);
 
     // Check if inside shortcut path (if on shortcut dirt, reduce off-road penalty slightly)
     let onShortcutPath = false;
@@ -542,6 +544,17 @@ export class Kart {
     const coinBonus = this.coins * COIN_CONFIG.SPEED_BONUS_PER_COIN;
     let effectiveMaxSpeed = this.maxSpeed * (1 + coinBonus);
     let effectiveAccel = this.acceleration;
+
+    // Special surface zones effect: ICE gives +5% top speed; MUD reduces speed unless boosted or starred
+    if (this.currentSurfaceType === 'ICE') {
+      effectiveMaxSpeed *= 1.05;
+    } else if (this.currentSurfaceType === 'MUD' && !this.isBoosting && !this.isStarred) {
+      effectiveMaxSpeed *= 0.52;
+      effectiveAccel *= 0.45;
+      if (this.particleSystem && Math.abs(this.speed) > 6 && Math.random() < 0.6) {
+        this.particleSystem.emitOffroadDust(this.position, this.forward);
+      }
+    }
 
     if (this.goldenMushroomTimer > 0) {
       this.goldenMushroomTimer -= deltaTime;
@@ -659,7 +672,11 @@ export class Kart {
 
     // Vectorial movement interpolation:
     // Firm grip in normal driving, authentic lateral drift inertia when drifting!
-    const grip = this.isDrifting ? PHYSICS_CONFIG.DRIFT_LATERAL_GRIP : PHYSICS_CONFIG.LATERAL_GRIP;
+    let grip = this.isDrifting ? PHYSICS_CONFIG.DRIFT_LATERAL_GRIP : PHYSICS_CONFIG.LATERAL_GRIP;
+    if (this.currentSurfaceType === 'ICE') {
+      // Ice surface has ultra low lateral grip for long arcade slides
+      grip = this.isDrifting ? 1.6 : 3.2;
+    }
     this.moveDirection.lerp(this.forward, Math.min(1.0, grip * deltaTime)).normalize();
 
     // 8. Jump Ramp Detection & Launch

@@ -252,6 +252,25 @@ export class AIController {
       }
     }
 
+    // 5b. Dynamic Track Hazard Avoidance (evade swinging pillars)
+    if (this.track && this.track.hazards && this.track.hazards.length > 0) {
+      for (const h of this.track.hazards) {
+        const distToHazard = this.kart.position.distanceTo(h.currentPos);
+        if (distToHazard < 26) {
+          const toHazard = new THREE.Vector3().subVectors(h.currentPos, this.kart.position);
+          const forwardDot = toHazard.clone().normalize().dot(this.kart.forward);
+          if (forwardDot > 0.35) {
+            const hazardProj = this.track.getSplineProjection(h.currentPos, currentProgress);
+            const lateralDelta = sensors.spline.lateralOffset - hazardProj.lateralOffset;
+            if (Math.abs(lateralDelta) < 3.8) {
+              const evadeSign = hazardProj.lateralOffset >= 0 ? -1 : 1;
+              targetOffset += evadeSign * 5.2;
+            }
+          }
+        }
+      }
+    }
+
     // 6. Ramming behavior for Aggressive archetype
     if (this.archetype.id === ARCHETYPE_IDS.AGGRESSIVE && sensors.front.obstacle && sensors.front.obstacle.type === 'kart') {
       if (Math.random() < this.archetype.rammingTendency) {

@@ -716,8 +716,9 @@ class GameApp {
         controller.kart.update(deltaTime, controller.inputs, this.track);
       });
 
-      // 6. Inter-kart collisions
+      // 6. Inter-kart & Hazard collisions
       this.handleKartCollisions();
+      this.checkHazardCollisions();
 
       // 7. Visual Effects: Speed Lines & Skid Marks
       this.updateSpeedLines(deltaTime);
@@ -945,6 +946,33 @@ class GameApp {
         }
       }
     }
+  }
+
+  checkHazardCollisions() {
+    if (!this.track || !this.track.hazards || this.track.hazards.length === 0) return;
+
+    this.allKarts.forEach(kart => {
+      for (const hazard of this.track.hazards) {
+        const dist = kart.position.distanceTo(hazard.currentPos);
+        if (dist < hazard.radius + 1.25) {
+          if (kart.isStarred) {
+            if (this.particleSystem) {
+              this.particleSystem.emitBurst(hazard.currentPos, 0xfacc15, 14, 8);
+            }
+          } else {
+            kart.triggerSpinOut();
+            if (kart.isPlayer) {
+              this.hud.showNotification('💥 IMPACTO COM OBSTÁCULO DA PISTA!', 1.6);
+              this.followCamera.addShake(0.42);
+            }
+            if (this.particleSystem) {
+              this.particleSystem.emitBurst(hazard.currentPos, 0xef4444, 18, 9);
+            }
+          }
+          break;
+        }
+      }
+    });
   }
 
   updateRaceStandings() {
