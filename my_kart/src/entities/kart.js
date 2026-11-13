@@ -769,7 +769,7 @@ export class Kart {
     // Hop physics update
     if (this.hopY > 0 || this.hopVel !== 0) {
       this.hopY += this.hopVel * deltaTime;
-      this.hopVel -= 28 * deltaTime;
+      this.hopVel -= 34 * deltaTime;
       if (this.hopY <= 0) {
         this.hopY = 0;
         this.hopVel = 0;
@@ -778,13 +778,13 @@ export class Kart {
 
     const steerDir = inputs.steerLeft ? 1 : (inputs.steerRight ? -1 : (inputs.steerAngle ? Math.sign(inputs.steerAngle) : 0));
 
-    // Start drift condition: drift pressed, steering, speed >= 70% (cannot start while airborne)
+    // Start drift condition: drift pressed, steering, speed >= 65% (cannot start while airborne)
     if (inputs.drift && !this.isDrifting && !this.isAirborne && speedRatio >= PHYSICS_CONFIG.DRIFT_MIN_SPEED_RATIO && steerDir !== 0) {
       this.isDrifting = true;
       this.driftDirection = steerDir;
       this.driftChargeTime = 0;
       this.driftStage = 0;
-      this.hopVel = 4.2; // Crisp arcade hop!
+      this.hopVel = 2.4; // Subtle, snappy arcade hop
     }
 
     // Maintain Drift
@@ -991,7 +991,7 @@ export class Kart {
 
     const rampInfo = track.getRampInfluence(this.position);
     const effectiveSurfaceY = surfaceY + (rampInfo.onRamp ? rampInfo.rampHeight : 0);
-    const groundTargetY = effectiveSurfaceY + 0.08;
+    const groundTargetY = effectiveSurfaceY + 0.05;
 
     if (this.isAirborne) {
       this.airTime += deltaTime;
@@ -1023,8 +1023,8 @@ export class Kart {
       this.mesh.rotation.x = THREE.MathUtils.lerp(this.mesh.rotation.x, airbornePitch, deltaTime * 8);
       this.mesh.rotation.z = THREE.MathUtils.lerp(this.mesh.rotation.z, 0, deltaTime * 8);
     } else {
-      // Ground contact: smoothly align Y with surface
-      this.position.y = THREE.MathUtils.lerp(this.position.y, groundTargetY, deltaTime * 18);
+      // Ground contact: keep kart firmly planted on the road surface
+      this.position.y = groundTargetY;
 
       // Align pitch with track hill slope and ramp incline
       let targetSlopePitch = -Math.asin(THREE.MathUtils.clamp(sample.tangent.y, -0.5, 0.5));
@@ -1032,7 +1032,7 @@ export class Kart {
         const rampPitch = Math.atan2(rampInfo.ramp.height, rampInfo.ramp.length);
         targetSlopePitch -= rampPitch * 0.65;
       }
-      this.slopePitch = THREE.MathUtils.lerp(this.slopePitch, targetSlopePitch, deltaTime * 10);
+      this.slopePitch = THREE.MathUtils.lerp(this.slopePitch, targetSlopePitch, deltaTime * 12);
       this.mesh.rotation.x = this.slopePitch;
 
       // Align roll with track curve 3D banking
