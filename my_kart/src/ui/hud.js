@@ -1,13 +1,14 @@
 import { ITEM_PROPERTIES, TRACK_CONFIG } from '../core/constants.js';
 
 export class HUD {
-  constructor({ onToggleDebug, onToggleBloom, onToggleCamera, onToggleSound, onResetRace, onPlayAgain }) {
+  constructor({ onToggleDebug, onToggleBloom, onToggleCamera, onToggleSound, onResetRace, onPlayAgain, onToggleCircuit }) {
     this.onToggleDebug = onToggleDebug;
     this.onToggleBloom = onToggleBloom;
     this.onToggleCamera = onToggleCamera;
     this.onToggleSound = onToggleSound;
     this.onResetRace = onResetRace;
     this.onPlayAgain = onPlayAgain;
+    this.onToggleCircuit = onToggleCircuit;
 
     this.posNumberEl = document.getElementById('pos-num');
     this.posSuffixEl = document.getElementById('pos-suf');
@@ -18,6 +19,8 @@ export class HUD {
     this.itemSlotEl = document.getElementById('item-slot');
     this.secondaryItemSlotEl = document.getElementById('secondary-item-slot');
     this.coinValEl = document.getElementById('coin-val');
+    this.circuitIconEl = document.getElementById('circuit-icon');
+    this.circuitNameEl = document.getElementById('circuit-name');
 
     this.gearBadgeEl = document.getElementById('gear-badge');
     this.speedValEl = document.getElementById('speed-val');
@@ -40,6 +43,7 @@ export class HUD {
     this.minimapCtx = this.minimapCanvas ? this.minimapCanvas.getContext('2d') : null;
 
     this.telemetryAIEl = document.getElementById('telemetry-ai-info');
+    this.circuitBtn = document.getElementById('btn-toggle-circuit');
     this.debugBtn = document.getElementById('btn-toggle-sensors');
     this.bloomBtn = document.getElementById('btn-toggle-bloom');
     this.cameraBtn = document.getElementById('btn-toggle-camera');
@@ -59,6 +63,11 @@ export class HUD {
   }
 
   initEventListeners() {
+    if (this.circuitBtn) {
+      this.circuitBtn.addEventListener('click', () => {
+        if (this.onToggleCircuit) this.onToggleCircuit();
+      });
+    }
     if (this.debugBtn) {
       this.debugBtn.addEventListener('click', () => {
         if (this.onToggleDebug) this.onToggleDebug();
@@ -98,6 +107,19 @@ export class HUD {
     const secs = Math.floor(seconds % 60);
     const tenths = Math.floor((seconds % 1) * 10);
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}.${tenths}`;
+  }
+
+  setCircuitInfo(circuitConfig) {
+    if (!circuitConfig) return;
+    if (this.circuitIconEl && circuitConfig.icon) {
+      this.circuitIconEl.textContent = circuitConfig.icon;
+    }
+    if (this.circuitNameEl && circuitConfig.shortName) {
+      this.circuitNameEl.textContent = circuitConfig.shortName;
+    }
+    if (this.circuitBtn) {
+      this.circuitBtn.textContent = `PISTA [T]: ${circuitConfig.shortName.toUpperCase()}`;
+    }
   }
 
   updateCountdown(countdownTimer) {

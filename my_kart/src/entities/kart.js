@@ -101,6 +101,7 @@ export class Kart {
     // Surface Status
     this.isOffRoad = false;
     this.isOnCurb = false;
+    this.currentSurfaceType = null;
 
     // Slipstream (Vácuo)
     this.isDrafting = false;
@@ -515,6 +516,7 @@ export class Kart {
     this.lapProgress = proj.t;
     this.isOffRoad = proj.isOffRoad;
     this.isOnCurb = proj.isOnCurb;
+    this.currentSurfaceType = (track.getSurfaceZone ? track.getSurfaceZone(this.lapProgress, proj.lateralOffset) : null);
 
     // Check if inside shortcut path (if on shortcut dirt, reduce off-road penalty slightly)
     let onShortcutPath = false;
@@ -542,6 +544,17 @@ export class Kart {
     const coinBonus = this.coins * COIN_CONFIG.SPEED_BONUS_PER_COIN;
     let effectiveMaxSpeed = this.maxSpeed * (1 + coinBonus);
     let effectiveAccel = this.acceleration;
+
+    // Special surface zones effect: ICE gives +5% top speed; MUD reduces speed unless boosted or starred
+    if (this.currentSurfaceType === 'ICE') {
+      effectiveMaxSpeed *= 1.05;
+    } else if (this.currentSurfaceType === 'MUD' && !this.isBoosting && !this.isStarred) {
+      effectiveMaxSpeed *= 0.52;
+      effectiveAccel *= 0.45;
+      if (this.particleSystem && Math.abs(this.speed) > 6 && Math.random() < 0.6) {
+        this.particleSystem.emitOffroadDust(this.position, this.forward);
+      }
+    }
 
     if (this.goldenMushroomTimer > 0) {
       this.goldenMushroomTimer -= deltaTime;
@@ -659,7 +672,11 @@ export class Kart {
 
     // Vectorial movement interpolation:
     // Firm grip in normal driving, authentic lateral drift inertia when drifting!
-    const grip = this.isDrifting ? PHYSICS_CONFIG.DRIFT_LATERAL_GRIP : PHYSICS_CONFIG.LATERAL_GRIP;
+    let grip = this.isDrifting ? PHYSICS_CONFIG.DRIFT_LATERAL_GRIP : PHYSICS_CONFIG.LATERAL_GRIP;
+    if (this.currentSurfaceType === 'ICE') {
+      // Ice surface has ultra low lateral grip for long arcade slides
+      grip = this.isDrifting ? 1.6 : 3.2;
+    }
     this.moveDirection.lerp(this.forward, Math.min(1.0, grip * deltaTime)).normalize();
 
     // 8. Jump Ramp Detection & Launch
@@ -697,7 +714,8 @@ export class Kart {
       const targetSlip = this.isDrifting ? this.driftDirection * 0.28 : 0;
       this.visualSlipAngle = THREE.MathUtils.lerp(this.visualSlipAngle, targetSlip, deltaTime * 10);
 
-      const targetRoll = steerInput * 0.11 + (this.isDrifting ? this.driftDirection * 0.14 : 0);
+      const trackBank = (proj && proj.sample && proj.sample.bankAngle) ? proj.sample.bankAngle * 0.5 : 0;
+      const targetRoll = steerInput * 0.11 + (this.isDrifting ? this.driftDirection * 0.14 : 0) + trackBank;
       const accelPitch = (inputs.accelerate ? -0.035 : 0) + (inputs.brake ? 0.055 : 0) - (this.isBoosting ? 0.045 : 0);
 
       if (this.hasPerformedTrick && this.trickSpinProgress > 0) {
@@ -960,8 +978,9 @@ export class Kart {
     const proj = track.getSplineProjection(this.position, this.lapProgress);
     const sample = proj.sample;
 
-    // Smoothly interpolate Y to road surface (or shortcut surface)
-    let surfaceY = sample.point.y;
+    // Smoothly interpolate Y to road surface (or shortcut surface) including 3D curve banking!
+    const bankElevation = (sample.bankedBinormal ? proj.lateralOffset * sample.bankedBinormal.y : 0);
+    let surfaceY = sample.point.y + bankElevation;
     if (proj.isOffRoad && track.shortcutCurve && this.lapProgress >= 0.55 && this.lapProgress <= 0.71) {
       const scT = THREE.MathUtils.clamp((this.lapProgress - 0.58) / 0.10, 0, 1);
       const scPt = track.shortcutCurve.getPointAt(scT);
@@ -1002,6 +1021,7 @@ export class Kart {
       // Smooth pitch rotation in air following ballistic arc
       const airbornePitch = -Math.atan2(this.verticalVelocity, Math.max(12, Math.abs(this.speed))) * 0.65;
       this.mesh.rotation.x = THREE.MathUtils.lerp(this.mesh.rotation.x, airbornePitch, deltaTime * 8);
+      this.mesh.rotation.z = THREE.MathUtils.lerp(this.mesh.rotation.z, 0, deltaTime * 8);
     } else {
       // Ground contact: smoothly align Y with surface
       this.position.y = THREE.MathUtils.lerp(this.position.y, groundTargetY, deltaTime * 18);
@@ -1014,6 +1034,10 @@ export class Kart {
       }
       this.slopePitch = THREE.MathUtils.lerp(this.slopePitch, targetSlopePitch, deltaTime * 10);
       this.mesh.rotation.x = this.slopePitch;
+
+      // Align roll with track curve 3D banking
+      const targetMeshRoll = (sample.bankAngle || 0);
+      this.mesh.rotation.z = THREE.MathUtils.lerp(this.mesh.rotation.z, targetMeshRoll, deltaTime * 12);
     }
 
     // Wall collision clamping & active rebound deflection (skip left wall at shortcut entrance/exit)

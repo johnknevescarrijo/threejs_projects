@@ -52,12 +52,67 @@ O projeto reproduz a dinâmica frenética de corridas arcade consagradas (*Mario
 | **W** ou **Seta para Cima** | Acelerar o kart |
 | **S** ou **Seta para Baixo** | Frear / Marcha ré |
 | **A** / **D** ou **Setas Laterais** | Esterçar para a Esquerda / Direita |
-| **Espaço** ou **Shift** | Pular / Iniciar Drift com Mini-Turbo |
-| **E** ou **Enter** | Utilizar Item coletado (ou arremessar para trás segurando **S**) |
+| **Espaço** ou **Shift** | Pular / Iniciar Drift com Mini-Turbo / Manobra Aérea (*Trick Stunt*) |
+| **E** ou **Enter** | Utilizar Item / Segurar para manter Escudo Traseiro |
+| **F** | Alternar Escudo Traseiro (Travar Casca/Casco atrás) |
+| **T** | **Alternar Circuito Temático (Grand Prix ↔ Sunset Dunes ↔ Cyber Neon)** |
+| **Q** ou **V** | Olhar para trás (Visão traseira do espelho) |
 | **C** | Alternar Câmera (3ª Pessoa Chase ↔ Visão do Capô) |
-| **B** | **Alternar Visualizador de Sensores de IA (Raycasts 3D)** |
+| **B** | Alternar Visualizador de Sensores de IA (Raycasts 3D em tempo real) |
+| **G** | Alternar Efeito Gráfico de Pós-Processamento (*Bloom Neon*) |
 | **M** | Ligar / Silenciar Efeitos Sonoros |
-| **R** | **Recolocar kart na pista (Respawn imediato)** |
+| **R** | Recolocar kart na pista (Respawn imediato) |
+
+---
+
+## 🏆 Circuitos Temáticos Selecionáveis (`[T]`)
+
+O jogo conta com **3 circuitos completos** selecionáveis em tempo real ou salvos em sessão:
+
+1. 🏆 **Copa Solar Grand Prix (`GRAND_PRIX`):**
+   * Circuito clássico ensolarado estilo festival arcade.
+   * Asfalto cinza tradicional com trilhos de borracha e zebras esportivas vermelhas e brancas.
+   * Lago central refletivo de águas azuis, montanhas verdejantes no horizonte e florestas de pinheiros.
+   * Semáforo de pórtico 3D com contagem regressiva e arquibancadas com espectadores animados.
+
+2. 🏜️ **Deserto Sunset Dunes (`SUNSET_DUNES`):**
+   * Traçado rápido no deserto sob céu crepuscular laranja, violeta e dourado com sol poente dramático.
+   * Terreno de areia dourada com dunas ondulantes e zebras douradas e terracota.
+   * **3 Pirâmides Monumentais 3D** no horizonte com piramidions dourados polidos reluzentes.
+   * Oásis central com água turquesa esmeralda cristalina e palmeiras tropicais.
+
+3. 🌆 **Metrópole Cyber Neon (`CYBER_NEON`):**
+   * Traçado noturno de alta tecnologia synthwave / retrowave.
+   * Céu escuro pontilhado de estrelas e névoa magenta/cyan.
+   * **Mais de 40 arranha-céus e torres 3D** ao redor da pista com colunas de janelas em Neon Cyan (`#00f2fe`) e Neon Magenta (`#d946ef`), além de antenas de comunicação com balizas vermelhas piscantes.
+   * Asfalto high-tech escuro com micrograde digital e zebras neon brilhantes.
+
+---
+
+## ⚡ Recursos e Mecânicas Avançadas (Features 1, 2 e 3)
+
+### 1. Sistema de Moedas e Slot Duplo de Itens
+* **🪙 Moedas na Pista (0 a 10):** Espalhadas em linhas de tangência, ápices e arcos aéreos. Cada moeda confere +1.2% de velocidade máxima (até +12%) e um micro-impulso na coleta. O impacto com itens ou obstáculos faz o piloto perder até 3 moedas.
+* **📦 Slot Duplo de Itens:** Permite carregar um item ativo e um item reserva secundário, com roleta dupla animada e suporte a **Caixas de Itens Duplas (`2X`)**.
+* **🛡️ Escudo Traseiro Ativo:** Segurar **`E`** ou pressionar **`F`** mantém cascas de banana e cascos posicionados na traseira do kart, bloqueando impactos de tiros rivais.
+* **Novos Itens Especiais:**
+  * ⭐ **Super Estrela:** Imunidade total, aceleração aumentada, efeito visual rainbow e capacidade de abalroar rivais e atravessar obstáculos sem sofrer dano.
+  * 👑🍄 **Cogumelo Dourado:** Dispara turbos contínuos repetidos durante 5.5 segundos.
+  * 📦 **Caixa Falsa de Itens:** Armadilha explosiva com o ponto de interrogação `?` invertido.
+
+### 2. Física Vertical, Rampas de Salto e Ultra Mini-Turbo
+* **🎢 Rampas de Salto 3D:** Quatro rampas estrategicamente posicionadas no circuito (incluindo uma rampa radical no atalho) com bordas neon pulsantes e chevrons luminosos.
+* **✨ Manobras Aéreas (*Trick Stunts*):** Pressionar **Espaço / Drift** na borda da rampa ou em pleno ar executa acrobacias acrobáticas (giro 360° ou barrel roll corkscrew), recompensando uma aterrissagem perfeita com um **Trick Boost** imediato.
+* **💜 Ultra Mini-Turbo (Estágio 3 - Roxo):** Carregado após 3.4s de drift contínuo, liberando uma rajada turbo de 2.7 segundos (+42 km/h).
+* **🎁 Caixas de Itens e Moedas Aéreas:** Coletas suspensas em arcos aéreos para pilotos que dominam o timing dos saltos.
+
+### 3. Redesign da Pista, Perigos Dinâmicos e Superfícies
+* **🏎️ Banking 3D nas Curvas:** Curvas peraltadas com inclinação transversal física e visual suave, fazendo o kart se inclinar harmoniosamente com a força centrífuga.
+* **🚇 Túnel Iluminado em Neon ($t \in [0.44, 0.53]$):** Arcos estruturais futuristas com anéis de néon em ondas de luz cyan/magenta/amarelo e teto translúcido aerodinâmico.
+* **🏛️ Pilares de Viaduto:** Suportes arquitetônicos maciços de concreto armado com anéis de aço que sustentam as seções elevadas da pista sobre o solo.
+* **❄️ Zonas de Gelo (`ICE`):** Trechos azul-celeste translúcidos que aumentam a velocidade em +5% e reduzem o atrito lateral para derrapagens velozes.
+* **🪵 Zonas de Lama (`MUD`):** Poças de lama espessas nas chicanes que reduzem severamente a tração e velocidade a menos que o piloto use turbo ou estrela.
+* **⚠️ Obstáculos Dinâmicos (`this.hazards`):** 4 pilares/martelos industriais com listras amarelo/preto e núcleos de néon vermelho que oscilam transversalmente pela pista, forçando o jogador e a IA a desviarem para evitar spin-outs!
 
 ---
 

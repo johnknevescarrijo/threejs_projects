@@ -433,4 +433,114 @@ export class ProceduralTextures {
     tex.colorSpace = THREE.SRGBColorSpace;
     return tex;
   }
+
+  static createHazardStripeTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = '#facc15'; // Bright safety yellow
+    ctx.fillRect(0, 0, 256, 256);
+
+    // Diagonal black hazard stripes
+    ctx.fillStyle = '#0f172a';
+    const stripeWidth = 32;
+    for (let x = -256; x < 512; x += stripeWidth * 2) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x + stripeWidth, 0);
+      ctx.lineTo(x + stripeWidth + 256, 256);
+      ctx.lineTo(x + 256, 256);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(2, 2);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
+  static createSandTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = '#d97706';
+    ctx.fillRect(0, 0, 512, 512);
+
+    // Dune wind ripple bands
+    for (let y = 0; y < 512; y += 32) {
+      ctx.fillStyle = '#f59e0b';
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      for (let x = 0; x <= 512; x += 64) {
+        ctx.quadraticCurveTo(x + 32, y + 14 * Math.sin(x * 0.05), x + 64, y);
+      }
+      ctx.lineTo(512, y + 18);
+      ctx.lineTo(0, y + 18);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Sand grain speckles
+    for (let i = 0; i < 15000; i++) {
+      const x = Math.random() * 512;
+      const y = Math.random() * 512;
+      ctx.fillStyle = Math.random() > 0.5 ? '#fbbf24' : '#b45309';
+      ctx.globalAlpha = 0.35;
+      ctx.fillRect(x, y, 2, 2);
+    }
+    ctx.globalAlpha = 1.0;
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(36, 36);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 4;
+    return tex;
+  }
+
+  static createCyberAsphaltTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+
+    // Deep dark synthwave road
+    ctx.fillStyle = '#0b0f19';
+    ctx.fillRect(0, 0, 512, 512);
+
+    // High tech micro grid
+    ctx.strokeStyle = 'rgba(14, 165, 233, 0.12)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 512; i += 32) {
+      ctx.beginPath();
+      ctx.moveTo(i, 0); ctx.lineTo(i, 512);
+      ctx.moveTo(0, i); ctx.lineTo(512, i);
+      ctx.stroke();
+    }
+
+    // Glowing cyan lateral edges
+    ctx.fillStyle = '#00f2fe';
+    ctx.fillRect(14, 0, 8, 512);
+    ctx.fillRect(490, 0, 8, 512);
+
+    // Glowing magenta center dashed line
+    ctx.fillStyle = '#d946ef';
+    ctx.fillRect(253, 40, 6, 180);
+    ctx.fillRect(253, 296, 6, 180);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 8;
+    return tex;
+  }
 }

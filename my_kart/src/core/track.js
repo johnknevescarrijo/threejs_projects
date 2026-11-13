@@ -3,8 +3,9 @@ import { TRACK_CONFIG } from './constants.js';
 import { ProceduralTextures } from './textures.js';
 
 export class Track {
-  constructor(scene) {
+  constructor(scene, circuitId = 'GRAND_PRIX') {
     this.scene = scene;
+    this.circuitId = circuitId;
     this.width = TRACK_CONFIG.WIDTH;
     this.halfWidth = TRACK_CONFIG.HALF_WIDTH;
     this.curve = null;
@@ -24,16 +25,24 @@ export class Track {
     this.trackMesh = null;
     this.curbsMesh = null;
     this.guardrailsMesh = null;
+    this.tunnelNeonMaterials = [];
+    this.surfaceZones = [];
+    this.hazards = [];
     this.environmentGroup = new THREE.Group();
 
     this.initCurves();
     this.precomputeSamples();
     this.buildTrackGeometry();
+    this.buildTrackFoundation();
+    this.buildViaductPillars();
     this.buildStartFinishAndGrid();
     this.buildBoostPads();
     this.buildJumpRamps();
     this.buildShortcutGeometry();
     this.buildCurbsAndGuardrails();
+    this.buildSurfaceZones();
+    this.buildDynamicHazards();
+    this.buildNeonTunnel();
     this.buildStartGantry();
     this.buildGrandstands();
     this.buildTrackChevronsAndBillboards();
@@ -140,16 +149,51 @@ export class Track {
         tangent,
         normal,
         binormal,
+        bankedBinormal: binormal.clone(),
+        bankedNormal: normal.clone(),
+        bankAngle: 0,
         curvature: 0
       });
     }
 
+    // Curvature & raw 3D banking calculation
+    const rawBankAngles = new Float32Array(this.sampleCount);
     for (let i = 0; i < this.sampleCount; i++) {
       const current = this.samples[i];
-      const lookaheadIdx = (i + 15) % this.sampleCount;
-      const next = this.samples[lookaheadIdx];
-      const dot = Math.max(-1, Math.min(1, current.tangent.dot(next.tangent)));
+      const prevIdx = (i - 10 + this.sampleCount) % this.sampleCount;
+      const nextIdx = (i + 10) % this.sampleCount;
+      const prev = this.samples[prevIdx];
+      const next = this.samples[nextIdx];
+
+      const dot = Math.max(-1, Math.min(1, prev.tangent.dot(next.tangent)));
       current.curvature = Math.acos(dot);
+
+      // Signed cross product around Y to determine curve direction
+      const crossY = prev.tangent.x * next.tangent.z - prev.tangent.z * next.tangent.x;
+      // Banking: curve right (crossY > 0) -> bank left side up (-angle in Three.js roll)
+      // curve left (crossY < 0) -> bank right side up (+angle)
+      const maxBank = 0.16; // ~9.2 degrees maximum arcade banking
+      rawBankAngles[i] = THREE.MathUtils.clamp(-crossY * 0.42, -maxBank, maxBank);
+    }
+
+    // Smooth banking angles with a wide Gaussian-weighted filter to ensure zero abrupt twists
+    const filterRadius = 16;
+    for (let i = 0; i < this.sampleCount; i++) {
+      let sum = 0;
+      let count = 0;
+      for (let r = -filterRadius; r <= filterRadius; r++) {
+        const idx = (i + r + this.sampleCount) % this.sampleCount;
+        const weight = 1 - Math.abs(r) / (filterRadius + 1);
+        sum += rawBankAngles[idx] * weight;
+        count += weight;
+      }
+      const smoothBank = sum / count;
+      const sample = this.samples[i];
+      sample.bankAngle = smoothBank;
+
+      // Rotate binormal and normal vectors around tangent axis by smoothBank
+      sample.bankedBinormal = sample.binormal.clone().applyAxisAngle(sample.tangent, smoothBank);
+      sample.bankedNormal = sample.normal.clone().applyAxisAngle(sample.tangent, smoothBank);
     }
   }
 
@@ -165,7 +209,8 @@ export class Track {
       const idx = i % segments;
       const sample = this.samples[idx];
       const p = sample.point;
-      const b = sample.binormal;
+      const b = sample.bankedBinormal;
+      const n = sample.bankedNormal;
 
       const leftPt = new THREE.Vector3().copy(p).addScaledVector(b, this.halfWidth);
       const rightPt = new THREE.Vector3().copy(p).addScaledVector(b, -this.halfWidth);
@@ -175,8 +220,8 @@ export class Track {
       positions.push(leftPt.x, leftPt.y + 0.05, leftPt.z);
       positions.push(rightPt.x, rightPt.y + 0.05, rightPt.z);
 
-      normals.push(sample.normal.x, sample.normal.y, sample.normal.z);
-      normals.push(sample.normal.x, sample.normal.y, sample.normal.z);
+      normals.push(n.x, n.y, n.z);
+      normals.push(n.x, n.y, n.z);
 
       uvs.push(0, vCoord);
       uvs.push(1, vCoord);
@@ -198,19 +243,20 @@ export class Track {
     geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
     geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
 
-    const asphaltTex = ProceduralTextures.createAsphaltTexture();
+    const isCyber = this.circuitId === 'CYBER_NEON';
+    const asphaltTex = isCyber
+      ? ProceduralTextures.createCyberAsphaltTexture()
+      : ProceduralTextures.createAsphaltTexture();
+
     const material = new THREE.MeshStandardMaterial({
       map: asphaltTex,
-      roughness: 0.78,
-      metalness: 0.12
+      roughness: isCyber ? 0.45 : 0.78,
+      metalness: isCyber ? 0.35 : 0.12
     });
 
     this.trackMesh = new THREE.Mesh(geometry, material);
     this.trackMesh.receiveShadow = true;
     this.environmentGroup.add(this.trackMesh);
-
-    // Road embankment skirt underneath elevated sections
-    this.buildTrackFoundation();
   }
 
   buildTrackFoundation() {
@@ -222,7 +268,7 @@ export class Track {
     for (let i = 0; i <= segments; i++) {
       const sample = this.samples[i % segments];
       const p = sample.point;
-      const b = sample.binormal;
+      const b = sample.bankedBinormal;
 
       const lTop = new THREE.Vector3().copy(p).addScaledVector(b, width);
       const rTop = new THREE.Vector3().copy(p).addScaledVector(b, -width);
@@ -257,6 +303,71 @@ export class Track {
     const mesh = new THREE.Mesh(geo, mat);
     mesh.receiveShadow = true;
     this.environmentGroup.add(mesh);
+  }
+
+  /**
+   * Builds heavy architectural concrete viaduct pillars under high elevated road sections
+   */
+  buildViaductPillars() {
+    const pillarGroup = new THREE.Group();
+    const concreteMat = new THREE.MeshStandardMaterial({
+      color: 0x334155,
+      roughness: 0.88,
+      metalness: 0.15
+    });
+    const steelMat = new THREE.MeshStandardMaterial({
+      color: 0x1e293b,
+      roughness: 0.45,
+      metalness: 0.75
+    });
+
+    // Check elevated samples along spline
+    for (let i = 0; i < this.sampleCount; i += 11) {
+      const s = this.samples[i];
+      if (s.point.y > 2.8) {
+        const p = s.point;
+        const b = s.bankedBinormal;
+        const t = s.tangent;
+        const columnHeight = p.y + 4.2;
+
+        // 1. Crossbeam (Lintel) supporting under the road bed
+        const lintelGeo = new THREE.BoxGeometry(this.width + 1.2, 1.2, 2.6);
+        const lintel = new THREE.Mesh(lintelGeo, concreteMat);
+        lintel.position.copy(p);
+        lintel.position.y -= 0.65;
+        lintel.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(b, s.bankedNormal, t));
+        lintel.castShadow = true;
+        lintel.receiveShadow = true;
+        pillarGroup.add(lintel);
+
+        // 2. Twin reinforced concrete cylindrical columns
+        [-this.halfWidth * 0.62, this.halfWidth * 0.62].forEach(lat => {
+          const colGeo = new THREE.CylinderGeometry(0.82, 0.98, columnHeight, 14);
+          const colMesh = new THREE.Mesh(colGeo, concreteMat);
+          const colPos = new THREE.Vector3().copy(p).addScaledVector(b, lat);
+          colPos.y = (p.y - 1.2 - 4.0) * 0.5;
+          colMesh.position.copy(colPos);
+          colMesh.castShadow = true;
+          colMesh.receiveShadow = true;
+          pillarGroup.add(colMesh);
+
+          // Steel ring brace collars around column
+          const ringGeo = new THREE.TorusGeometry(0.92, 0.12, 8, 16);
+          ringGeo.rotateX(Math.PI / 2);
+          const ringMesh = new THREE.Mesh(ringGeo, steelMat);
+          ringMesh.position.set(colPos.x, p.y - 1.4, colPos.z);
+          pillarGroup.add(ringMesh);
+
+          // Concrete base footings
+          const footingGeo = new THREE.BoxGeometry(2.8, 1.2, 2.8);
+          const footing = new THREE.Mesh(footingGeo, concreteMat);
+          footing.position.set(colPos.x, -3.4, colPos.z);
+          pillarGroup.add(footing);
+        });
+      }
+    }
+
+    this.environmentGroup.add(pillarGroup);
   }
 
   buildStartFinishAndGrid() {
@@ -640,6 +751,10 @@ export class Track {
     const red = new THREE.Color(0xef4444);
     const white = new THREE.Color(0xf8fafc);
     const blue = new THREE.Color(0x3b82f6);
+    const gold = new THREE.Color(0xf59e0b);
+    const sandWhite = new THREE.Color(0xfef3c7);
+    const neonCyan = new THREE.Color(0x00f2fe);
+    const neonMagenta = new THREE.Color(0xd946ef);
 
     const positions = [];
     const colors = [];
@@ -652,33 +767,46 @@ export class Track {
 
       const isHighSpeed = s0.point.y > 5.0;
       const isAlt = (Math.floor(i / 2) % 2 === 0);
-      const curbColor = isAlt ? (isHighSpeed ? blue : red) : white;
+
+      let curbColor;
+      if (this.circuitId === 'CYBER_NEON') {
+        curbColor = isAlt ? neonCyan : neonMagenta;
+      } else if (this.circuitId === 'SUNSET_DUNES') {
+        curbColor = isAlt ? gold : (isHighSpeed ? red : sandWhite);
+      } else {
+        curbColor = isAlt ? (isHighSpeed ? blue : red) : white;
+      }
+
+      const b0 = s0.bankedBinormal;
+      const n0 = s0.bankedNormal;
+      const b1 = s1.bankedBinormal;
+      const n1 = s1.bankedNormal;
 
       // Left curb
-      const lInner = new THREE.Vector3().copy(s0.point).addScaledVector(s0.binormal, this.halfWidth);
-      const lOuter = new THREE.Vector3().copy(s0.point).addScaledVector(s0.binormal, this.halfWidth + curbWidth);
-      const lInnerNext = new THREE.Vector3().copy(s1.point).addScaledVector(s1.binormal, this.halfWidth);
-      const lOuterNext = new THREE.Vector3().copy(s1.point).addScaledVector(s1.binormal, this.halfWidth + curbWidth);
+      const lInner = new THREE.Vector3().copy(s0.point).addScaledVector(b0, this.halfWidth).addScaledVector(n0, curbHeight);
+      const lOuter = new THREE.Vector3().copy(s0.point).addScaledVector(b0, this.halfWidth + curbWidth).addScaledVector(n0, curbHeight * 0.35);
+      const lInnerNext = new THREE.Vector3().copy(s1.point).addScaledVector(b1, this.halfWidth).addScaledVector(n1, curbHeight);
+      const lOuterNext = new THREE.Vector3().copy(s1.point).addScaledVector(b1, this.halfWidth + curbWidth).addScaledVector(n1, curbHeight * 0.35);
 
-      positions.push(lInner.x, lInner.y + curbHeight, lInner.z);
-      positions.push(lOuter.x, lOuter.y + curbHeight * 0.35, lOuter.z);
-      positions.push(lInnerNext.x, lInnerNext.y + curbHeight, lInnerNext.z);
-      positions.push(lOuterNext.x, lOuterNext.y + curbHeight * 0.35, lOuterNext.z);
+      positions.push(lInner.x, lInner.y, lInner.z);
+      positions.push(lOuter.x, lOuter.y, lOuter.z);
+      positions.push(lInnerNext.x, lInnerNext.y, lInnerNext.z);
+      positions.push(lOuterNext.x, lOuterNext.y, lOuterNext.z);
 
       for (let k = 0; k < 4; k++) colors.push(curbColor.r, curbColor.g, curbColor.b);
       indices.push(vertIdx, vertIdx + 1, vertIdx + 2, vertIdx + 1, vertIdx + 3, vertIdx + 2);
       vertIdx += 4;
 
       // Right curb
-      const rInner = new THREE.Vector3().copy(s0.point).addScaledVector(s0.binormal, -this.halfWidth);
-      const rOuter = new THREE.Vector3().copy(s0.point).addScaledVector(s0.binormal, -(this.halfWidth + curbWidth));
-      const rInnerNext = new THREE.Vector3().copy(s1.point).addScaledVector(s1.binormal, -this.halfWidth);
-      const rOuterNext = new THREE.Vector3().copy(s1.point).addScaledVector(s1.binormal, -(this.halfWidth + curbWidth));
+      const rInner = new THREE.Vector3().copy(s0.point).addScaledVector(b0, -this.halfWidth).addScaledVector(n0, curbHeight);
+      const rOuter = new THREE.Vector3().copy(s0.point).addScaledVector(b0, -(this.halfWidth + curbWidth)).addScaledVector(n0, curbHeight * 0.35);
+      const rInnerNext = new THREE.Vector3().copy(s1.point).addScaledVector(b1, -this.halfWidth).addScaledVector(n1, curbHeight);
+      const rOuterNext = new THREE.Vector3().copy(s1.point).addScaledVector(b1, -(this.halfWidth + curbWidth)).addScaledVector(n1, curbHeight * 0.35);
 
-      positions.push(rInner.x, rInner.y + curbHeight, rInner.z);
-      positions.push(rOuter.x, rOuter.y + curbHeight * 0.35, rOuter.z);
-      positions.push(rInnerNext.x, rInnerNext.y + curbHeight, rInnerNext.z);
-      positions.push(rOuterNext.x, rOuterNext.y + curbHeight * 0.35, rOuterNext.z);
+      positions.push(rInner.x, rInner.y, rInner.z);
+      positions.push(rOuter.x, rOuter.y, rOuter.z);
+      positions.push(rInnerNext.x, rInnerNext.y, rInnerNext.z);
+      positions.push(rOuterNext.x, rOuterNext.y, rOuterNext.z);
 
       for (let k = 0; k < 4; k++) colors.push(curbColor.r, curbColor.g, curbColor.b);
       indices.push(vertIdx, vertIdx + 1, vertIdx + 2, vertIdx + 1, vertIdx + 3, vertIdx + 2);
@@ -727,13 +855,23 @@ export class Track {
       const sides = inShortcutZone ? [-1] : [1, -1];
 
       sides.forEach(side => {
-        const p0 = new THREE.Vector3().copy(s0.point).addScaledVector(s0.binormal, side * railOffset);
-        const p1 = new THREE.Vector3().copy(s1.point).addScaledVector(s1.binormal, side * railOffset);
+        const b0 = s0.bankedBinormal;
+        const n0 = s0.bankedNormal;
+        const b1 = s1.bankedBinormal;
+        const n1 = s1.bankedNormal;
 
-        railPositions.push(p0.x, p0.y + 0.35, p0.z);
-        railPositions.push(p0.x, p0.y + 0.95, p0.z);
-        railPositions.push(p1.x, p1.y + 0.35, p1.z);
-        railPositions.push(p1.x, p1.y + 0.95, p1.z);
+        const p0 = new THREE.Vector3().copy(s0.point).addScaledVector(b0, side * railOffset);
+        const p1 = new THREE.Vector3().copy(s1.point).addScaledVector(b1, side * railOffset);
+
+        const p0Low = new THREE.Vector3().copy(p0).addScaledVector(n0, 0.35);
+        const p0High = new THREE.Vector3().copy(p0).addScaledVector(n0, 0.95);
+        const p1Low = new THREE.Vector3().copy(p1).addScaledVector(n1, 0.35);
+        const p1High = new THREE.Vector3().copy(p1).addScaledVector(n1, 0.95);
+
+        railPositions.push(p0Low.x, p0Low.y, p0Low.z);
+        railPositions.push(p0High.x, p0High.y, p0High.z);
+        railPositions.push(p1Low.x, p1Low.y, p1Low.z);
+        railPositions.push(p1High.x, p1High.y, p1High.z);
 
         for (let k = 0; k < 4; k++) {
           railColors.push(stripeColor.r, stripeColor.g, stripeColor.b);
@@ -761,6 +899,433 @@ export class Track {
     this.guardrailsMesh.castShadow = true;
     this.guardrailsMesh.receiveShadow = true;
     this.environmentGroup.add(this.guardrailsMesh);
+  }
+
+  /**
+   * Builds high-tech neon archway tunnel between t = 0.44 and t = 0.53
+   */
+  buildNeonTunnel() {
+    this.tunnelGroup = new THREE.Group();
+    this.tunnelNeonMaterials = [];
+
+    const startIdx = Math.floor(0.44 * this.sampleCount);
+    const endIdx = Math.floor(0.53 * this.sampleCount);
+    const tunnelRadius = this.halfWidth + 2.2;
+    const tunnelHeight = 6.8;
+
+    const frameMat = new THREE.MeshStandardMaterial({
+      color: 0x0f172a,
+      roughness: 0.4,
+      metalness: 0.85
+    });
+
+    const neonColors = [0x00f2fe, 0xd946ef, 0xfacc15, 0x10b981];
+
+    for (let i = startIdx; i <= endIdx; i += 3) {
+      const s = this.samples[i];
+      const p = s.point;
+      const b = s.bankedBinormal;
+      const n = s.bankedNormal;
+      const t = s.tangent;
+
+      const portalGroup = new THREE.Group();
+      portalGroup.position.copy(p);
+      portalGroup.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(b, n, t));
+
+      // 1. Semi-octagonal heavy structural arch frame
+      const frameGeo = new THREE.TorusGeometry(tunnelRadius, 0.45, 6, 18, Math.PI);
+      frameGeo.rotateZ(Math.PI);
+      const frameMesh = new THREE.Mesh(frameGeo, frameMat);
+      frameMesh.position.y += 0.2;
+      frameMesh.castShadow = true;
+      portalGroup.add(frameMesh);
+
+      // 2. High-glow Neon Interior Ring
+      const colorHex = neonColors[(Math.floor((i - startIdx) / 3)) % neonColors.length];
+      const neonMat = new THREE.MeshStandardMaterial({
+        color: colorHex,
+        emissive: colorHex,
+        emissiveIntensity: 2.2,
+        roughness: 0.15,
+        metalness: 0.8
+      });
+      this.tunnelNeonMaterials.push(neonMat);
+
+      const neonGeo = new THREE.TorusGeometry(tunnelRadius - 0.25, 0.18, 6, 24, Math.PI);
+      neonGeo.rotateZ(Math.PI);
+      const neonMesh = new THREE.Mesh(neonGeo, neonMat);
+      neonMesh.position.y += 0.2;
+      portalGroup.add(neonMesh);
+
+      // 3. Side vertical footing columns
+      [-tunnelRadius, tunnelRadius].forEach(xCol => {
+        const foot = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.8, 1.2), frameMat);
+        foot.position.set(xCol, 0.8, 0);
+        portalGroup.add(foot);
+      });
+
+      this.tunnelGroup.add(portalGroup);
+    }
+
+    // 4. Continuous semi-transparent roof canopy covering the tunnel section
+    const roofPositions = [];
+    const roofIndices = [];
+    let rIdx = 0;
+
+    for (let i = startIdx; i < endIdx; i++) {
+      const s0 = this.samples[i];
+      const s1 = this.samples[i + 1];
+
+      const p0 = s0.point;
+      const p1 = s1.point;
+      const b0 = s0.bankedBinormal;
+      const b1 = s1.bankedBinormal;
+      const n0 = s0.bankedNormal;
+      const n1 = s1.bankedNormal;
+
+      // Canopy ribs spanning from left shoulder to right shoulder over normal
+      const l0 = new THREE.Vector3().copy(p0).addScaledVector(b0, this.halfWidth + 0.8).addScaledVector(n0, 1.5);
+      const r0 = new THREE.Vector3().copy(p0).addScaledVector(b0, -(this.halfWidth + 0.8)).addScaledVector(n0, 1.5);
+      const top0 = new THREE.Vector3().copy(p0).addScaledVector(n0, tunnelHeight);
+
+      const l1 = new THREE.Vector3().copy(p1).addScaledVector(b1, this.halfWidth + 0.8).addScaledVector(n1, 1.5);
+      const r1 = new THREE.Vector3().copy(p1).addScaledVector(b1, -(this.halfWidth + 0.8)).addScaledVector(n1, 1.5);
+      const top1 = new THREE.Vector3().copy(p1).addScaledVector(n1, tunnelHeight);
+
+      // Left canopy facet
+      roofPositions.push(l0.x, l0.y, l0.z, top0.x, top0.y, top0.z, l1.x, l1.y, l1.z, top1.x, top1.y, top1.z);
+      roofIndices.push(rIdx, rIdx + 1, rIdx + 2, rIdx + 1, rIdx + 3, rIdx + 2);
+      rIdx += 4;
+
+      // Right canopy facet
+      roofPositions.push(top0.x, top0.y, top0.z, r0.x, r0.y, r0.z, top1.x, top1.y, top1.z, r1.x, r1.y, r1.z);
+      roofIndices.push(rIdx, rIdx + 1, rIdx + 2, rIdx + 1, rIdx + 3, rIdx + 2);
+      rIdx += 4;
+    }
+
+    const roofGeo = new THREE.BufferGeometry();
+    roofGeo.setIndex(roofIndices);
+    roofGeo.setAttribute('position', new THREE.Float32BufferAttribute(roofPositions, 3));
+    roofGeo.computeVertexNormals();
+
+    const roofMat = new THREE.MeshStandardMaterial({
+      color: 0x090d16,
+      roughness: 0.25,
+      metalness: 0.65,
+      transparent: true,
+      opacity: 0.78,
+      side: THREE.DoubleSide
+    });
+    const roofMesh = new THREE.Mesh(roofGeo, roofMat);
+    this.tunnelGroup.add(roofMesh);
+
+    this.environmentGroup.add(this.tunnelGroup);
+  }
+
+  /**
+   * Builds special surface zones: 2 translucent Ice zones and 3 muddy chicane zones
+   */
+  buildSurfaceZones() {
+    this.surfaceZones = [];
+    const surfaceGroup = new THREE.Group();
+
+    // 1. Two Translucent Ice Zones (Fast & Slippery)
+    const iceConfigs = [
+      { tStart: 0.22, tEnd: 0.28, lateral: 0, width: 17.5, name: 'Ice_Sheet_1' },
+      { tStart: 0.72, tEnd: 0.78, lateral: 0, width: 17.5, name: 'Ice_Sheet_2' }
+    ];
+
+    const iceMat = new THREE.MeshPhysicalMaterial({
+      color: 0x93c5fd,
+      roughness: 0.04,
+      metalness: 0.25,
+      transmission: 0.65,
+      transparent: true,
+      opacity: 0.88,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.05
+    });
+
+    const iceTrimMat = new THREE.MeshBasicMaterial({
+      color: 0x00f2fe,
+      transparent: true,
+      opacity: 0.85
+    });
+
+    iceConfigs.forEach(cfg => {
+      const startIdx = Math.floor(cfg.tStart * this.sampleCount);
+      const endIdx = Math.floor(cfg.tEnd * this.sampleCount);
+      const halfW = cfg.width * 0.5;
+
+      const positions = [];
+      const normals = [];
+      const uvs = [];
+      const indices = [];
+      let vIdx = 0;
+
+      for (let i = startIdx; i <= endIdx; i++) {
+        const s = this.samples[i % this.sampleCount];
+        const p = s.point;
+        const b = s.bankedBinormal;
+        const n = s.bankedNormal;
+
+        const lPt = new THREE.Vector3().copy(p).addScaledVector(b, halfW).addScaledVector(n, 0.08);
+        const rPt = new THREE.Vector3().copy(p).addScaledVector(b, -halfW).addScaledVector(n, 0.08);
+
+        positions.push(lPt.x, lPt.y, lPt.z);
+        positions.push(rPt.x, rPt.y, rPt.z);
+        normals.push(n.x, n.y, n.z);
+        normals.push(n.x, n.y, n.z);
+
+        const vCoord = (i - startIdx) * 0.4;
+        uvs.push(0, vCoord, 1, vCoord);
+
+        if (i < endIdx) {
+          indices.push(vIdx, vIdx + 1, vIdx + 2, vIdx + 1, vIdx + 3, vIdx + 2);
+          vIdx += 2;
+        }
+      }
+
+      const geo = new THREE.BufferGeometry();
+      geo.setIndex(indices);
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+
+      const mesh = new THREE.Mesh(geo, iceMat);
+      mesh.receiveShadow = true;
+      surfaceGroup.add(mesh);
+
+      // Glowing ice border trims
+      [-halfW, halfW].forEach(latSide => {
+        const trimPoints = [];
+        for (let i = startIdx; i <= endIdx; i++) {
+          const s = this.samples[i % this.sampleCount];
+          trimPoints.push(new THREE.Vector3().copy(s.point).addScaledVector(s.bankedBinormal, latSide).addScaledVector(s.bankedNormal, 0.1));
+        }
+        const trimCurve = new THREE.CatmullRomCurve3(trimPoints);
+        const trimGeo = new THREE.TubeGeometry(trimCurve, endIdx - startIdx, 0.12, 6, false);
+        const trimMesh = new THREE.Mesh(trimGeo, iceTrimMat);
+        surfaceGroup.add(trimMesh);
+      });
+
+      this.surfaceZones.push({
+        type: 'ICE',
+        tStart: cfg.tStart,
+        tEnd: cfg.tEnd,
+        lateral: cfg.lateral,
+        width: cfg.width
+      });
+    });
+
+    // 2. Three Mud Zones in Chicanes (Heavy Drag & Speed Reduction)
+    const mudConfigs = [
+      { tStart: 0.08, tEnd: 0.105, lateral: -3.2, width: 8.5, name: 'Mud_Patch_1' },
+      { tStart: 0.33, tEnd: 0.355, lateral: 3.0, width: 8.5, name: 'Mud_Patch_2' },
+      { tStart: 0.88, tEnd: 0.905, lateral: -2.8, width: 8.5, name: 'Mud_Patch_3' }
+    ];
+
+    const mudMat = new THREE.MeshStandardMaterial({
+      color: 0x3d2010,
+      roughness: 0.96,
+      metalness: 0.04
+    });
+
+    mudConfigs.forEach(cfg => {
+      const startIdx = Math.floor(cfg.tStart * this.sampleCount);
+      const endIdx = Math.floor(cfg.tEnd * this.sampleCount);
+      const halfW = cfg.width * 0.5;
+
+      const positions = [];
+      const normals = [];
+      const indices = [];
+      let vIdx = 0;
+
+      for (let i = startIdx; i <= endIdx; i++) {
+        const s = this.samples[i % this.sampleCount];
+        const p = s.point;
+        const b = s.bankedBinormal;
+        const n = s.bankedNormal;
+
+        // Create organic curved mud splash contour
+        const progressInMud = (i - startIdx) / Math.max(1, endIdx - startIdx);
+        const taper = Math.sin(progressInMud * Math.PI);
+        const currentHalfW = halfW * (0.45 + 0.55 * taper);
+
+        const lPt = new THREE.Vector3().copy(p).addScaledVector(b, cfg.lateral + currentHalfW).addScaledVector(n, 0.07);
+        const rPt = new THREE.Vector3().copy(p).addScaledVector(b, cfg.lateral - currentHalfW).addScaledVector(n, 0.07);
+
+        positions.push(lPt.x, lPt.y, lPt.z);
+        positions.push(rPt.x, rPt.y, rPt.z);
+        normals.push(n.x, n.y, n.z);
+        normals.push(n.x, n.y, n.z);
+
+        if (i < endIdx) {
+          indices.push(vIdx, vIdx + 1, vIdx + 2, vIdx + 1, vIdx + 3, vIdx + 2);
+          vIdx += 2;
+        }
+      }
+
+      const geo = new THREE.BufferGeometry();
+      geo.setIndex(indices);
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+
+      const mesh = new THREE.Mesh(geo, mudMat);
+      mesh.receiveShadow = true;
+      surfaceGroup.add(mesh);
+
+      this.surfaceZones.push({
+        type: 'MUD',
+        tStart: cfg.tStart,
+        tEnd: cfg.tEnd,
+        lateral: cfg.lateral,
+        width: cfg.width
+      });
+    });
+
+    this.environmentGroup.add(surfaceGroup);
+  }
+
+  /**
+   * Returns 'ICE', 'MUD', or null depending on kart position on spline
+   */
+  getSurfaceZone(t, lateralOffset) {
+    if (!this.surfaceZones || this.surfaceZones.length === 0) return null;
+    const normT = ((t % 1.0) + 1.0) % 1.0;
+
+    for (let i = 0; i < this.surfaceZones.length; i++) {
+      const z = this.surfaceZones[i];
+      let inT = false;
+      if (z.tStart <= z.tEnd) {
+        inT = (normT >= z.tStart && normT <= z.tEnd);
+      } else {
+        inT = (normT >= z.tStart || normT <= z.tEnd);
+      }
+
+      if (inT && Math.abs(lateralOffset - z.lateral) <= z.width * 0.5) {
+        return z.type;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Builds 4 dynamic oscillating track hazards (warning striped pillars with red neon cores)
+   */
+  buildDynamicHazards() {
+    this.hazards = [];
+    const hazardGroup = new THREE.Group();
+
+    const hazardConfigs = [
+      { id: 'hazard_1', t: 0.20, amplitude: 5.2, speed: 1.8, phase: 0.0 },
+      { id: 'hazard_2', t: 0.37, amplitude: 5.0, speed: 2.2, phase: Math.PI * 0.5 },
+      { id: 'hazard_3', t: 0.65, amplitude: 5.8, speed: 1.9, phase: Math.PI },
+      { id: 'hazard_4', t: 0.83, amplitude: 5.2, speed: 2.4, phase: Math.PI * 1.5 }
+    ];
+
+    const stripeTex = ProceduralTextures.createHazardStripeTexture();
+    const hazardMat = new THREE.MeshStandardMaterial({
+      map: stripeTex,
+      roughness: 0.4,
+      metalness: 0.6
+    });
+
+    const frameMat = new THREE.MeshStandardMaterial({
+      color: 0x1e293b,
+      metalness: 0.85,
+      roughness: 0.25
+    });
+
+    const pistonMat = new THREE.MeshStandardMaterial({
+      color: 0xe2e8f0,
+      metalness: 0.95,
+      roughness: 0.1
+    });
+
+    hazardConfigs.forEach(cfg => {
+      const sampleIdx = Math.floor(cfg.t * this.sampleCount);
+      const s = this.samples[sampleIdx];
+      const p = s.point;
+      const b = s.bankedBinormal;
+      const n = s.bankedNormal;
+      const t = s.tangent;
+
+      // 1. Static Overhead Gantry / Rail Frame crossing the track
+      const gantryGroup = new THREE.Group();
+      gantryGroup.position.copy(p);
+      gantryGroup.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(b, n, t));
+
+      // Overhead truss track rail
+      const overheadRail = new THREE.Mesh(new THREE.BoxGeometry(this.width + 4.2, 0.8, 1.4), frameMat);
+      overheadRail.position.set(0, 7.2, 0);
+      overheadRail.castShadow = true;
+      gantryGroup.add(overheadRail);
+
+      // Support pillars on track boundaries
+      [-this.halfWidth - 1.8, this.halfWidth + 1.8].forEach(xPill => {
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.48, 7.4, 10), frameMat);
+        post.position.set(xPill, 3.7, 0);
+        post.castShadow = true;
+        gantryGroup.add(post);
+      });
+
+      this.environmentGroup.add(gantryGroup);
+
+      // 2. Oscillating Hazard Pillar (Hammer)
+      const movingPillar = new THREE.Group();
+      movingPillar.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(b, n, t));
+
+      // Main heavy bumper body
+      const bodyGeo = new THREE.CylinderGeometry(1.45, 1.45, 2.8, 16);
+      const bodyMesh = new THREE.Mesh(bodyGeo, hazardMat);
+      bodyMesh.position.y = 1.45;
+      bodyMesh.castShadow = true;
+      movingPillar.add(bodyMesh);
+
+      // Neon Red Glowing Core
+      const neonMat = new THREE.MeshStandardMaterial({
+        color: 0xff0033,
+        emissive: 0xff0033,
+        emissiveIntensity: 2.8,
+        roughness: 0.1,
+        metalness: 0.8
+      });
+      const coreMesh = new THREE.Mesh(new THREE.SphereGeometry(0.72, 16, 16), neonMat);
+      coreMesh.position.y = 1.45;
+      movingPillar.add(coreMesh);
+
+      // Top hydraulic suspension piston connecting to overhead rail
+      const pistonGeo = new THREE.CylinderGeometry(0.25, 0.25, 4.4, 10);
+      const piston = new THREE.Mesh(pistonGeo, pistonMat);
+      piston.position.y = 4.8;
+      movingPillar.add(piston);
+
+      // Protective Steel Bumper Caps
+      const capMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.3, metalness: 0.8 });
+      const topCap = new THREE.Mesh(new THREE.CylinderGeometry(1.52, 1.52, 0.35, 16), capMat);
+      topCap.position.y = 2.85;
+      const botCap = new THREE.Mesh(new THREE.CylinderGeometry(1.52, 1.52, 0.35, 16), capMat);
+      botCap.position.y = 0.2;
+      movingPillar.add(topCap, botCap);
+
+      const basePos = this.getWaypointAtProgress(cfg.t, 0);
+      movingPillar.position.copy(basePos);
+      this.environmentGroup.add(movingPillar);
+
+      this.hazards.push({
+        id: cfg.id,
+        t: cfg.t,
+        amplitude: cfg.amplitude,
+        speed: cfg.speed,
+        phase: cfg.phase,
+        radius: 1.8,
+        basePos: basePos.clone(),
+        currentPos: basePos.clone(),
+        mesh: movingPillar,
+        neonMat: neonMat
+      });
+    });
   }
 
   buildStartGantry() {
@@ -1008,22 +1573,50 @@ export class Track {
     }
     groundGeo.computeVertexNormals();
 
-    const grassTex = ProceduralTextures.createGrassTexture();
-    const groundMat = new THREE.MeshStandardMaterial({
-      map: grassTex,
-      roughness: 0.88,
-      metalness: 0.04
-    });
+    const isSand = this.circuitId === 'SUNSET_DUNES';
+    const isCyber = this.circuitId === 'CYBER_NEON';
+
+    let groundTex, groundMat;
+    if (isSand) {
+      groundTex = ProceduralTextures.createSandTexture();
+      groundMat = new THREE.MeshStandardMaterial({
+        map: groundTex,
+        roughness: 0.94,
+        metalness: 0.05
+      });
+    } else if (isCyber) {
+      groundTex = ProceduralTextures.createCyberAsphaltTexture();
+      groundMat = new THREE.MeshStandardMaterial({
+        map: groundTex,
+        roughness: 0.65,
+        metalness: 0.45
+      });
+    } else {
+      groundTex = ProceduralTextures.createGrassTexture();
+      groundMat = new THREE.MeshStandardMaterial({
+        map: grassTex,
+        roughness: 0.88,
+        metalness: 0.04
+      });
+    }
+
     const ground = new THREE.Mesh(groundGeo, groundMat);
     ground.receiveShadow = true;
     this.environmentGroup.add(ground);
 
-    // Scenic Reflective Infield Lake
+    // Central Infield Feature (Lake / Oasis / Cyber Plaza)
     const waterGeo = new THREE.CircleGeometry(68, 36);
     waterGeo.rotateX(-Math.PI / 2);
+
+    let waterColor = 0x0ea5e9;
+    if (isSand) waterColor = 0x14b8a6; // Turquoise desert oasis
+    if (isCyber) waterColor = 0x00f2fe; // Glowing neon cyber plaza
+
     const waterMat = new THREE.MeshStandardMaterial({
-      color: 0x0ea5e9,
-      roughness: 0.08,
+      color: waterColor,
+      emissive: isCyber ? 0x00f2fe : 0x000000,
+      emissiveIntensity: isCyber ? 0.65 : 0,
+      roughness: isCyber ? 0.2 : 0.08,
       metalness: 0.85,
       transparent: true,
       opacity: 0.88
@@ -1033,7 +1626,180 @@ export class Track {
     this.waterMesh.scale.set(0.9, 1, 1.25);
     this.environmentGroup.add(this.waterMesh);
 
+    // Spawn themed scenery based on active circuit
+    if (isSand) {
+      this.spawnSunsetDunesScenery();
+    } else if (isCyber) {
+      this.spawnCyberNeonScenery();
+    } else {
+      this.spawnGrandPrixScenery();
+    }
+  }
+
+  spawnGrandPrixScenery() {
     this.spawnScenicTreesAndClouds();
+  }
+
+  spawnSunsetDunesScenery() {
+    const dunesGroup = new THREE.Group();
+
+    // 1. Three Monumental Egyptian 3D Pyramids on the Horizon
+    const pyramidConfigs = [
+      { x: 260, y: 0, z: -280, baseW: 95, height: 75, yaw: Math.PI / 4 },
+      { x: -250, y: 0, z: -270, baseW: 80, height: 60, yaw: Math.PI / 4 },
+      { x: -290, y: 0, z: 120, baseW: 65, height: 48, yaw: Math.PI / 4 }
+    ];
+
+    const stoneMat = new THREE.MeshStandardMaterial({
+      color: 0xd97706,
+      roughness: 0.88,
+      metalness: 0.1
+    });
+
+    const capMat = new THREE.MeshStandardMaterial({
+      color: 0xfacc15,
+      roughness: 0.2,
+      metalness: 0.95
+    });
+
+    pyramidConfigs.forEach(p => {
+      const pGroup = new THREE.Group();
+      pGroup.position.set(p.x, p.y + p.height * 0.5, p.z);
+      pGroup.rotation.y = p.yaw;
+
+      // 4-sided pyramid base
+      const mainGeo = new THREE.ConeGeometry(p.baseW * 0.707, p.height, 4);
+      const mainMesh = new THREE.Mesh(mainGeo, stoneMat);
+      mainMesh.castShadow = true;
+      mainMesh.receiveShadow = true;
+      pGroup.add(mainMesh);
+
+      // Shining Golden Capstone (Pyramidion)
+      const capHeight = p.height * 0.18;
+      const capGeo = new THREE.ConeGeometry((p.baseW * 0.707) * 0.18, capHeight, 4);
+      const capMesh = new THREE.Mesh(capGeo, capMat);
+      capMesh.position.y = p.height * 0.5 - capHeight * 0.5;
+      pGroup.add(capMesh);
+
+      dunesGroup.add(pGroup);
+    });
+
+    // 2. Stylized Desert Palms along the Oasis and Oasis Straight
+    const palmTrunkMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.9 });
+    const palmFrondMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.7, side: THREE.DoubleSide });
+
+    for (let i = 0; i < this.sampleCount; i += 12) {
+      const s = this.samples[i];
+      const offsets = [this.halfWidth + 12 + Math.random() * 22, -(this.halfWidth + 12 + Math.random() * 22)];
+
+      offsets.forEach(offset => {
+        const palmPos = new THREE.Vector3().copy(s.point).addScaledVector(s.bankedBinormal, offset);
+        const checkProj = this.getSplineProjection(palmPos);
+        if (Math.abs(checkProj.lateralOffset) < this.halfWidth + 6.0) return;
+
+        palmPos.y = Math.min(0, s.point.y - 0.4);
+
+        const palmGroup = new THREE.Group();
+        palmGroup.position.copy(palmPos);
+
+        // Curved segmented trunk
+        const trunkGeo = new THREE.CylinderGeometry(0.28, 0.45, 6.5, 7);
+        const trunkMesh = new THREE.Mesh(trunkGeo, palmTrunkMat);
+        trunkMesh.position.y = 3.25;
+        trunkMesh.rotation.z = (Math.random() - 0.5) * 0.15;
+        trunkMesh.castShadow = true;
+        palmGroup.add(trunkMesh);
+
+        // Palm Leaf Fronds fan
+        for (let f = 0; f < 6; f++) {
+          const frondGeo = new THREE.ConeGeometry(0.85, 3.8, 4);
+          frondGeo.rotateX(Math.PI / 2.6);
+          const frondMesh = new THREE.Mesh(frondGeo, palmFrondMat);
+          frondMesh.position.set(0, 6.4, 0);
+          frondMesh.rotation.y = (f / 6) * Math.PI * 2;
+          frondMesh.castShadow = true;
+          palmGroup.add(frondMesh);
+        }
+
+        const scale = 0.85 + Math.random() * 0.6;
+        palmGroup.scale.setScalar(scale);
+        dunesGroup.add(palmGroup);
+      });
+    }
+
+    this.environmentGroup.add(dunesGroup);
+  }
+
+  spawnCyberNeonScenery() {
+    const cyberGroup = new THREE.Group();
+
+    const towerMat = new THREE.MeshStandardMaterial({
+      color: 0x090d16,
+      roughness: 0.35,
+      metalness: 0.85
+    });
+
+    const neonMatCyan = new THREE.MeshStandardMaterial({
+      color: 0x00f2fe,
+      emissive: 0x00f2fe,
+      emissiveIntensity: 2.2,
+      roughness: 0.1
+    });
+
+    const neonMatMagenta = new THREE.MeshStandardMaterial({
+      color: 0xd946ef,
+      emissive: 0xd946ef,
+      emissiveIntensity: 2.2,
+      roughness: 0.1
+    });
+
+    const antennaMat = new THREE.MeshStandardMaterial({
+      color: 0xef4444,
+      emissive: 0xef4444,
+      emissiveIntensity: 3.0
+    });
+
+    // 40 Cyberpunk Skyscrapers & Tech Towers arranged around perimeter
+    for (let b = 0; b < 40; b++) {
+      const angle = (b / 40) * Math.PI * 2;
+      const radius = 175 + (b % 4) * 55 + (b % 3) * 35;
+      const x = Math.cos(angle) * radius;
+      const z = Math.sin(angle) * radius - 40;
+
+      const towerW = 16 + (b % 5) * 4;
+      const towerD = 16 + ((b + 2) % 4) * 4;
+      const towerH = 45 + (b % 7) * 16;
+
+      const bld = new THREE.Group();
+      bld.position.set(x, towerH * 0.5 - 2, z);
+
+      // Main tower monolith
+      const bldMesh = new THREE.Mesh(new THREE.BoxGeometry(towerW, towerH, towerD), towerMat);
+      bldMesh.castShadow = true;
+      bldMesh.receiveShadow = true;
+      bld.add(bldMesh);
+
+      // Neon vertical window columns / edge strips
+      const isCyan = (b % 2 === 0);
+      const chosenMat = isCyan ? neonMatCyan : neonMatMagenta;
+
+      [-towerW * 0.48, towerW * 0.48].forEach(xEdge => {
+        const strip = new THREE.Mesh(new THREE.BoxGeometry(0.3, towerH * 0.85, 0.3), chosenMat);
+        strip.position.set(xEdge, 0, towerD * 0.51);
+        bld.add(strip);
+      });
+
+      // Rooftop Communications Antenna Mast
+      const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.25, 12, 6), towerMat);
+      ant.position.set(0, towerH * 0.5 + 6, 0);
+      const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.45, 8, 8), antennaMat);
+      beacon.position.set(0, towerH * 0.5 + 12, 0);
+      bld.add(ant, beacon);
+
+      cyberGroup.add(bld);
+    }
+
+    this.environmentGroup.add(cyberGroup);
   }
 
   spawnScenicTreesAndClouds() {
@@ -1118,7 +1884,7 @@ export class Track {
   }
 
   /**
-   * Animates track elements (boost pad scrolling texture, cheering spectators, drifting clouds)
+   * Animates track elements (boost pad scrolling texture, neon tunnel pulses, cheering spectators, drifting clouds)
    */
   update(deltaTime) {
     if (this.boostPadTexture) {
@@ -1131,6 +1897,25 @@ export class Track {
       const pulse = 1.6 + 0.45 * Math.sin(performance.now() * 0.007);
       this.rampLipMaterials.forEach(mat => {
         mat.emissiveIntensity = pulse;
+      });
+    }
+    if (this.tunnelNeonMaterials && this.tunnelNeonMaterials.length > 0) {
+      const time = performance.now() * 0.005;
+      this.tunnelNeonMaterials.forEach((mat, idx) => {
+        const wave = 1.6 + 0.75 * Math.sin(time * 1.8 + idx * 0.5);
+        mat.emissiveIntensity = wave;
+      });
+    }
+    if (this.hazards && this.hazards.length > 0) {
+      const now = performance.now() * 0.001;
+      this.hazards.forEach(h => {
+        const lat = Math.sin(now * h.speed + h.phase) * h.amplitude;
+        const pos = this.getWaypointAtProgress(h.t, lat);
+        h.currentPos.copy(pos);
+        h.mesh.position.copy(pos);
+        if (h.neonMat) {
+          h.neonMat.emissiveIntensity = 2.0 + 1.2 * Math.sin(now * 8 + h.phase);
+        }
       });
     }
   }
@@ -1219,7 +2004,8 @@ export class Track {
     const sample = this.samples[closestIdx];
     const diff = new THREE.Vector3().subVectors(worldPos, sample.point);
 
-    const lateralOffset = diff.dot(sample.binormal);
+    const binormal = sample.bankedBinormal || sample.binormal;
+    const lateralOffset = diff.dot(binormal);
     const isOffRoad = Math.abs(lateralOffset) > this.halfWidth + 0.8;
     const isOnCurb = Math.abs(lateralOffset) > this.halfWidth && !isOffRoad;
 
@@ -1236,6 +2022,11 @@ export class Track {
 
   getWaypointAtProgress(t, lateralOffset = 0) {
     const wrappedT = ((t % 1.0) + 1.0) % 1.0;
+    const sampleIdx = Math.floor(wrappedT * this.sampleCount);
+    const sample = this.samples[sampleIdx];
+    if (sample && sample.bankedBinormal) {
+      return new THREE.Vector3().copy(sample.point).addScaledVector(sample.bankedBinormal, lateralOffset);
+    }
     const point = this.curve.getPointAt(wrappedT);
     const tangent = this.curve.getTangentAt(wrappedT);
     const binormal = new THREE.Vector3().crossVectors(tangent, new THREE.Vector3(0, 1, 0)).normalize();

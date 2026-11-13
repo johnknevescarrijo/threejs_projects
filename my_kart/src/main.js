@@ -16,10 +16,14 @@ import { AIController } from './ai/aiController.js';
 import { AI_RACER_PRESETS } from './ai/archetypes.js';
 import { SoundSystem } from './audio/sound.js';
 import { HUD } from './ui/hud.js';
-import { ITEM_TYPES, TRACK_CONFIG } from './core/constants.js';
+import { ITEM_TYPES, TRACK_CONFIG, CIRCUITS, CIRCUIT_LIST } from './core/constants.js';
 
 class GameApp {
   constructor() {
+    this.currentCircuitId = sessionStorage.getItem('my_kart_circuit') || 'GRAND_PRIX';
+    if (!CIRCUITS[this.currentCircuitId]) this.currentCircuitId = 'GRAND_PRIX';
+    this.circuitConfig = CIRCUITS[this.currentCircuitId];
+
     this.container = document.getElementById('canvas-container');
     this.clock = new THREE.Clock();
     this.scene = null;
@@ -70,8 +74,8 @@ class GameApp {
   init() {
     // 1. Scene & Renderer
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x38bdf8);
-    this.scene.fog = new THREE.FogExp2(0xbae6fd, 0.0012);
+    this.scene.background = new THREE.Color(this.circuitConfig.skyHorizon);
+    this.scene.fog = new THREE.FogExp2(this.circuitConfig.fogColor, this.circuitConfig.fogDensity);
 
     this.camera = new THREE.PerspectiveCamera(66, window.innerWidth / window.innerHeight, 0.2, 1300);
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -102,7 +106,7 @@ class GameApp {
     this.particleSystem = new ParticleSystem(this.scene, 550);
 
     // 4. Track & Environment
-    this.track = new Track(this.scene);
+    this.track = new Track(this.scene, this.currentCircuitId);
 
     // 5. Sensor System & Item Manager
     this.sensorSystem = new SensorSystem(this.scene);
@@ -118,6 +122,7 @@ class GameApp {
     // 8. Camera & HUD
     this.followCamera = new FollowCamera(this.camera, this.renderer.domElement);
     this.hud = new HUD({
+      onToggleCircuit: () => this.switchCircuit(),
       onToggleDebug: () => this.toggleSensorDebug(),
       onToggleBloom: () => this.toggleBloom(),
       onToggleCamera: () => {
@@ -131,6 +136,7 @@ class GameApp {
       },
       onPlayAgain: () => location.reload()
     });
+    this.hud.setCircuitInfo(this.circuitConfig);
 
     // 9. Input Listeners
     this.setupKeyListeners();
@@ -158,14 +164,14 @@ class GameApp {
   }
 
   setupLighting() {
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.55);
+    const ambientLight = new THREE.AmbientLight(this.circuitConfig.ambientColor, this.circuitConfig.ambientIntensity);
     this.scene.add(ambientLight);
 
-    const hemiLight = new THREE.HemisphereLight(0xe0f2fe, 0x22c55e, 0.5);
+    const hemiLight = new THREE.HemisphereLight(this.circuitConfig.hemiSky, this.circuitConfig.hemiGround, 0.5);
     hemiLight.position.set(0, 120, 0);
     this.scene.add(hemiLight);
 
-    this.dirLight = new THREE.DirectionalLight(0xfffbeb, 1.55);
+    this.dirLight = new THREE.DirectionalLight(this.circuitConfig.dirLightColor, this.circuitConfig.dirLightIntensity);
     this.dirLight.position.set(90, 140, 80);
     this.dirLight.castShadow = true;
     this.dirLight.shadow.mapSize.width = 2048;
@@ -186,9 +192,9 @@ class GameApp {
     const skyGeo = new THREE.SphereGeometry(750, 32, 24);
     const pos = skyGeo.attributes.position;
     const colors = [];
-    const colorZenith = new THREE.Color(0x0284c7);
-    const colorHorizon = new THREE.Color(0x7dd3fc);
-    const colorHaze = new THREE.Color(0xfef3c7);
+    const colorZenith = new THREE.Color(this.circuitConfig.skyZenith);
+    const colorHorizon = new THREE.Color(this.circuitConfig.skyHorizon);
+    const colorHaze = new THREE.Color(this.circuitConfig.skyHaze);
 
     for (let i = 0; i < pos.count; i++) {
       const y = pos.getY(i);
@@ -213,9 +219,10 @@ class GameApp {
 
     // Glowing Sun Disc in the Sky
     const sunGeo = new THREE.SphereGeometry(28, 24, 24);
-    const sunMat = new THREE.MeshBasicMaterial({ color: 0xfef08a, fog: false });
+    const sunMat = new THREE.MeshBasicMaterial({ color: this.circuitConfig.sunColor, fog: false });
     const sunMesh = new THREE.Mesh(sunGeo, sunMat);
-    sunMesh.position.set(280, 340, 260);
+    const sPos = this.circuitConfig.sunPos;
+    sunMesh.position.set(sPos[0], sPos[1], sPos[2]);
     this.scene.add(sunMesh);
   }
 
@@ -457,6 +464,17 @@ class GameApp {
     this.hud.showNotification(this.soundSystem.isMuted ? 'SOM MUTADO' : 'SOM ATIVADO', 1.2);
   }
 
+  switchCircuit() {
+    const curIdx = CIRCUIT_LIST.indexOf(this.currentCircuitId);
+    const nextCircuit = CIRCUIT_LIST[(curIdx + 1) % CIRCUIT_LIST.length];
+    sessionStorage.setItem('my_kart_circuit', nextCircuit);
+    const nextConfig = CIRCUITS[nextCircuit];
+    this.hud.showNotification(`CARREGANDO PISTA: ${nextConfig.icon} ${nextConfig.name.toUpperCase()}...`, 1.5);
+    setTimeout(() => {
+      location.reload();
+    }, 280);
+  }
+
   setupKeyListeners() {
     window.addEventListener('keydown', (e) => {
       this.soundSystem.ensureContext();
@@ -524,6 +542,10 @@ class GameApp {
 
       if (key === 'm') {
         this.toggleSound();
+      }
+
+      if (key === 't') {
+        this.switchCircuit();
       }
 
       if (key === 'r') {
@@ -716,8 +738,9 @@ class GameApp {
         controller.kart.update(deltaTime, controller.inputs, this.track);
       });
 
-      // 6. Inter-kart collisions
+      // 6. Inter-kart & Hazard collisions
       this.handleKartCollisions();
+      this.checkHazardCollisions();
 
       // 7. Visual Effects: Speed Lines & Skid Marks
       this.updateSpeedLines(deltaTime);
@@ -945,6 +968,33 @@ class GameApp {
         }
       }
     }
+  }
+
+  checkHazardCollisions() {
+    if (!this.track || !this.track.hazards || this.track.hazards.length === 0) return;
+
+    this.allKarts.forEach(kart => {
+      for (const hazard of this.track.hazards) {
+        const dist = kart.position.distanceTo(hazard.currentPos);
+        if (dist < hazard.radius + 1.25) {
+          if (kart.isStarred) {
+            if (this.particleSystem) {
+              this.particleSystem.emitBurst(hazard.currentPos, 0xfacc15, 14, 8);
+            }
+          } else {
+            kart.triggerSpinOut();
+            if (kart.isPlayer) {
+              this.hud.showNotification('💥 IMPACTO COM OBSTÁCULO DA PISTA!', 1.6);
+              this.followCamera.addShake(0.42);
+            }
+            if (this.particleSystem) {
+              this.particleSystem.emitBurst(hazard.currentPos, 0xef4444, 18, 9);
+            }
+          }
+          break;
+        }
+      }
+    });
   }
 
   updateRaceStandings() {
