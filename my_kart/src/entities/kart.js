@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import { PHYSICS_CONFIG, ITEM_TYPES, TRACK_CONFIG } from '../core/constants.js';
+import { PHYSICS_CONFIG, ITEM_TYPES, TRACK_CONFIG, COIN_CONFIG } from '../core/constants.js';
 import { ProceduralTextures } from '../core/textures.js';
 import { ItemMeshFactory } from './item.js';
 
@@ -95,12 +95,23 @@ export class Kart {
     this.isDrafting = false;
     this.draftTimer = 0;
 
-    // Held Item
+    // Coins System (0-10 moedas)
+    this.coins = 0;
+
+    // Dual Item Slots
     this.heldItem = null;
+    this.secondaryItem = null;
     this.isHoldingShield = false;
+
+    // Power-up States
+    this.isStarred = false;
+    this.starTimer = 0;
+    this.goldenMushroomTimer = 0;
 
     // 3D Mesh hierarchy
     this.mesh = new THREE.Group();
+    this.bodyMat = null;
+    this.accentMat = null;
     this.wheels = [];
     this.frontWheels = [];
     this.rearWheels = [];
@@ -123,6 +134,7 @@ export class Kart {
       clearcoat: 1.0,
       clearcoatRoughness: 0.12
     });
+    this.bodyMat = bodyMat;
 
     const accentMat = new THREE.MeshPhysicalMaterial({
       color: this.accentColor,
@@ -130,6 +142,7 @@ export class Kart {
       metalness: 0.45,
       clearcoat: 0.6
     });
+    this.accentMat = accentMat;
 
     const carbonMat = new THREE.MeshStandardMaterial({
       color: 0x181c24,
@@ -509,8 +522,26 @@ export class Kart {
     this.totalDistance = (this.currentLap - 1) * track.totalLength + this.lapProgress * track.totalLength;
 
     // 4. Boost / Mini-Turbo Timer & Particles
-    let effectiveMaxSpeed = this.maxSpeed;
+    const coinBonus = this.coins * COIN_CONFIG.SPEED_BONUS_PER_COIN;
+    let effectiveMaxSpeed = this.maxSpeed * (1 + coinBonus);
     let effectiveAccel = this.acceleration;
+
+    if (this.goldenMushroomTimer > 0) {
+      this.goldenMushroomTimer -= deltaTime;
+    }
+
+    if (this.isStarred) {
+      this.starTimer -= deltaTime;
+      if (this.starTimer <= 0) {
+        this.isStarred = false;
+        this.starTimer = 0;
+        this.resetStarVisual();
+      } else {
+        effectiveMaxSpeed += 18;
+        effectiveAccel *= 1.4;
+        this.updateStarVisual(deltaTime);
+      }
+    }
 
     if (this.boostTimer > 0) {
       this.boostTimer -= deltaTime;
@@ -532,8 +563,8 @@ export class Kart {
       this.flameMeshes.forEach(f => { f.visible = false; });
     }
 
-    // Off-road drag: slows kart unless boosting
-    if (this.isOffRoad && !this.isBoosting) {
+    // Off-road drag: slows kart unless boosting or under Star invincibility
+    if (this.isOffRoad && !this.isBoosting && !this.isStarred) {
       const dragFactor = onShortcutPath ? 0.65 : PHYSICS_CONFIG.OFFROAD_DRAG_FACTOR;
       effectiveMaxSpeed *= dragFactor;
       effectiveAccel *= 0.55;
@@ -542,7 +573,7 @@ export class Kart {
       }
     }
 
-    if (this.isShocked) {
+    if (this.isShocked && !this.isStarred) {
       effectiveMaxSpeed *= 0.65;
     }
 
@@ -730,20 +761,78 @@ export class Kart {
     }
   }
 
+  addCoin() {
+    if (this.coins < COIN_CONFIG.MAX_COINS) {
+      this.coins++;
+    }
+    // Instant micro-boost on coin pickup
+    this.speed = Math.min(this.maxSpeed + 6, this.speed + 3.5);
+  }
+
+  activateStar(duration = 6.5) {
+    this.isStarred = true;
+    this.starTimer = duration;
+    if (this.isPlayer && this.soundSystem) {
+      this.soundSystem.playStarPower();
+    }
+  }
+
+  updateStarVisual(deltaTime) {
+    const time = performance.now() * 0.007;
+    const hue = time % 1.0;
+    const starColor = new THREE.Color().setHSL(hue, 1.0, 0.55);
+
+    if (this.bodyMat) {
+      this.bodyMat.emissive.copy(starColor);
+      this.bodyMat.emissiveIntensity = 0.95;
+    }
+    if (this.accentMat) {
+      this.accentMat.emissive.copy(starColor);
+      this.accentMat.emissiveIntensity = 0.85;
+    }
+
+    if (this.particleSystem && Math.random() < 0.6) {
+      const p = this.position.clone().add(new THREE.Vector3(
+        (Math.random() - 0.5) * 1.8,
+        0.5 + Math.random() * 0.5,
+        (Math.random() - 0.5) * 1.8
+      ));
+      this.particleSystem.emitBurst(p, starColor.getHex(), 3, 4);
+    }
+  }
+
+  resetStarVisual() {
+    if (this.bodyMat) {
+      this.bodyMat.emissive.setHex(0x000000);
+      this.bodyMat.emissiveIntensity = 0;
+    }
+    if (this.accentMat) {
+      this.accentMat.emissive.setHex(0x000000);
+      this.accentMat.emissiveIntensity = 0;
+    }
+  }
+
+  activateGoldenMushroom(duration = 5.5) {
+    this.goldenMushroomTimer = duration;
+  }
+
   applyBoost(duration, addedSpeed = 20) {
     this.boostTimer = Math.max(this.boostTimer, duration);
     this.speed = Math.min(this.speed + addedSpeed, this.maxSpeed + addedSpeed);
   }
 
   triggerSpinOut() {
-    if (this.isSpinning) return;
-    // If holding a defensive shell/banana shield behind, absorb hit!
+    if (this.isSpinning || this.isStarred) return;
+
+    // Drop up to 3 coins on hit
+    this.coins = Math.max(0, this.coins - COIN_CONFIG.DROP_ON_HIT);
+
+    // If holding a defensive shield behind, absorb hit!
     if (this.isHoldingShield && this.heldItem) {
-      this.heldItem = null;
+      this.consumeHeldItem();
       this.isHoldingShield = false;
-      this.updateHeldItemVisual();
       if (this.particleSystem) {
-        this.particleSystem.emitBurst(this.position, 0x38bdf8, 15, 8);
+        this.particleSystem.emitBurst(this.position, 0x38bdf8, 16, 9);
       }
       return;
     }
@@ -765,6 +854,8 @@ export class Kart {
   }
 
   triggerShock() {
+    if (this.isStarred) return;
+    this.coins = Math.max(0, this.coins - COIN_CONFIG.DROP_ON_HIT);
     this.isShocked = true;
     this.shockTimer = 4.5;
     this.speed *= 0.5;
@@ -839,9 +930,28 @@ export class Kart {
     this.boostTimer = 0.6;
   }
 
-  assignItem(itemType) {
-    this.heldItem = itemType;
+  assignItem(itemType, isDouble = false, secondItemType = null) {
+    if (!this.heldItem) {
+      this.heldItem = itemType;
+      if (isDouble && secondItemType) {
+        this.secondaryItem = secondItemType;
+      }
+    } else if (!this.secondaryItem) {
+      this.secondaryItem = itemType;
+    }
     this.updateHeldItemVisual();
+  }
+
+  consumeHeldItem() {
+    const used = this.heldItem;
+    if (this.secondaryItem) {
+      this.heldItem = this.secondaryItem;
+      this.secondaryItem = null;
+    } else {
+      this.heldItem = null;
+    }
+    this.updateHeldItemVisual();
+    return used;
   }
 
   updateHeldItemVisual() {
@@ -850,8 +960,12 @@ export class Kart {
     }
 
     if (!this.heldItem) return;
-    const itemMesh = ItemMeshFactory.createItemMesh(this.heldItem);
-    itemMesh.scale.setScalar(0.85);
-    this.heldItemAnchor.add(itemMesh);
+
+    // Show visual behind kart when actively holding shield or for AI racers
+    if (this.isHoldingShield || !this.isPlayer) {
+      const itemMesh = ItemMeshFactory.createItemMesh(this.heldItem);
+      itemMesh.scale.setScalar(0.9);
+      this.heldItemAnchor.add(itemMesh);
+    }
   }
 }

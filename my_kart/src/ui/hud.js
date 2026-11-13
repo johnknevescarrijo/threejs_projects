@@ -16,6 +16,8 @@ export class HUD {
     this.lapNumEl = document.getElementById('lap-num');
     this.bestLapEl = document.getElementById('best-lap-text');
     this.itemSlotEl = document.getElementById('item-slot');
+    this.secondaryItemSlotEl = document.getElementById('secondary-item-slot');
+    this.coinValEl = document.getElementById('coin-val');
 
     this.gearBadgeEl = document.getElementById('gear-badge');
     this.speedValEl = document.getElementById('speed-val');
@@ -143,11 +145,14 @@ export class HUD {
     this.notificationTimer = duration;
   }
 
-  triggerItemRoulette(finalItem, onComplete) {
+  triggerItemRoulette(finalItem, secondItem = null, onComplete) {
     this.rouletteActive = true;
     this.itemSlotEl.classList.add('roulette');
+    if (secondItem && this.secondaryItemSlotEl) {
+      this.secondaryItemSlotEl.classList.add('roulette');
+    }
 
-    const icons = ['🍄', '🐢', '🎯', '🍌', '⚡', '👑'];
+    const icons = ['🍄', '🐢', '🎯', '🍌', '⚡', '👑', '⭐', '👑🍄', '📦'];
     let count = 0;
 
     const interval = setInterval(() => {
@@ -156,6 +161,9 @@ export class HUD {
         return;
       }
       this.itemSlotEl.textContent = icons[count % icons.length];
+      if (secondItem && this.secondaryItemSlotEl) {
+        this.secondaryItemSlotEl.textContent = icons[(count + 3) % icons.length];
+      }
       count++;
     }, 75);
 
@@ -163,10 +171,20 @@ export class HUD {
       this.rouletteActive = false;
       clearInterval(interval);
       this.itemSlotEl.classList.remove('roulette');
+      if (this.secondaryItemSlotEl) {
+        this.secondaryItemSlotEl.classList.remove('roulette');
+      }
+
       this.displayedItem = finalItem;
-      const prop = ITEM_PROPERTIES[finalItem];
-      this.itemSlotEl.textContent = prop ? prop.icon : '❓';
-      if (onComplete) onComplete();
+      const prop1 = ITEM_PROPERTIES[finalItem];
+      this.itemSlotEl.textContent = prop1 ? prop1.icon : '❓';
+
+      if (secondItem && this.secondaryItemSlotEl) {
+        const prop2 = ITEM_PROPERTIES[secondItem];
+        this.secondaryItemSlotEl.textContent = prop2 ? prop2.icon : '❓';
+      }
+
+      if (onComplete) onComplete(finalItem, secondItem);
     }, 1050);
   }
 
@@ -175,6 +193,10 @@ export class HUD {
     if (this.itemSlotEl) {
       this.itemSlotEl.innerHTML = '<span class="item-empty-hint">ITEM</span>';
       this.itemSlotEl.classList.remove('roulette');
+    }
+    if (this.secondaryItemSlotEl) {
+      this.secondaryItemSlotEl.innerHTML = '<span class="item-empty-hint">2º</span>';
+      this.secondaryItemSlotEl.classList.remove('roulette');
     }
   }
 
@@ -196,6 +218,36 @@ export class HUD {
     }
     if (this.bestLapEl && bestLapTime) {
       this.bestLapEl.textContent = `MELHOR: ${this.formatTime(bestLapTime)}`;
+    }
+
+    // Coins counter
+    if (this.coinValEl) {
+      this.coinValEl.textContent = String(playerKart.coins || 0);
+    }
+
+    // Item Slots display (if roulette is not actively spinning)
+    if (!this.rouletteActive) {
+      if (playerKart.heldItem) {
+        const prop1 = ITEM_PROPERTIES[playerKart.heldItem];
+        if (this.itemSlotEl) {
+          this.itemSlotEl.textContent = prop1 ? prop1.icon : '❓';
+        }
+      } else {
+        if (this.itemSlotEl) {
+          this.itemSlotEl.innerHTML = '<span class="item-empty-hint">ITEM</span>';
+        }
+      }
+
+      if (playerKart.secondaryItem) {
+        const prop2 = ITEM_PROPERTIES[playerKart.secondaryItem];
+        if (this.secondaryItemSlotEl) {
+          this.secondaryItemSlotEl.textContent = prop2 ? prop2.icon : '❓';
+        }
+      } else {
+        if (this.secondaryItemSlotEl) {
+          this.secondaryItemSlotEl.innerHTML = '<span class="item-empty-hint">2º</span>';
+        }
+      }
     }
 
     // 3. Speedometer, Gear, Tachometer & Drift Bar

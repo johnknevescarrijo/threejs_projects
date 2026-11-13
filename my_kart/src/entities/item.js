@@ -1,5 +1,7 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { ITEM_TYPES, ITEM_PROPERTIES } from '../core/constants.js';
+import { ProceduralTextures } from '../core/textures.js';
 
 export class ItemMeshFactory {
   static createShellMesh(colorHex, hasSpikes = false) {
@@ -129,6 +131,149 @@ export class ItemMeshFactory {
     return group;
   }
 
+  static createStarMesh() {
+    const group = new THREE.Group();
+
+    // 5-Pointed Star Shape
+    const shape = new THREE.Shape();
+    const points = 5;
+    const outerRadius = 0.52;
+    const innerRadius = 0.25;
+
+    for (let i = 0; i < points * 2; i++) {
+      const angle = (i * Math.PI) / points - Math.PI / 2;
+      const radius = i % 2 === 0 ? outerRadius : innerRadius;
+      const x = Math.cos(angle) * radius;
+      const y = Math.sin(angle) * radius;
+      if (i === 0) shape.moveTo(x, y);
+      else shape.lineTo(x, y);
+    }
+    shape.closePath();
+
+    const extrudeSettings = {
+      depth: 0.16,
+      bevelEnabled: true,
+      bevelSegments: 3,
+      steps: 1,
+      bevelSize: 0.05,
+      bevelThickness: 0.06
+    };
+
+    const starGeo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+    starGeo.center();
+
+    const starMat = new THREE.MeshStandardMaterial({
+      color: 0xfacc15,
+      roughness: 0.18,
+      metalness: 0.4,
+      emissive: 0xca8a04,
+      emissiveIntensity: 0.45
+    });
+
+    const starMesh = new THREE.Mesh(starGeo, starMat);
+    starMesh.castShadow = true;
+    group.add(starMesh);
+
+    // Iconic Mario Kart Star black oval vertical eyes
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0x090d16 });
+    const eyeGeo = new THREE.CapsuleGeometry(0.028, 0.10, 4, 8);
+
+    const eyeLeft = new THREE.Mesh(eyeGeo, eyeMat);
+    eyeLeft.position.set(-0.085, -0.01, 0.14);
+    const eyeRight = new THREE.Mesh(eyeGeo, eyeMat);
+    eyeRight.position.set(0.085, -0.01, 0.14);
+    group.add(eyeLeft, eyeRight);
+
+    const eyeLeftBack = new THREE.Mesh(eyeGeo, eyeMat);
+    eyeLeftBack.position.set(-0.085, -0.01, -0.14);
+    const eyeRightBack = new THREE.Mesh(eyeGeo, eyeMat);
+    eyeRightBack.position.set(0.085, -0.01, -0.14);
+    group.add(eyeLeftBack, eyeRightBack);
+
+    group.position.y = 0.42;
+    return group;
+  }
+
+  static createGoldenMushroomMesh() {
+    const group = new THREE.Group();
+    const stemMat = new THREE.MeshStandardMaterial({ color: 0xfef08a, roughness: 0.35, metalness: 0.6 });
+    const capMat = new THREE.MeshStandardMaterial({
+      color: 0xfbbf24,
+      roughness: 0.15,
+      metalness: 0.9,
+      emissive: 0xd97706,
+      emissiveIntensity: 0.45
+    });
+    const spotMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.1, metalness: 0.85 });
+
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 0.36, 12), stemMat);
+    stem.position.y = 0.18;
+    group.add(stem);
+
+    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.38, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.6), capMat);
+    cap.position.y = 0.28;
+    group.add(cap);
+
+    const spotGeo = new THREE.SphereGeometry(0.1, 8, 8);
+    [
+      [0, 0.62, 0],
+      [0.26, 0.46, 0.12],
+      [-0.26, 0.46, 0.12],
+      [0, 0.46, -0.28]
+    ].forEach(([x, y, z]) => {
+      const s = new THREE.Mesh(spotGeo, spotMat);
+      s.position.set(x, y, z);
+      group.add(s);
+    });
+
+    // Golden Imperial Crown on top
+    const crownMat = new THREE.MeshStandardMaterial({
+      color: 0xfde047,
+      metalness: 0.95,
+      roughness: 0.1,
+      emissive: 0xb45309,
+      emissiveIntensity: 0.5
+    });
+    const crownRing = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.16, 0.1, 8), crownMat);
+    crownRing.position.y = 0.66;
+    group.add(crownRing);
+
+    for (let c = 0; c < 4; c++) {
+      const crownSpike = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.12, 6), crownMat);
+      const angle = (c / 4) * Math.PI * 2;
+      crownSpike.position.set(Math.cos(angle) * 0.14, 0.74, Math.sin(angle) * 0.14);
+      group.add(crownSpike);
+    }
+
+    return group;
+  }
+
+  static createFakeItemBoxMesh() {
+    const group = new THREE.Group();
+    const fakeTex = ProceduralTextures.createFakeItemBoxTexture();
+    const outerGeo = new RoundedBoxGeometry(1.4, 1.4, 1.4, 3, 0.14);
+    const outerMat = new THREE.MeshPhysicalMaterial({
+      map: fakeTex,
+      roughness: 0.15,
+      metalness: 0.25,
+      clearcoat: 1.0,
+      transparent: true,
+      opacity: 0.92,
+      emissive: 0xef4444,
+      emissiveIntensity: 0.35
+    });
+    const cube = new THREE.Mesh(outerGeo, outerMat);
+    cube.position.y = 0.7;
+    group.add(cube);
+
+    const coreMat = new THREE.MeshBasicMaterial({ color: 0xff4444, wireframe: true });
+    const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.55, 0), coreMat);
+    core.position.y = 0.7;
+    group.add(core);
+
+    return group;
+  }
+
   static createItemMesh(type) {
     switch (type) {
       case ITEM_TYPES.GREEN_SHELL:
@@ -141,6 +286,12 @@ export class ItemMeshFactory {
         return this.createBananaMesh();
       case ITEM_TYPES.BOOST_MUSHROOM:
         return this.createMushroomMesh();
+      case ITEM_TYPES.GOLDEN_MUSHROOM:
+        return this.createGoldenMushroomMesh();
+      case ITEM_TYPES.SUPER_STAR:
+        return this.createStarMesh();
+      case ITEM_TYPES.FAKE_ITEM_BOX:
+        return this.createFakeItemBoxMesh();
       case ITEM_TYPES.LIGHTNING:
         return this.createLightningMesh();
       default:
@@ -172,6 +323,32 @@ export class ItemManager {
       if (this.particleSystem) {
         this.particleSystem.emitBurst(shooterKart.position, 0xff3344, 18, 10);
       }
+      return;
+    }
+
+    if (type === ITEM_TYPES.SUPER_STAR) {
+      shooterKart.activateStar(ITEM_PROPERTIES[ITEM_TYPES.SUPER_STAR].duration);
+      if (this.particleSystem) {
+        this.particleSystem.emitBurst(shooterKart.position, 0xfacc15, 24, 12);
+      }
+      return;
+    }
+
+    if (type === ITEM_TYPES.GOLDEN_MUSHROOM) {
+      shooterKart.activateGoldenMushroom(ITEM_PROPERTIES[ITEM_TYPES.GOLDEN_MUSHROOM].duration);
+      shooterKart.applyBoost(
+        1.3,
+        ITEM_PROPERTIES[ITEM_TYPES.GOLDEN_MUSHROOM].boostSpeed
+      );
+      if (this.particleSystem) {
+        this.particleSystem.emitBurst(shooterKart.position, 0xfbbf24, 20, 10);
+      }
+      return;
+    }
+
+    if (type === ITEM_TYPES.FAKE_ITEM_BOX) {
+      const trap = new GroundTrapFakeBox(shooterKart, direction, this.scene, track);
+      this.activeGroundTraps.push(trap);
       return;
     }
 
@@ -297,11 +474,15 @@ export class ItemManager {
             }
             allKarts.forEach(other => {
               if (other.position.distanceTo(kart.position) <= ITEM_PROPERTIES[ITEM_TYPES.BLUE_SHELL].explosionRadius) {
-                other.triggerSpinOut();
+                if (!other.isStarred) {
+                  other.triggerSpinOut();
+                }
               }
             });
           } else {
-            kart.triggerSpinOut();
+            if (!kart.isStarred) {
+              kart.triggerSpinOut();
+            }
             if (this.particleSystem) {
               this.particleSystem.emitBurst(p.position, p.trailColor || 0x22c55e, 18, 10);
             }
@@ -317,7 +498,7 @@ export class ItemManager {
       }
     }
 
-    // Update ground traps (Bananas)
+    // Update ground traps (Bananas and Fake Item Boxes)
     for (let i = this.activeGroundTraps.length - 1; i >= 0; i--) {
       const trap = this.activeGroundTraps[i];
       trap.update(deltaTime);
@@ -328,9 +509,12 @@ export class ItemManager {
 
         const dist = trap.position.distanceTo(kart.position);
         if (dist < 1.85) {
-          kart.triggerSpinOut();
+          if (!kart.isStarred) {
+            kart.triggerSpinOut();
+          }
           if (this.particleSystem) {
-            this.particleSystem.emitBurst(trap.position, 0xfacc15, 14, 8);
+            const burstColor = trap.isFakeBox ? 0xef4444 : 0xfacc15;
+            this.particleSystem.emitBurst(trap.position, burstColor, 18, 10);
           }
           triggered = true;
           break;
@@ -542,6 +726,42 @@ class GroundTrapBanana {
   update(deltaTime) {
     this.age += deltaTime;
     this.mesh.rotation.y += deltaTime * 1.5;
+    if (this.age >= this.lifetime) {
+      this.isExpired = true;
+    }
+  }
+
+  destroy() {
+    this.scene.remove(this.mesh);
+  }
+}
+
+class GroundTrapFakeBox {
+  constructor(shooter, direction, scene, track) {
+    this.shooter = shooter;
+    this.scene = scene;
+    this.age = 0;
+    this.lifetime = ITEM_PROPERTIES[ITEM_TYPES.FAKE_ITEM_BOX].lifetime || 50;
+    this.isExpired = false;
+    this.isFakeBox = true;
+
+    const offsetDir = direction === 'forward' ? 3.6 : -2.8;
+    this.position = shooter.position.clone().addScaledVector(shooter.forward, offsetDir);
+    if (track) {
+      const proj = track.getSplineProjection(this.position);
+      this.position.y = proj.sample.point.y + 0.08;
+    }
+
+    this.mesh = ItemMeshFactory.createItemMesh(ITEM_TYPES.FAKE_ITEM_BOX);
+    this.mesh.scale.setScalar(1.15);
+    this.mesh.position.copy(this.position);
+    this.scene.add(this.mesh);
+  }
+
+  update(deltaTime) {
+    this.age += deltaTime;
+    this.mesh.rotation.y += deltaTime * 2.5;
+    this.mesh.position.y = this.position.y + Math.sin(this.age * 3.0) * 0.12;
     if (this.age >= this.lifetime) {
       this.isExpired = true;
     }

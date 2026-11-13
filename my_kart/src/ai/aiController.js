@@ -133,9 +133,8 @@ export class AIController {
         allKarts,
         track: this.track
       });
-      this.kart.heldItem = null;
+      this.kart.consumeHeldItem();
       this.kart.isHoldingShield = false;
-      this.kart.updateHeldItemVisual();
       this.targetItemAction = null;
     }
   }
@@ -301,21 +300,43 @@ export class AIController {
    * Section 4: Item Usage FSM
    */
   evaluateItemFSM(sensors, allKarts) {
+    // If golden mushroom is active, spam boosts repeatedly!
+    if (this.kart.goldenMushroomTimer > 0) {
+      this.kart.applyBoost(1.15, 26);
+      return;
+    }
+
     if (!this.kart.heldItem) return;
 
     const item = this.kart.heldItem;
 
     // 1. Instant Boost (Mushroom)
-    if (item === ITEM_TYPES.BOOST_MUSHROOM) {
-      const onStraight = sensors.curvature.angle < 0.2;
-      const recoveringFromSpin = this.kart.isSpinning || this.kart.speed < 15;
+    if (item === ITEM_TYPES.BOOST_MUSHROOM || item === ITEM_TYPES.GOLDEN_MUSHROOM) {
+      const onStraight = sensors.curvature.angle < 0.25;
+      const recoveringFromSpin = this.kart.isSpinning || this.kart.speed < 18;
       if (onStraight || recoveringFromSpin) {
         this.targetItemAction = { type: item, direction: 'forward' };
       }
       return;
     }
 
-    // 2. Direct Projectile (Green Shell)
+    // 2. Invincibility Star
+    if (item === ITEM_TYPES.SUPER_STAR) {
+      this.targetItemAction = { type: item, direction: 'forward' };
+      return;
+    }
+
+    // 3. Fake Item Box (Ground Trap)
+    if (item === ITEM_TYPES.FAKE_ITEM_BOX) {
+      const inApex = sensors.curvature.angle > 0.45;
+      const tailgated = sensors.rear.isTailgated;
+      if (inApex || tailgated || Math.random() < 0.45) {
+        this.targetItemAction = { type: item, direction: 'backward' };
+      }
+      return;
+    }
+
+    // 4. Direct Projectile (Green Shell)
     if (item === ITEM_TYPES.GREEN_SHELL) {
       if (sensors.front.obstacle && sensors.front.obstacle.type === 'kart' && sensors.front.distance < 22) {
         this.targetItemAction = { type: item, direction: 'forward' };
@@ -327,7 +348,7 @@ export class AIController {
       }
     }
 
-    // 3. Homing Projectile (Red Shell)
+    // 5. Homing Projectile (Red Shell)
     if (item === ITEM_TYPES.RED_SHELL) {
       if (this.archetype.id === ARCHETYPE_IDS.TACTICAL && sensors.rear.isTailgated) {
         this.kart.isHoldingShield = true;
@@ -343,7 +364,7 @@ export class AIController {
       }
     }
 
-    // 4. Ground Trap (Banana)
+    // 6. Ground Trap (Banana)
     if (item === ITEM_TYPES.BANANA) {
       const inApex = sensors.curvature.angle > 0.45;
       const tailgated = sensors.rear.isTailgated;
@@ -353,7 +374,7 @@ export class AIController {
       return;
     }
 
-    // 5. Area Shock (Blue Shell / Lightning)
+    // 7. Area Shock (Blue Shell / Lightning)
     if (item === ITEM_TYPES.BLUE_SHELL || item === ITEM_TYPES.LIGHTNING) {
       if (this.kart.racePosition >= 3) {
         this.targetItemAction = { type: item, direction: 'forward' };

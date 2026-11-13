@@ -14,7 +14,7 @@
     <div id="hud">
       <!-- Top Row -->
       <div class="hud-top">
-        <!-- Position & Race Timer -->
+        <!-- Position, Race Timer & Coins -->
         <div class="top-left-cluster">
           <div class="position-container" id="pos-box">
             <span class="pos-number" id="pos-num">1</span>
@@ -25,14 +25,24 @@
             <span class="timer-label">TEMPO</span>
             <span class="timer-value" id="race-timer">00:00.0</span>
           </div>
+          <div class="coin-pill" id="coin-pill">
+            <span class="coin-icon">🪙</span>
+            <span class="coin-value" id="coin-val">0</span>
+            <span class="coin-max">/10</span>
+          </div>
         </div>
 
-        <!-- Item Slot -->
+        <!-- Dual Item Slots -->
         <div class="item-slot-wrapper">
-          <div class="item-slot" id="item-slot">
-            <span class="item-empty-hint">ITEM</span>
+          <div class="item-slots-cluster">
+            <div class="item-slot secondary" id="secondary-item-slot">
+              <span class="item-empty-hint">2º</span>
+            </div>
+            <div class="item-slot primary" id="item-slot">
+              <span class="item-empty-hint">ITEM</span>
+            </div>
           </div>
-          <span class="item-key-hint">[E] Usar • [S+E] Trás</span>
+          <span class="item-key-hint">[E] Usar • Segure [E] Escudo</span>
         </div>
 
         <!-- Lap Counter -->
@@ -98,7 +108,7 @@
         <div class="controls-bar">
           <span><b>WASD / Setas</b> Dirigir</span>
           <span><b>Espaço / Shift</b> Drift + Mini-Turbo</span>
-          <span><b>E / Enter</b> Item</span>
+          <span><b>E</b> Usar / Segurar Escudo</span>
           <span><b>Q</b> Olhar Trás</span>
           <span><b>C</b> Câmera</span>
         </div>

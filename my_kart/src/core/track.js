@@ -83,8 +83,24 @@ export class Track {
       pEnd
     ], false, 'catmullrom', 0.5);
 
-    // Item box spawn checkpoints along the track
-    this.itemBoxProgressPoints = [0.08, 0.28, 0.52, 0.74, 0.90];
+    // Item box spawn checkpoints along the track (8 strategic rows with double & moving boxes)
+    this.itemBoxProgressPoints = [0.07, 0.19, 0.31, 0.44, 0.56, 0.69, 0.81, 0.92];
+    this.itemBoxRowConfigs = [
+      { t: 0.07, isDouble: false, movingLateral: 0 },
+      { t: 0.19, isDouble: false, movingLateral: 2.2 }, // Moving row
+      { t: 0.31, isDouble: true,  movingLateral: 0 },   // Double box row
+      { t: 0.44, isDouble: false, movingLateral: 0 },
+      { t: 0.56, isDouble: true,  movingLateral: 2.2 }, // Double & moving row
+      { t: 0.69, isDouble: false, movingLateral: 0 },
+      { t: 0.81, isDouble: true,  movingLateral: 0 },   // Double box row
+      { t: 0.92, isDouble: false, movingLateral: 0 }
+    ];
+
+    // Off-road shortcut item box checkpoints
+    this.shortcutItemBoxConfigs = [
+      { t: 0.35, isDouble: true },
+      { t: 0.70, isDouble: true }
+    ];
 
     // Turbo boost pad locations along the track: { t, lateralOffset }
     this.boostPadConfigs = [
@@ -978,5 +994,47 @@ export class Track {
       direction,
       isSharpCurve: angle >= TRACK_CONFIG.MIN_CURVE_ANGLE_DRIFT || angle >= 0.61
     };
+  }
+
+  /**
+   * Generates ~45 strategic 3D coin positions along racing lines, apexes, and the off-road shortcut.
+   */
+  getCoinSpawnPositions() {
+    const list = [];
+
+    const trackCoinSequences = [
+      { tStart: 0.03, count: 3, step: 0.008, lateral: 0 },
+      { tStart: 0.10, count: 4, step: 0.009, lateral: -4.0 },
+      { tStart: 0.22, count: 4, step: 0.008, lateral: 0 },
+      { tStart: 0.26, count: 3, step: 0.008, lateral: 3.5 },
+      { tStart: 0.36, count: 3, step: 0.012, lateralFn: (i) => [-2.5, 0, 2.5][i] },
+      { tStart: 0.46, count: 4, step: 0.008, lateral: 0 },
+      { tStart: 0.53, count: 3, step: 0.009, lateral: -3.5 },
+      { tStart: 0.61, count: 4, step: 0.008, lateral: 3.5 },
+      { tStart: 0.65, count: 3, step: 0.009, lateral: -4.2 },
+      { tStart: 0.76, count: 3, step: 0.009, lateral: 2.5 },
+      { tStart: 0.86, count: 3, step: 0.009, lateral: -3.0 },
+      { tStart: 0.96, count: 4, step: 0.008, lateral: 0 }
+    ];
+
+    trackCoinSequences.forEach(seq => {
+      for (let i = 0; i < seq.count; i++) {
+        const t = (seq.tStart + i * seq.step) % 1.0;
+        const lat = seq.lateralFn ? seq.lateralFn(i) : seq.lateral;
+        const pos = this.getWaypointAtProgress(t, lat);
+        pos.y += 0.25;
+        list.push(pos);
+      }
+    });
+
+    if (this.shortcutCurve) {
+      [0.2, 0.4, 0.6, 0.8].forEach(scT => {
+        const pt = this.shortcutCurve.getPointAt(scT);
+        pt.y += 0.25;
+        list.push(pt);
+      });
+    }
+
+    return list;
   }
 }
