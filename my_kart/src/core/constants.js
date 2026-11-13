@@ -9,6 +9,71 @@ export const TRACK_CONFIG = {
   FAIR_PLAY_DISTANCE_REMAINING: 300 // Last 300 meters of final lap
 };
 
+export const CIRCUITS = {
+  GRAND_PRIX: {
+    id: 'GRAND_PRIX',
+    name: 'Copa Solar Grand Prix',
+    shortName: 'Grand Prix',
+    icon: '🏆',
+    description: 'Circuito clássico com grama verde, lago central e montanhas panorâmicas.',
+    skyZenith: 0x0284c7,
+    skyHorizon: 0x7dd3fc,
+    skyHaze: 0xfef3c7,
+    fogColor: 0xbae6fd,
+    fogDensity: 0.0012,
+    ambientColor: 0xffffff,
+    ambientIntensity: 0.55,
+    hemiSky: 0xe0f2fe,
+    hemiGround: 0x22c55e,
+    dirLightColor: 0xfffbeb,
+    dirLightIntensity: 1.55,
+    sunColor: 0xfef08a,
+    sunPos: [280, 340, 260]
+  },
+  SUNSET_DUNES: {
+    id: 'SUNSET_DUNES',
+    name: 'Deserto Sunset Dunes',
+    shortName: 'Sunset Dunes',
+    icon: '🏜️',
+    description: 'Traçado rápido no deserto com pirâmides ancestrais, oásis e pôr-do-sol dourado.',
+    skyZenith: 0x4c1d95,
+    skyHorizon: 0xf97316,
+    skyHaze: 0xfef08a,
+    fogColor: 0xfb923c,
+    fogDensity: 0.0014,
+    ambientColor: 0xffedd5,
+    ambientIntensity: 0.50,
+    hemiSky: 0xf97316,
+    hemiGround: 0xd97706,
+    dirLightColor: 0xfdba74,
+    dirLightIntensity: 1.70,
+    sunColor: 0xf97316,
+    sunPos: [320, 160, 360]
+  },
+  CYBER_NEON: {
+    id: 'CYBER_NEON',
+    name: 'Metrópole Cyber Neon',
+    shortName: 'Cyber Neon',
+    icon: '🌆',
+    description: 'Metrópole futurista noturna synthwave cercada por arranha-céus e luzes de neon.',
+    skyZenith: 0x030712,
+    skyHorizon: 0x1e1b4b,
+    skyHaze: 0x4a044e,
+    fogColor: 0x0f172a,
+    fogDensity: 0.0018,
+    ambientColor: 0x38bdf8,
+    ambientIntensity: 0.40,
+    hemiSky: 0x00f2fe,
+    hemiGround: 0xd946ef,
+    dirLightColor: 0x38bdf8,
+    dirLightIntensity: 1.30,
+    sunColor: 0xd946ef,
+    sunPos: [150, 260, 280]
+  }
+};
+
+export const CIRCUIT_LIST = ['GRAND_PRIX', 'SUNSET_DUNES', 'CYBER_NEON'];
+
 export const PHYSICS_CONFIG = {
   GRAVITY: 25,
   MAX_FORWARD_SPEED: 48,

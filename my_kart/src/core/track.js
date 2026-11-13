@@ -3,8 +3,9 @@ import { TRACK_CONFIG } from './constants.js';
 import { ProceduralTextures } from './textures.js';
 
 export class Track {
-  constructor(scene) {
+  constructor(scene, circuitId = 'GRAND_PRIX') {
     this.scene = scene;
+    this.circuitId = circuitId;
     this.width = TRACK_CONFIG.WIDTH;
     this.halfWidth = TRACK_CONFIG.HALF_WIDTH;
     this.curve = null;
@@ -242,11 +243,15 @@ export class Track {
     geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
     geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
 
-    const asphaltTex = ProceduralTextures.createAsphaltTexture();
+    const isCyber = this.circuitId === 'CYBER_NEON';
+    const asphaltTex = isCyber
+      ? ProceduralTextures.createCyberAsphaltTexture()
+      : ProceduralTextures.createAsphaltTexture();
+
     const material = new THREE.MeshStandardMaterial({
       map: asphaltTex,
-      roughness: 0.78,
-      metalness: 0.12
+      roughness: isCyber ? 0.45 : 0.78,
+      metalness: isCyber ? 0.35 : 0.12
     });
 
     this.trackMesh = new THREE.Mesh(geometry, material);
@@ -746,6 +751,10 @@ export class Track {
     const red = new THREE.Color(0xef4444);
     const white = new THREE.Color(0xf8fafc);
     const blue = new THREE.Color(0x3b82f6);
+    const gold = new THREE.Color(0xf59e0b);
+    const sandWhite = new THREE.Color(0xfef3c7);
+    const neonCyan = new THREE.Color(0x00f2fe);
+    const neonMagenta = new THREE.Color(0xd946ef);
 
     const positions = [];
     const colors = [];
@@ -758,7 +767,15 @@ export class Track {
 
       const isHighSpeed = s0.point.y > 5.0;
       const isAlt = (Math.floor(i / 2) % 2 === 0);
-      const curbColor = isAlt ? (isHighSpeed ? blue : red) : white;
+
+      let curbColor;
+      if (this.circuitId === 'CYBER_NEON') {
+        curbColor = isAlt ? neonCyan : neonMagenta;
+      } else if (this.circuitId === 'SUNSET_DUNES') {
+        curbColor = isAlt ? gold : (isHighSpeed ? red : sandWhite);
+      } else {
+        curbColor = isAlt ? (isHighSpeed ? blue : red) : white;
+      }
 
       const b0 = s0.bankedBinormal;
       const n0 = s0.bankedNormal;
@@ -1556,22 +1573,50 @@ export class Track {
     }
     groundGeo.computeVertexNormals();
 
-    const grassTex = ProceduralTextures.createGrassTexture();
-    const groundMat = new THREE.MeshStandardMaterial({
-      map: grassTex,
-      roughness: 0.88,
-      metalness: 0.04
-    });
+    const isSand = this.circuitId === 'SUNSET_DUNES';
+    const isCyber = this.circuitId === 'CYBER_NEON';
+
+    let groundTex, groundMat;
+    if (isSand) {
+      groundTex = ProceduralTextures.createSandTexture();
+      groundMat = new THREE.MeshStandardMaterial({
+        map: groundTex,
+        roughness: 0.94,
+        metalness: 0.05
+      });
+    } else if (isCyber) {
+      groundTex = ProceduralTextures.createCyberAsphaltTexture();
+      groundMat = new THREE.MeshStandardMaterial({
+        map: groundTex,
+        roughness: 0.65,
+        metalness: 0.45
+      });
+    } else {
+      groundTex = ProceduralTextures.createGrassTexture();
+      groundMat = new THREE.MeshStandardMaterial({
+        map: grassTex,
+        roughness: 0.88,
+        metalness: 0.04
+      });
+    }
+
     const ground = new THREE.Mesh(groundGeo, groundMat);
     ground.receiveShadow = true;
     this.environmentGroup.add(ground);
 
-    // Scenic Reflective Infield Lake
+    // Central Infield Feature (Lake / Oasis / Cyber Plaza)
     const waterGeo = new THREE.CircleGeometry(68, 36);
     waterGeo.rotateX(-Math.PI / 2);
+
+    let waterColor = 0x0ea5e9;
+    if (isSand) waterColor = 0x14b8a6; // Turquoise desert oasis
+    if (isCyber) waterColor = 0x00f2fe; // Glowing neon cyber plaza
+
     const waterMat = new THREE.MeshStandardMaterial({
-      color: 0x0ea5e9,
-      roughness: 0.08,
+      color: waterColor,
+      emissive: isCyber ? 0x00f2fe : 0x000000,
+      emissiveIntensity: isCyber ? 0.65 : 0,
+      roughness: isCyber ? 0.2 : 0.08,
       metalness: 0.85,
       transparent: true,
       opacity: 0.88
@@ -1581,7 +1626,180 @@ export class Track {
     this.waterMesh.scale.set(0.9, 1, 1.25);
     this.environmentGroup.add(this.waterMesh);
 
+    // Spawn themed scenery based on active circuit
+    if (isSand) {
+      this.spawnSunsetDunesScenery();
+    } else if (isCyber) {
+      this.spawnCyberNeonScenery();
+    } else {
+      this.spawnGrandPrixScenery();
+    }
+  }
+
+  spawnGrandPrixScenery() {
     this.spawnScenicTreesAndClouds();
+  }
+
+  spawnSunsetDunesScenery() {
+    const dunesGroup = new THREE.Group();
+
+    // 1. Three Monumental Egyptian 3D Pyramids on the Horizon
+    const pyramidConfigs = [
+      { x: 260, y: 0, z: -280, baseW: 95, height: 75, yaw: Math.PI / 4 },
+      { x: -250, y: 0, z: -270, baseW: 80, height: 60, yaw: Math.PI / 4 },
+      { x: -290, y: 0, z: 120, baseW: 65, height: 48, yaw: Math.PI / 4 }
+    ];
+
+    const stoneMat = new THREE.MeshStandardMaterial({
+      color: 0xd97706,
+      roughness: 0.88,
+      metalness: 0.1
+    });
+
+    const capMat = new THREE.MeshStandardMaterial({
+      color: 0xfacc15,
+      roughness: 0.2,
+      metalness: 0.95
+    });
+
+    pyramidConfigs.forEach(p => {
+      const pGroup = new THREE.Group();
+      pGroup.position.set(p.x, p.y + p.height * 0.5, p.z);
+      pGroup.rotation.y = p.yaw;
+
+      // 4-sided pyramid base
+      const mainGeo = new THREE.ConeGeometry(p.baseW * 0.707, p.height, 4);
+      const mainMesh = new THREE.Mesh(mainGeo, stoneMat);
+      mainMesh.castShadow = true;
+      mainMesh.receiveShadow = true;
+      pGroup.add(mainMesh);
+
+      // Shining Golden Capstone (Pyramidion)
+      const capHeight = p.height * 0.18;
+      const capGeo = new THREE.ConeGeometry((p.baseW * 0.707) * 0.18, capHeight, 4);
+      const capMesh = new THREE.Mesh(capGeo, capMat);
+      capMesh.position.y = p.height * 0.5 - capHeight * 0.5;
+      pGroup.add(capMesh);
+
+      dunesGroup.add(pGroup);
+    });
+
+    // 2. Stylized Desert Palms along the Oasis and Oasis Straight
+    const palmTrunkMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.9 });
+    const palmFrondMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.7, side: THREE.DoubleSide });
+
+    for (let i = 0; i < this.sampleCount; i += 12) {
+      const s = this.samples[i];
+      const offsets = [this.halfWidth + 12 + Math.random() * 22, -(this.halfWidth + 12 + Math.random() * 22)];
+
+      offsets.forEach(offset => {
+        const palmPos = new THREE.Vector3().copy(s.point).addScaledVector(s.bankedBinormal, offset);
+        const checkProj = this.getSplineProjection(palmPos);
+        if (Math.abs(checkProj.lateralOffset) < this.halfWidth + 6.0) return;
+
+        palmPos.y = Math.min(0, s.point.y - 0.4);
+
+        const palmGroup = new THREE.Group();
+        palmGroup.position.copy(palmPos);
+
+        // Curved segmented trunk
+        const trunkGeo = new THREE.CylinderGeometry(0.28, 0.45, 6.5, 7);
+        const trunkMesh = new THREE.Mesh(trunkGeo, palmTrunkMat);
+        trunkMesh.position.y = 3.25;
+        trunkMesh.rotation.z = (Math.random() - 0.5) * 0.15;
+        trunkMesh.castShadow = true;
+        palmGroup.add(trunkMesh);
+
+        // Palm Leaf Fronds fan
+        for (let f = 0; f < 6; f++) {
+          const frondGeo = new THREE.ConeGeometry(0.85, 3.8, 4);
+          frondGeo.rotateX(Math.PI / 2.6);
+          const frondMesh = new THREE.Mesh(frondGeo, palmFrondMat);
+          frondMesh.position.set(0, 6.4, 0);
+          frondMesh.rotation.y = (f / 6) * Math.PI * 2;
+          frondMesh.castShadow = true;
+          palmGroup.add(frondMesh);
+        }
+
+        const scale = 0.85 + Math.random() * 0.6;
+        palmGroup.scale.setScalar(scale);
+        dunesGroup.add(palmGroup);
+      });
+    }
+
+    this.environmentGroup.add(dunesGroup);
+  }
+
+  spawnCyberNeonScenery() {
+    const cyberGroup = new THREE.Group();
+
+    const towerMat = new THREE.MeshStandardMaterial({
+      color: 0x090d16,
+      roughness: 0.35,
+      metalness: 0.85
+    });
+
+    const neonMatCyan = new THREE.MeshStandardMaterial({
+      color: 0x00f2fe,
+      emissive: 0x00f2fe,
+      emissiveIntensity: 2.2,
+      roughness: 0.1
+    });
+
+    const neonMatMagenta = new THREE.MeshStandardMaterial({
+      color: 0xd946ef,
+      emissive: 0xd946ef,
+      emissiveIntensity: 2.2,
+      roughness: 0.1
+    });
+
+    const antennaMat = new THREE.MeshStandardMaterial({
+      color: 0xef4444,
+      emissive: 0xef4444,
+      emissiveIntensity: 3.0
+    });
+
+    // 40 Cyberpunk Skyscrapers & Tech Towers arranged around perimeter
+    for (let b = 0; b < 40; b++) {
+      const angle = (b / 40) * Math.PI * 2;
+      const radius = 175 + (b % 4) * 55 + (b % 3) * 35;
+      const x = Math.cos(angle) * radius;
+      const z = Math.sin(angle) * radius - 40;
+
+      const towerW = 16 + (b % 5) * 4;
+      const towerD = 16 + ((b + 2) % 4) * 4;
+      const towerH = 45 + (b % 7) * 16;
+
+      const bld = new THREE.Group();
+      bld.position.set(x, towerH * 0.5 - 2, z);
+
+      // Main tower monolith
+      const bldMesh = new THREE.Mesh(new THREE.BoxGeometry(towerW, towerH, towerD), towerMat);
+      bldMesh.castShadow = true;
+      bldMesh.receiveShadow = true;
+      bld.add(bldMesh);
+
+      // Neon vertical window columns / edge strips
+      const isCyan = (b % 2 === 0);
+      const chosenMat = isCyan ? neonMatCyan : neonMatMagenta;
+
+      [-towerW * 0.48, towerW * 0.48].forEach(xEdge => {
+        const strip = new THREE.Mesh(new THREE.BoxGeometry(0.3, towerH * 0.85, 0.3), chosenMat);
+        strip.position.set(xEdge, 0, towerD * 0.51);
+        bld.add(strip);
+      });
+
+      // Rooftop Communications Antenna Mast
+      const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.25, 12, 6), towerMat);
+      ant.position.set(0, towerH * 0.5 + 6, 0);
+      const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.45, 8, 8), antennaMat);
+      beacon.position.set(0, towerH * 0.5 + 12, 0);
+      bld.add(ant, beacon);
+
+      cyberGroup.add(bld);
+    }
+
+    this.environmentGroup.add(cyberGroup);
   }
 
   spawnScenicTreesAndClouds() {

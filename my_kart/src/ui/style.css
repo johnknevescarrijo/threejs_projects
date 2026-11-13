@@ -144,6 +144,32 @@ body, html {
   color: #94a3b8;
 }
 
+/* Circuit Pill */
+.circuit-pill {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.22), rgba(15, 23, 42, 0.88));
+  backdrop-filter: blur(8px);
+  border: 1.5px solid #38bdf8;
+  border-radius: 12px;
+  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 14px rgba(56, 189, 248, 0.22);
+}
+
+.circuit-icon {
+  font-size: 18px;
+}
+
+.circuit-name {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  color: #f8fafc;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
 /* Item Slots (Primary & Secondary) */
 .item-slot-wrapper {
   display: flex;
