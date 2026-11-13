@@ -23,16 +23,20 @@ export class AIController {
     this.isTakingShortcut = false;
     this.targetItemAction = null;
 
-    // DDA State
+    // DDA & Competitive Pace State
     this.ddaActive = true;
-    this.ddaSpeedMod = 1.0;
-    this.ddaAccelMod = 1.0;
+    this.skillPace = 1.06 + (this.archetype.precision || 0.7) * 0.05; // 1.09x - 1.1075x strong competitive pace
+    this.ddaSpeedMod = this.skillPace;
+    this.ddaAccelMod = 1.18;
     this.isBehindPlayer = false;
     this.draftTimer = 0;
+    this.lastCurvatureAngle = 0;
 
     // Unstuck & Recovery State Machine
     this.stuckTimer = 0;
     this.totalStuckDuration = 0;
+    this.lastTotalDistance = kart.totalDistance || 0;
+    this.smoothedProgressRate = 35;
     this.isStuckRecovering = false;
     this.recoveryTimer = 0;
     this.recoveryDirection = 1;
@@ -59,44 +63,39 @@ export class AIController {
     // 1. Evaluate Dynamic Difficulty Adjustment (DDA / Rubber Banding)
     this.updateDDA(playerKart);
 
-    // Unstuck & Recovery State Machine
-    const isCrawling = Math.abs(this.kart.speed) < 3.5;
-    if (isCrawling && !this.kart.isSpinning) {
+    // Unstuck & Recovery State Machine (EMA progress rate prevents false triggers on discrete samples)
+    const distAdvanced = this.kart.totalDistance - this.lastTotalDistance;
+    this.lastTotalDistance = this.kart.totalDistance;
+    const instantRate = distAdvanced / Math.max(0.001, deltaTime);
+    this.smoothedProgressRate = THREE.MathUtils.lerp(
+      this.smoothedProgressRate,
+      instantRate,
+      Math.min(1, deltaTime * 4.0)
+    );
+
+    const isCrawlingOrWedged = (Math.abs(this.kart.speed) < 6.0 || this.smoothedProgressRate < 6.0);
+
+    if (isCrawlingOrWedged && !this.kart.isSpinning) {
       this.stuckTimer += deltaTime;
       this.totalStuckDuration += deltaTime;
+      if (this.stuckTimer > 0.85) {
+        this.smoothedOffset = 0;
+        this.inputs.drift = false;
+      }
     } else {
-      this.stuckTimer = Math.max(0, this.stuckTimer - deltaTime * 1.5);
-      this.totalStuckDuration = Math.max(0, this.totalStuckDuration - deltaTime * 0.4);
+      this.stuckTimer = Math.max(0, this.stuckTimer - deltaTime * 2.5);
+      this.totalStuckDuration = Math.max(0, this.totalStuckDuration - deltaTime * 1.5);
     }
 
-    if (this.totalStuckDuration > 3.0) {
+    if (this.totalStuckDuration > 1.8) {
       this.kart.respawnOnTrack(this.track);
+      this.kart.speed = 34;
       this.stuckTimer = 0;
       this.totalStuckDuration = 0;
+      this.smoothedProgressRate = 34;
+      this.lastTotalDistance = this.kart.totalDistance;
       this.isStuckRecovering = false;
       return;
-    }
-
-    if (this.stuckTimer > 1.2 && !this.isStuckRecovering) {
-      this.isStuckRecovering = true;
-      this.recoveryTimer = 1.1;
-      this.recoveryDirection = (Math.random() > 0.5 ? 1 : -1);
-    }
-
-    if (this.isStuckRecovering) {
-      this.recoveryTimer -= deltaTime;
-      if (this.recoveryTimer <= 0) {
-        this.isStuckRecovering = false;
-        this.stuckTimer = 0;
-      } else {
-        this.inputs.accelerate = false;
-        this.inputs.brake = true;
-        this.inputs.drift = false;
-        this.inputs.steerAngle = this.recoveryDirection;
-        this.inputs.steerLeft = this.recoveryDirection > 0;
-        this.inputs.steerRight = this.recoveryDirection < 0;
-        return;
-      }
     }
 
     // 2. High-Level Decision Tick (10Hz - 20Hz)
@@ -148,27 +147,28 @@ export class AIController {
     if (isFinalLap && remainingLapDistance <= TRACK_CONFIG.FAIR_PLAY_DISTANCE_REMAINING) {
       this.ddaActive = false;
       this.isBehindPlayer = false;
-      this.kart.maxSpeed = this.kart.baseMaxSpeed;
-      this.kart.acceleration = this.kart.baseAcceleration;
+      this.kart.maxSpeed = this.kart.baseMaxSpeed * this.skillPace;
+      this.kart.acceleration = this.kart.baseAcceleration * 1.12;
       return;
     }
 
     this.ddaActive = true;
     const distDelta = this.kart.totalDistance - playerKart.totalDistance;
-    const timeDelta = distDelta / 35.0;
+    const timeDelta = distDelta / 38.0;
 
     if (timeDelta > DDA_CONFIG.AHEAD_TIME_THRESHOLD) {
-      this.ddaSpeedMod = 1.0 - DDA_CONFIG.AHEAD_SPEED_PENALTY;
-      this.ddaAccelMod = 1.0;
+      this.ddaSpeedMod = Math.max(0.98, this.skillPace - DDA_CONFIG.AHEAD_SPEED_PENALTY);
+      this.ddaAccelMod = 1.05;
       this.isBehindPlayer = false;
     } else if (timeDelta < -DDA_CONFIG.BEHIND_TIME_THRESHOLD) {
-      this.ddaSpeedMod = 1.0 + DDA_CONFIG.BEHIND_SPEED_BOOST;
-      this.ddaAccelMod = 1.0 + DDA_CONFIG.BEHIND_ACCEL_BOOST;
+      const catchupIntensity = THREE.MathUtils.clamp(Math.abs(timeDelta) / 4.5, 0.35, 1.0);
+      this.ddaSpeedMod = this.skillPace + DDA_CONFIG.BEHIND_SPEED_BOOST * catchupIntensity;
+      this.ddaAccelMod = 1.15 + DDA_CONFIG.BEHIND_ACCEL_BOOST * catchupIntensity;
       this.isBehindPlayer = true;
     } else {
-      this.ddaSpeedMod = 1.0;
-      this.ddaAccelMod = 1.0;
-      this.isBehindPlayer = false;
+      this.ddaSpeedMod = this.skillPace;
+      this.ddaAccelMod = 1.15;
+      this.isBehindPlayer = distDelta < 0;
     }
 
     this.kart.maxSpeed = this.kart.baseMaxSpeed * this.ddaSpeedMod;
@@ -181,42 +181,25 @@ export class AIController {
   planNavigation(sensors, isFarLOD) {
     const currentProgress = sensors.spline.t;
     const lookaheadCurvature = sensors.curvature;
+    this.lastCurvatureAngle = lookaheadCurvature.angle;
 
-    // A. Shortcut & Off-road Re-evaluation
-    const nearShortcutStart = (
-      currentProgress >= TRACK_CONFIG.SHORTCUT_START_PROGRESS - 0.04 &&
-      currentProgress <= TRACK_CONFIG.SHORTCUT_START_PROGRESS + 0.02
-    );
-
-    const hasBoost = (this.kart.heldItem === ITEM_TYPES.BOOST_MUSHROOM || this.kart.isBoosting);
-    if (nearShortcutStart && hasBoost && Math.random() < this.archetype.shortcutRisk) {
-      this.isTakingShortcut = true;
-      if (this.kart.heldItem === ITEM_TYPES.BOOST_MUSHROOM) {
-        this.targetItemAction = { type: ITEM_TYPES.BOOST_MUSHROOM, direction: 'forward' };
-      }
-    }
-
-    if (this.isTakingShortcut) {
-      if (currentProgress > TRACK_CONFIG.SHORTCUT_END_PROGRESS || currentProgress < TRACK_CONFIG.SHORTCUT_START_PROGRESS - 0.05) {
-        this.isTakingShortcut = false;
-      }
-    }
-
-    if (isFarLOD && !this.isTakingShortcut) {
-      // Far LOD (>80m): direct spline centerline interpolation to save CPU
+    if (isFarLOD) {
       this.currentIdealOffset = 0;
-      this.targetWaypoint.copy(this.track.getWaypointAtProgress(currentProgress + 0.045, 0));
+      this.smoothedOffset = THREE.MathUtils.lerp(this.smoothedOffset, 0, 0.5);
+      const farStep = lookaheadCurvature.angle > 0.35 ? 0.014 : 0.020;
+      this.targetWaypoint.copy(this.track.getWaypointAtProgress(currentProgress + farStep, 0));
       this.inputs.drift = false;
       return;
     }
 
-    // B. Adaptive Racing Line: Ideal vs Defensive vs Collectible vs Slipstream
+    // Adaptive Racing Line kept strictly inside safe asphalt corridor
     let targetOffset = 0;
+    const safeHalfCorridor = this.track.halfWidth * 0.45;
 
-    // 1. Ideal racing line (out-in-out tangency)
+    // 1. Ideal racing line (gentle apex bias)
     if (lookaheadCurvature.isSharpCurve) {
-      const idealSide = lookaheadCurvature.direction * -1;
-      targetOffset = idealSide * (this.track.halfWidth * 0.58) * this.archetype.precision;
+      const apexSide = lookaheadCurvature.direction * -1;
+      targetOffset = apexSide * (this.track.halfWidth * 0.34) * this.archetype.precision;
     }
 
     // 2. Defensive line (block track center when tailgated)
@@ -224,83 +207,52 @@ export class AIController {
       targetOffset = 0;
     }
 
-    // 3. Collectible bias (divert to item box or boost pad)
+    // 3. Collectible bias (divert to item box or boost pad if safely on road)
     if (!this.kart.heldItem && sensors.collectibles.nearestBox && sensors.collectibles.distance < 15) {
       const boxPos = sensors.collectibles.nearestBox.position;
       const boxProj = this.track.getSplineProjection(boxPos, currentProgress);
-      targetOffset = THREE.MathUtils.clamp(boxProj.lateralOffset, -this.track.halfWidth * 0.7, this.track.halfWidth * 0.7);
+      targetOffset = THREE.MathUtils.clamp(boxProj.lateralOffset, -safeHalfCorridor, safeHalfCorridor);
     } else if (sensors.collectibles.nearestBoostPad) {
-      targetOffset = sensors.collectibles.nearestBoostPad.lateralOffset;
+      targetOffset = THREE.MathUtils.clamp(sensors.collectibles.nearestBoostPad.lateralOffset, -safeHalfCorridor, safeHalfCorridor);
     }
 
-    // 4. Slipstream hunting when behind player (DDA catch-up feature)
+    // 4. Slipstream hunting when behind player
     if (this.isBehindPlayer && sensors.front.obstacle && sensors.front.obstacle.type === 'kart') {
       const rivalProj = this.track.getSplineProjection(sensors.front.obstacle.entity.position, currentProgress);
-      targetOffset = rivalProj.lateralOffset;
+      targetOffset = THREE.MathUtils.clamp(rivalProj.lateralOffset, -safeHalfCorridor, safeHalfCorridor);
     }
 
-    // 5. Collision Avoidance Bias (for traps or slow karts)
-    if (sensors.front.hasObstacle && sensors.front.distance < 14) {
-      if (sensors.front.obstacle.type === 'trap' || !this.isBehindPlayer) {
-        if (sensors.left.hasObstacle && !sensors.right.hasObstacle) {
-          targetOffset += 4.2;
-        } else if (sensors.right.hasObstacle && !sensors.left.hasObstacle) {
-          targetOffset -= 4.2;
-        } else {
-          targetOffset += (sensors.spline.lateralOffset > 0 ? -4.0 : 4.0);
-        }
+    // 5. Collision Avoidance Bias (for traps, track hazards, or slow karts)
+    if (sensors.front.hasObstacle && sensors.front.distance < 15) {
+      const obsType = sensors.front.obstacle.type;
+      if (obsType === 'trap' || obsType === 'hazard' || !this.isBehindPlayer) {
+        targetOffset += (sensors.spline.lateralOffset > 0 ? -3.2 : 3.2);
       }
     }
 
-    // 5b. Dynamic Track Hazard Avoidance (evade swinging pillars)
-    if (this.track && this.track.hazards && this.track.hazards.length > 0) {
-      for (const h of this.track.hazards) {
-        const distToHazard = this.kart.position.distanceTo(h.currentPos);
-        if (distToHazard < 26) {
-          const toHazard = new THREE.Vector3().subVectors(h.currentPos, this.kart.position);
-          const forwardDot = toHazard.clone().normalize().dot(this.kart.forward);
-          if (forwardDot > 0.35) {
-            const hazardProj = this.track.getSplineProjection(h.currentPos, currentProgress);
-            const lateralDelta = sensors.spline.lateralOffset - hazardProj.lateralOffset;
-            if (Math.abs(lateralDelta) < 3.8) {
-              const evadeSign = hazardProj.lateralOffset >= 0 ? -1 : 1;
-              targetOffset += evadeSign * 5.2;
-            }
-          }
-        }
-      }
+    // 6. Active centering pull well before reaching the curb or guardrail
+    if (Math.abs(sensors.spline.lateralOffset) > this.track.halfWidth * 0.50) {
+      targetOffset = -Math.sign(sensors.spline.lateralOffset) * 2.5;
     }
 
-    // 6. Ramming behavior for Aggressive archetype
-    if (this.archetype.id === ARCHETYPE_IDS.AGGRESSIVE && sensors.front.obstacle && sensors.front.obstacle.type === 'kart') {
-      if (Math.random() < this.archetype.rammingTendency) {
-        const rivalProj = this.track.getSplineProjection(sensors.front.obstacle.entity.position, currentProgress);
-        targetOffset = rivalProj.lateralOffset;
-      }
-    }
+    this.currentIdealOffset = THREE.MathUtils.clamp(targetOffset, -safeHalfCorridor, safeHalfCorridor);
+    this.smoothedOffset = THREE.MathUtils.lerp(this.smoothedOffset, this.currentIdealOffset, 0.45);
 
-    this.currentIdealOffset = THREE.MathUtils.clamp(targetOffset, -this.track.halfWidth * 0.75, this.track.halfWidth * 0.75);
-    this.smoothedOffset = THREE.MathUtils.lerp(this.smoothedOffset, this.currentIdealOffset, 0.35);
-
-    const lookaheadT = currentProgress + (this.isTakingShortcut ? 0.025 : 0.042);
-    if (this.isTakingShortcut && this.track.shortcutCurve) {
-      const shortcutProgress = THREE.MathUtils.clamp(
-        (currentProgress - TRACK_CONFIG.SHORTCUT_START_PROGRESS) / (TRACK_CONFIG.SHORTCUT_END_PROGRESS - TRACK_CONFIG.SHORTCUT_START_PROGRESS),
-        0, 1
-      );
-      this.targetWaypoint.copy(this.track.shortcutCurve.getPointAt(shortcutProgress));
-    } else {
-      this.targetWaypoint.copy(this.track.getWaypointAtProgress(lookaheadT, this.smoothedOffset));
-    }
+    const lookaheadStep = lookaheadCurvature.angle > 0.35 ? 0.013 : 0.020;
+    this.targetWaypoint.copy(this.track.getWaypointAtProgress(currentProgress + lookaheadStep, this.smoothedOffset));
 
     // C. Drift & Mini-Turbo Decision
     const speedRatio = Math.abs(this.kart.speed) / this.kart.baseMaxSpeed;
-    // Reduce drift frequency if AI is far ahead of player (DDA rule)
+    const nearEdge = Math.abs(sensors.spline.lateralOffset) > this.track.halfWidth * 0.42;
     const driftChance = (this.ddaSpeedMod < 1.0) ? this.archetype.driftEagerness * 0.5 : this.archetype.driftEagerness;
+    const nearCurv = this.track.getLookaheadCurvature(currentProgress, 16);
+    const sameBendDir = nearCurv.direction === lookaheadCurvature.direction;
 
     const shouldStartDrift = (
       !this.kart.isAirborne &&
-      lookaheadCurvature.angle >= PHYSICS_CONFIG.DRIFT_MIN_CURVE_ANGLE &&
+      !nearEdge &&
+      sameBendDir &&
+      lookaheadCurvature.angle >= 0.52 &&
       speedRatio >= PHYSICS_CONFIG.DRIFT_MIN_SPEED_RATIO &&
       Math.random() < driftChance
     );
@@ -308,29 +260,13 @@ export class AIController {
     if (!this.kart.isDrifting && shouldStartDrift) {
       this.inputs.drift = true;
     } else if (this.kart.isDrifting) {
-      // Technical racers can charge up to Stage 3 Ultra Mini-Turbo in sweeping turns!
       let desiredStage = 1;
       if (this.archetype.id === ARCHETYPE_IDS.TECHNICAL) {
-        desiredStage = lookaheadCurvature.angle > 0.55 ? 3 : 2;
-      } else if (lookaheadCurvature.angle > 0.75) {
-        desiredStage = 2;
+        desiredStage = lookaheadCurvature.angle > 0.65 ? 2 : 1;
       }
-
-      const turnFlattened = lookaheadCurvature.angle < 0.25;
-      if (this.kart.driftStage >= desiredStage || turnFlattened) {
+      const turnFlattened = lookaheadCurvature.angle < 0.28 || !sameBendDir;
+      if (this.kart.driftStage >= desiredStage || turnFlattened || nearEdge) {
         this.inputs.drift = false;
-      }
-    }
-
-    // D. Jump Ramp Stunt & Trick Boost Action
-    // When airborne or passing the lip of a jump ramp, trigger trick stunt with high probability!
-    const rampCheck = this.track.getRampInfluence(this.kart.position);
-    const atRampLip = rampCheck.onRamp && rampCheck.atLip;
-    const inAirUnperformed = this.kart.isAirborne && !this.kart.hasPerformedTrick && this.kart.airTime < 0.65;
-
-    if ((atRampLip || inAirUnperformed) && !this.kart.hasPerformedTrick) {
-      if (Math.random() < Math.min(0.95, this.archetype.precision + 0.25)) {
-        this.inputs.drift = true;
       }
     }
   }
@@ -429,6 +365,22 @@ export class AIController {
     const forward = this.kart.forward;
     const right = this.kart.right;
 
+    // 60Hz lateral safety guard & adaptive lookahead so AI tracks corners cleanly without hitting curbs
+    const liveProj = this.track.getSplineProjection(kartPos, this.kart.lapProgress);
+    let liveOffset = THREE.MathUtils.clamp(this.smoothedOffset, -this.track.halfWidth * 0.42, this.track.halfWidth * 0.42);
+    if (Math.abs(liveProj.lateralOffset) > this.track.halfWidth * 0.42) {
+      liveOffset = -Math.sign(liveProj.lateralOffset) * 2.8;
+      if (this.kart.isDrifting) {
+        this.inputs.drift = false;
+      }
+    }
+    if (this.kart.isAirborne && !this.kart.hasPerformedTrick) {
+      this.inputs.drift = true;
+    }
+
+    const lookaheadT = (this.lastCurvatureAngle > 0.28 || Math.abs(liveProj.lateralOffset) > 3.5 || Math.abs(this.kart.speed) < 25) ? 0.011 : 0.016;
+    this.targetWaypoint.copy(this.track.getWaypointAtProgress(liveProj.t + lookaheadT, liveOffset));
+
     const toTarget = new THREE.Vector3().subVectors(this.targetWaypoint, kartPos);
     toTarget.y = 0;
     if (toTarget.lengthSq() < 0.001) return;
@@ -437,26 +389,24 @@ export class AIController {
     const dotRight = toTarget.dot(right);
     const dotForward = toTarget.dot(forward);
 
-    // Smooth proportional steering: dotRight < 0 means target is to left (+steerAngle)
-    let desiredSteer = -dotRight * 2.3;
+    // Smooth responsive proportional steering: dotRight < 0 means target is to left (+steerAngle)
+    let desiredSteer = -dotRight * 4.2;
     if (dotForward < 0) {
-      // Waypoint is behind kart, turn hard toward it
       desiredSteer = dotRight < 0 ? 1.0 : -1.0;
     }
     desiredSteer = THREE.MathUtils.clamp(desiredSteer, -1.0, 1.0);
 
-    this.inputs.steerAngle = THREE.MathUtils.lerp(this.inputs.steerAngle || 0, desiredSteer, deltaTime * 16);
-    this.inputs.steerLeft = this.inputs.steerAngle > 0.08;
-    this.inputs.steerRight = this.inputs.steerAngle < -0.08;
-
-    // Throttle & Braking
-    const isExtremeTurn = dotForward < 0.25;
-    if (isExtremeTurn && !this.kart.isDrifting && this.kart.speed > 30) {
-      this.inputs.accelerate = false;
-      this.inputs.brake = true;
-    } else {
-      this.inputs.accelerate = true;
-      this.inputs.brake = false;
+    // Immediately release drift if the corner reverses direction (S-bend / chicane)
+    if (this.kart.isDrifting && Math.abs(desiredSteer) > 0.3 && Math.sign(desiredSteer) !== this.kart.driftDirection) {
+      this.inputs.drift = false;
     }
+
+    this.inputs.steerAngle = THREE.MathUtils.lerp(this.inputs.steerAngle || 0, desiredSteer, deltaTime * 22);
+    this.inputs.steerLeft = this.inputs.steerAngle > 0.06;
+    this.inputs.steerRight = this.inputs.steerAngle < -0.06;
+
+    // Keep full arcade throttle through turns
+    this.inputs.accelerate = true;
+    this.inputs.brake = false;
   }
 }

@@ -395,6 +395,8 @@ class GameApp {
       // +Z of Kart model is forward!
       const yaw = Math.atan2(tangent.x, tangent.z);
 
+      const initialLap = startT > 0.85 ? 0 : 1;
+
       if (slot.isPlayer) {
         this.playerKart = new Kart({
           id: 'player',
@@ -409,8 +411,10 @@ class GameApp {
         });
         this.playerKart.setPosition(startPos.x, startPos.y, startPos.z);
         this.playerKart.setRotation(yaw);
+        this.playerKart.currentLap = initialLap;
         this.playerKart.lapProgress = startT;
         this.playerKart.prevLapProgress = startT;
+        this.playerKart.totalDistance = (initialLap - 1) * this.track.totalLength + startT * this.track.totalLength;
         this.allKarts.push(this.playerKart);
       } else {
         const p = slot.preset;
@@ -427,8 +431,10 @@ class GameApp {
         });
         aiKart.setPosition(startPos.x, startPos.y, startPos.z);
         aiKart.setRotation(yaw);
+        aiKart.currentLap = initialLap;
         aiKart.lapProgress = startT;
         aiKart.prevLapProgress = startT;
+        aiKart.totalDistance = (initialLap - 1) * this.track.totalLength + startT * this.track.totalLength;
 
         const controller = new AIController({
           kart: aiKart,
@@ -957,6 +963,8 @@ class GameApp {
 
           k1.position.addScaledVector(normal, -overlap);
           k2.position.addScaledVector(normal, overlap);
+          k1.enforceBarrierConstraint(this.track);
+          k2.enforceBarrierConstraint(this.track);
 
           const relSpeed = (k1.speed - k2.speed) * 0.2;
           k1.speed -= relSpeed;
