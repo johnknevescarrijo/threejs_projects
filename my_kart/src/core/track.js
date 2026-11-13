@@ -24,16 +24,20 @@ export class Track {
     this.trackMesh = null;
     this.curbsMesh = null;
     this.guardrailsMesh = null;
+    this.tunnelNeonMaterials = [];
     this.environmentGroup = new THREE.Group();
 
     this.initCurves();
     this.precomputeSamples();
     this.buildTrackGeometry();
+    this.buildTrackFoundation();
+    this.buildViaductPillars();
     this.buildStartFinishAndGrid();
     this.buildBoostPads();
     this.buildJumpRamps();
     this.buildShortcutGeometry();
     this.buildCurbsAndGuardrails();
+    this.buildNeonTunnel();
     this.buildStartGantry();
     this.buildGrandstands();
     this.buildTrackChevronsAndBillboards();
@@ -140,16 +144,51 @@ export class Track {
         tangent,
         normal,
         binormal,
+        bankedBinormal: binormal.clone(),
+        bankedNormal: normal.clone(),
+        bankAngle: 0,
         curvature: 0
       });
     }
 
+    // Curvature & raw 3D banking calculation
+    const rawBankAngles = new Float32Array(this.sampleCount);
     for (let i = 0; i < this.sampleCount; i++) {
       const current = this.samples[i];
-      const lookaheadIdx = (i + 15) % this.sampleCount;
-      const next = this.samples[lookaheadIdx];
-      const dot = Math.max(-1, Math.min(1, current.tangent.dot(next.tangent)));
+      const prevIdx = (i - 10 + this.sampleCount) % this.sampleCount;
+      const nextIdx = (i + 10) % this.sampleCount;
+      const prev = this.samples[prevIdx];
+      const next = this.samples[nextIdx];
+
+      const dot = Math.max(-1, Math.min(1, prev.tangent.dot(next.tangent)));
       current.curvature = Math.acos(dot);
+
+      // Signed cross product around Y to determine curve direction
+      const crossY = prev.tangent.x * next.tangent.z - prev.tangent.z * next.tangent.x;
+      // Banking: curve right (crossY > 0) -> bank left side up (-angle in Three.js roll)
+      // curve left (crossY < 0) -> bank right side up (+angle)
+      const maxBank = 0.16; // ~9.2 degrees maximum arcade banking
+      rawBankAngles[i] = THREE.MathUtils.clamp(-crossY * 0.42, -maxBank, maxBank);
+    }
+
+    // Smooth banking angles with a wide Gaussian-weighted filter to ensure zero abrupt twists
+    const filterRadius = 16;
+    for (let i = 0; i < this.sampleCount; i++) {
+      let sum = 0;
+      let count = 0;
+      for (let r = -filterRadius; r <= filterRadius; r++) {
+        const idx = (i + r + this.sampleCount) % this.sampleCount;
+        const weight = 1 - Math.abs(r) / (filterRadius + 1);
+        sum += rawBankAngles[idx] * weight;
+        count += weight;
+      }
+      const smoothBank = sum / count;
+      const sample = this.samples[i];
+      sample.bankAngle = smoothBank;
+
+      // Rotate binormal and normal vectors around tangent axis by smoothBank
+      sample.bankedBinormal = sample.binormal.clone().applyAxisAngle(sample.tangent, smoothBank);
+      sample.bankedNormal = sample.normal.clone().applyAxisAngle(sample.tangent, smoothBank);
     }
   }
 
@@ -165,7 +204,8 @@ export class Track {
       const idx = i % segments;
       const sample = this.samples[idx];
       const p = sample.point;
-      const b = sample.binormal;
+      const b = sample.bankedBinormal;
+      const n = sample.bankedNormal;
 
       const leftPt = new THREE.Vector3().copy(p).addScaledVector(b, this.halfWidth);
       const rightPt = new THREE.Vector3().copy(p).addScaledVector(b, -this.halfWidth);
@@ -175,8 +215,8 @@ export class Track {
       positions.push(leftPt.x, leftPt.y + 0.05, leftPt.z);
       positions.push(rightPt.x, rightPt.y + 0.05, rightPt.z);
 
-      normals.push(sample.normal.x, sample.normal.y, sample.normal.z);
-      normals.push(sample.normal.x, sample.normal.y, sample.normal.z);
+      normals.push(n.x, n.y, n.z);
+      normals.push(n.x, n.y, n.z);
 
       uvs.push(0, vCoord);
       uvs.push(1, vCoord);
@@ -208,9 +248,6 @@ export class Track {
     this.trackMesh = new THREE.Mesh(geometry, material);
     this.trackMesh.receiveShadow = true;
     this.environmentGroup.add(this.trackMesh);
-
-    // Road embankment skirt underneath elevated sections
-    this.buildTrackFoundation();
   }
 
   buildTrackFoundation() {
@@ -222,7 +259,7 @@ export class Track {
     for (let i = 0; i <= segments; i++) {
       const sample = this.samples[i % segments];
       const p = sample.point;
-      const b = sample.binormal;
+      const b = sample.bankedBinormal;
 
       const lTop = new THREE.Vector3().copy(p).addScaledVector(b, width);
       const rTop = new THREE.Vector3().copy(p).addScaledVector(b, -width);
@@ -257,6 +294,71 @@ export class Track {
     const mesh = new THREE.Mesh(geo, mat);
     mesh.receiveShadow = true;
     this.environmentGroup.add(mesh);
+  }
+
+  /**
+   * Builds heavy architectural concrete viaduct pillars under high elevated road sections
+   */
+  buildViaductPillars() {
+    const pillarGroup = new THREE.Group();
+    const concreteMat = new THREE.MeshStandardMaterial({
+      color: 0x334155,
+      roughness: 0.88,
+      metalness: 0.15
+    });
+    const steelMat = new THREE.MeshStandardMaterial({
+      color: 0x1e293b,
+      roughness: 0.45,
+      metalness: 0.75
+    });
+
+    // Check elevated samples along spline
+    for (let i = 0; i < this.sampleCount; i += 11) {
+      const s = this.samples[i];
+      if (s.point.y > 2.8) {
+        const p = s.point;
+        const b = s.bankedBinormal;
+        const t = s.tangent;
+        const columnHeight = p.y + 4.2;
+
+        // 1. Crossbeam (Lintel) supporting under the road bed
+        const lintelGeo = new THREE.BoxGeometry(this.width + 1.2, 1.2, 2.6);
+        const lintel = new THREE.Mesh(lintelGeo, concreteMat);
+        lintel.position.copy(p);
+        lintel.position.y -= 0.65;
+        lintel.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(b, s.bankedNormal, t));
+        lintel.castShadow = true;
+        lintel.receiveShadow = true;
+        pillarGroup.add(lintel);
+
+        // 2. Twin reinforced concrete cylindrical columns
+        [-this.halfWidth * 0.62, this.halfWidth * 0.62].forEach(lat => {
+          const colGeo = new THREE.CylinderGeometry(0.82, 0.98, columnHeight, 14);
+          const colMesh = new THREE.Mesh(colGeo, concreteMat);
+          const colPos = new THREE.Vector3().copy(p).addScaledVector(b, lat);
+          colPos.y = (p.y - 1.2 - 4.0) * 0.5;
+          colMesh.position.copy(colPos);
+          colMesh.castShadow = true;
+          colMesh.receiveShadow = true;
+          pillarGroup.add(colMesh);
+
+          // Steel ring brace collars around column
+          const ringGeo = new THREE.TorusGeometry(0.92, 0.12, 8, 16);
+          ringGeo.rotateX(Math.PI / 2);
+          const ringMesh = new THREE.Mesh(ringGeo, steelMat);
+          ringMesh.position.set(colPos.x, p.y - 1.4, colPos.z);
+          pillarGroup.add(ringMesh);
+
+          // Concrete base footings
+          const footingGeo = new THREE.BoxGeometry(2.8, 1.2, 2.8);
+          const footing = new THREE.Mesh(footingGeo, concreteMat);
+          footing.position.set(colPos.x, -3.4, colPos.z);
+          pillarGroup.add(footing);
+        });
+      }
+    }
+
+    this.environmentGroup.add(pillarGroup);
   }
 
   buildStartFinishAndGrid() {
@@ -654,31 +756,36 @@ export class Track {
       const isAlt = (Math.floor(i / 2) % 2 === 0);
       const curbColor = isAlt ? (isHighSpeed ? blue : red) : white;
 
-      // Left curb
-      const lInner = new THREE.Vector3().copy(s0.point).addScaledVector(s0.binormal, this.halfWidth);
-      const lOuter = new THREE.Vector3().copy(s0.point).addScaledVector(s0.binormal, this.halfWidth + curbWidth);
-      const lInnerNext = new THREE.Vector3().copy(s1.point).addScaledVector(s1.binormal, this.halfWidth);
-      const lOuterNext = new THREE.Vector3().copy(s1.point).addScaledVector(s1.binormal, this.halfWidth + curbWidth);
+      const b0 = s0.bankedBinormal;
+      const n0 = s0.bankedNormal;
+      const b1 = s1.bankedBinormal;
+      const n1 = s1.bankedNormal;
 
-      positions.push(lInner.x, lInner.y + curbHeight, lInner.z);
-      positions.push(lOuter.x, lOuter.y + curbHeight * 0.35, lOuter.z);
-      positions.push(lInnerNext.x, lInnerNext.y + curbHeight, lInnerNext.z);
-      positions.push(lOuterNext.x, lOuterNext.y + curbHeight * 0.35, lOuterNext.z);
+      // Left curb
+      const lInner = new THREE.Vector3().copy(s0.point).addScaledVector(b0, this.halfWidth).addScaledVector(n0, curbHeight);
+      const lOuter = new THREE.Vector3().copy(s0.point).addScaledVector(b0, this.halfWidth + curbWidth).addScaledVector(n0, curbHeight * 0.35);
+      const lInnerNext = new THREE.Vector3().copy(s1.point).addScaledVector(b1, this.halfWidth).addScaledVector(n1, curbHeight);
+      const lOuterNext = new THREE.Vector3().copy(s1.point).addScaledVector(b1, this.halfWidth + curbWidth).addScaledVector(n1, curbHeight * 0.35);
+
+      positions.push(lInner.x, lInner.y, lInner.z);
+      positions.push(lOuter.x, lOuter.y, lOuter.z);
+      positions.push(lInnerNext.x, lInnerNext.y, lInnerNext.z);
+      positions.push(lOuterNext.x, lOuterNext.y, lOuterNext.z);
 
       for (let k = 0; k < 4; k++) colors.push(curbColor.r, curbColor.g, curbColor.b);
       indices.push(vertIdx, vertIdx + 1, vertIdx + 2, vertIdx + 1, vertIdx + 3, vertIdx + 2);
       vertIdx += 4;
 
       // Right curb
-      const rInner = new THREE.Vector3().copy(s0.point).addScaledVector(s0.binormal, -this.halfWidth);
-      const rOuter = new THREE.Vector3().copy(s0.point).addScaledVector(s0.binormal, -(this.halfWidth + curbWidth));
-      const rInnerNext = new THREE.Vector3().copy(s1.point).addScaledVector(s1.binormal, -this.halfWidth);
-      const rOuterNext = new THREE.Vector3().copy(s1.point).addScaledVector(s1.binormal, -(this.halfWidth + curbWidth));
+      const rInner = new THREE.Vector3().copy(s0.point).addScaledVector(b0, -this.halfWidth).addScaledVector(n0, curbHeight);
+      const rOuter = new THREE.Vector3().copy(s0.point).addScaledVector(b0, -(this.halfWidth + curbWidth)).addScaledVector(n0, curbHeight * 0.35);
+      const rInnerNext = new THREE.Vector3().copy(s1.point).addScaledVector(b1, -this.halfWidth).addScaledVector(n1, curbHeight);
+      const rOuterNext = new THREE.Vector3().copy(s1.point).addScaledVector(b1, -(this.halfWidth + curbWidth)).addScaledVector(n1, curbHeight * 0.35);
 
-      positions.push(rInner.x, rInner.y + curbHeight, rInner.z);
-      positions.push(rOuter.x, rOuter.y + curbHeight * 0.35, rOuter.z);
-      positions.push(rInnerNext.x, rInnerNext.y + curbHeight, rInnerNext.z);
-      positions.push(rOuterNext.x, rOuterNext.y + curbHeight * 0.35, rOuterNext.z);
+      positions.push(rInner.x, rInner.y, rInner.z);
+      positions.push(rOuter.x, rOuter.y, rOuter.z);
+      positions.push(rInnerNext.x, rInnerNext.y, rInnerNext.z);
+      positions.push(rOuterNext.x, rOuterNext.y, rOuterNext.z);
 
       for (let k = 0; k < 4; k++) colors.push(curbColor.r, curbColor.g, curbColor.b);
       indices.push(vertIdx, vertIdx + 1, vertIdx + 2, vertIdx + 1, vertIdx + 3, vertIdx + 2);
@@ -727,13 +834,23 @@ export class Track {
       const sides = inShortcutZone ? [-1] : [1, -1];
 
       sides.forEach(side => {
-        const p0 = new THREE.Vector3().copy(s0.point).addScaledVector(s0.binormal, side * railOffset);
-        const p1 = new THREE.Vector3().copy(s1.point).addScaledVector(s1.binormal, side * railOffset);
+        const b0 = s0.bankedBinormal;
+        const n0 = s0.bankedNormal;
+        const b1 = s1.bankedBinormal;
+        const n1 = s1.bankedNormal;
 
-        railPositions.push(p0.x, p0.y + 0.35, p0.z);
-        railPositions.push(p0.x, p0.y + 0.95, p0.z);
-        railPositions.push(p1.x, p1.y + 0.35, p1.z);
-        railPositions.push(p1.x, p1.y + 0.95, p1.z);
+        const p0 = new THREE.Vector3().copy(s0.point).addScaledVector(b0, side * railOffset);
+        const p1 = new THREE.Vector3().copy(s1.point).addScaledVector(b1, side * railOffset);
+
+        const p0Low = new THREE.Vector3().copy(p0).addScaledVector(n0, 0.35);
+        const p0High = new THREE.Vector3().copy(p0).addScaledVector(n0, 0.95);
+        const p1Low = new THREE.Vector3().copy(p1).addScaledVector(n1, 0.35);
+        const p1High = new THREE.Vector3().copy(p1).addScaledVector(n1, 0.95);
+
+        railPositions.push(p0Low.x, p0Low.y, p0Low.z);
+        railPositions.push(p0High.x, p0High.y, p0High.z);
+        railPositions.push(p1Low.x, p1Low.y, p1Low.z);
+        railPositions.push(p1High.x, p1High.y, p1High.z);
 
         for (let k = 0; k < 4; k++) {
           railColors.push(stripeColor.r, stripeColor.g, stripeColor.b);
@@ -761,6 +878,127 @@ export class Track {
     this.guardrailsMesh.castShadow = true;
     this.guardrailsMesh.receiveShadow = true;
     this.environmentGroup.add(this.guardrailsMesh);
+  }
+
+  /**
+   * Builds high-tech neon archway tunnel between t = 0.44 and t = 0.53
+   */
+  buildNeonTunnel() {
+    this.tunnelGroup = new THREE.Group();
+    this.tunnelNeonMaterials = [];
+
+    const startIdx = Math.floor(0.44 * this.sampleCount);
+    const endIdx = Math.floor(0.53 * this.sampleCount);
+    const tunnelRadius = this.halfWidth + 2.2;
+    const tunnelHeight = 6.8;
+
+    const frameMat = new THREE.MeshStandardMaterial({
+      color: 0x0f172a,
+      roughness: 0.4,
+      metalness: 0.85
+    });
+
+    const neonColors = [0x00f2fe, 0xd946ef, 0xfacc15, 0x10b981];
+
+    for (let i = startIdx; i <= endIdx; i += 3) {
+      const s = this.samples[i];
+      const p = s.point;
+      const b = s.bankedBinormal;
+      const n = s.bankedNormal;
+      const t = s.tangent;
+
+      const portalGroup = new THREE.Group();
+      portalGroup.position.copy(p);
+      portalGroup.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(b, n, t));
+
+      // 1. Semi-octagonal heavy structural arch frame
+      const frameGeo = new THREE.TorusGeometry(tunnelRadius, 0.45, 6, 18, Math.PI);
+      frameGeo.rotateZ(Math.PI);
+      const frameMesh = new THREE.Mesh(frameGeo, frameMat);
+      frameMesh.position.y += 0.2;
+      frameMesh.castShadow = true;
+      portalGroup.add(frameMesh);
+
+      // 2. High-glow Neon Interior Ring
+      const colorHex = neonColors[(Math.floor((i - startIdx) / 3)) % neonColors.length];
+      const neonMat = new THREE.MeshStandardMaterial({
+        color: colorHex,
+        emissive: colorHex,
+        emissiveIntensity: 2.2,
+        roughness: 0.15,
+        metalness: 0.8
+      });
+      this.tunnelNeonMaterials.push(neonMat);
+
+      const neonGeo = new THREE.TorusGeometry(tunnelRadius - 0.25, 0.18, 6, 24, Math.PI);
+      neonGeo.rotateZ(Math.PI);
+      const neonMesh = new THREE.Mesh(neonGeo, neonMat);
+      neonMesh.position.y += 0.2;
+      portalGroup.add(neonMesh);
+
+      // 3. Side vertical footing columns
+      [-tunnelRadius, tunnelRadius].forEach(xCol => {
+        const foot = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.8, 1.2), frameMat);
+        foot.position.set(xCol, 0.8, 0);
+        portalGroup.add(foot);
+      });
+
+      this.tunnelGroup.add(portalGroup);
+    }
+
+    // 4. Continuous semi-transparent roof canopy covering the tunnel section
+    const roofPositions = [];
+    const roofIndices = [];
+    let rIdx = 0;
+
+    for (let i = startIdx; i < endIdx; i++) {
+      const s0 = this.samples[i];
+      const s1 = this.samples[i + 1];
+
+      const p0 = s0.point;
+      const p1 = s1.point;
+      const b0 = s0.bankedBinormal;
+      const b1 = s1.bankedBinormal;
+      const n0 = s0.bankedNormal;
+      const n1 = s1.bankedNormal;
+
+      // Canopy ribs spanning from left shoulder to right shoulder over normal
+      const l0 = new THREE.Vector3().copy(p0).addScaledVector(b0, this.halfWidth + 0.8).addScaledVector(n0, 1.5);
+      const r0 = new THREE.Vector3().copy(p0).addScaledVector(b0, -(this.halfWidth + 0.8)).addScaledVector(n0, 1.5);
+      const top0 = new THREE.Vector3().copy(p0).addScaledVector(n0, tunnelHeight);
+
+      const l1 = new THREE.Vector3().copy(p1).addScaledVector(b1, this.halfWidth + 0.8).addScaledVector(n1, 1.5);
+      const r1 = new THREE.Vector3().copy(p1).addScaledVector(b1, -(this.halfWidth + 0.8)).addScaledVector(n1, 1.5);
+      const top1 = new THREE.Vector3().copy(p1).addScaledVector(n1, tunnelHeight);
+
+      // Left canopy facet
+      roofPositions.push(l0.x, l0.y, l0.z, top0.x, top0.y, top0.z, l1.x, l1.y, l1.z, top1.x, top1.y, top1.z);
+      roofIndices.push(rIdx, rIdx + 1, rIdx + 2, rIdx + 1, rIdx + 3, rIdx + 2);
+      rIdx += 4;
+
+      // Right canopy facet
+      roofPositions.push(top0.x, top0.y, top0.z, r0.x, r0.y, r0.z, top1.x, top1.y, top1.z, r1.x, r1.y, r1.z);
+      roofIndices.push(rIdx, rIdx + 1, rIdx + 2, rIdx + 1, rIdx + 3, rIdx + 2);
+      rIdx += 4;
+    }
+
+    const roofGeo = new THREE.BufferGeometry();
+    roofGeo.setIndex(roofIndices);
+    roofGeo.setAttribute('position', new THREE.Float32BufferAttribute(roofPositions, 3));
+    roofGeo.computeVertexNormals();
+
+    const roofMat = new THREE.MeshStandardMaterial({
+      color: 0x090d16,
+      roughness: 0.25,
+      metalness: 0.65,
+      transparent: true,
+      opacity: 0.78,
+      side: THREE.DoubleSide
+    });
+    const roofMesh = new THREE.Mesh(roofGeo, roofMat);
+    this.tunnelGroup.add(roofMesh);
+
+    this.environmentGroup.add(this.tunnelGroup);
   }
 
   buildStartGantry() {
@@ -1118,7 +1356,7 @@ export class Track {
   }
 
   /**
-   * Animates track elements (boost pad scrolling texture, cheering spectators, drifting clouds)
+   * Animates track elements (boost pad scrolling texture, neon tunnel pulses, cheering spectators, drifting clouds)
    */
   update(deltaTime) {
     if (this.boostPadTexture) {
@@ -1131,6 +1369,13 @@ export class Track {
       const pulse = 1.6 + 0.45 * Math.sin(performance.now() * 0.007);
       this.rampLipMaterials.forEach(mat => {
         mat.emissiveIntensity = pulse;
+      });
+    }
+    if (this.tunnelNeonMaterials && this.tunnelNeonMaterials.length > 0) {
+      const time = performance.now() * 0.005;
+      this.tunnelNeonMaterials.forEach((mat, idx) => {
+        const wave = 1.6 + 0.75 * Math.sin(time * 1.8 + idx * 0.5);
+        mat.emissiveIntensity = wave;
       });
     }
   }
@@ -1219,7 +1464,8 @@ export class Track {
     const sample = this.samples[closestIdx];
     const diff = new THREE.Vector3().subVectors(worldPos, sample.point);
 
-    const lateralOffset = diff.dot(sample.binormal);
+    const binormal = sample.bankedBinormal || sample.binormal;
+    const lateralOffset = diff.dot(binormal);
     const isOffRoad = Math.abs(lateralOffset) > this.halfWidth + 0.8;
     const isOnCurb = Math.abs(lateralOffset) > this.halfWidth && !isOffRoad;
 
@@ -1236,6 +1482,11 @@ export class Track {
 
   getWaypointAtProgress(t, lateralOffset = 0) {
     const wrappedT = ((t % 1.0) + 1.0) % 1.0;
+    const sampleIdx = Math.floor(wrappedT * this.sampleCount);
+    const sample = this.samples[sampleIdx];
+    if (sample && sample.bankedBinormal) {
+      return new THREE.Vector3().copy(sample.point).addScaledVector(sample.bankedBinormal, lateralOffset);
+    }
     const point = this.curve.getPointAt(wrappedT);
     const tangent = this.curve.getTangentAt(wrappedT);
     const binormal = new THREE.Vector3().crossVectors(tangent, new THREE.Vector3(0, 1, 0)).normalize();
