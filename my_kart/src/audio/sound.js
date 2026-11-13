@@ -110,6 +110,48 @@ export class SoundSystem {
     osc.stop(now + 0.36);
   }
 
+  playCoinCollect() {
+    this.ensureContext();
+    if (!this.ctx || this.isMuted) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    // Classic 2-tone chime: B5 (987.77 Hz) -> E6 (1318.51 Hz)
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(987.77, now);
+    osc.frequency.setValueAtTime(1318.51, now + 0.07);
+
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.setValueAtTime(0.25, now + 0.07);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.33);
+  }
+
+  playStarPower() {
+    this.ensureContext();
+    if (!this.ctx || this.isMuted) return;
+    const now = this.ctx.currentTime;
+    const notes = [587.33, 659.25, 783.99, 880.0, 1046.5, 1174.66, 1318.51];
+    notes.forEach((freq, idx) => {
+      const t = now + idx * 0.045;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, t);
+      gain.gain.setValueAtTime(0.16, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.15);
+    });
+  }
+
   playDriftSparks(stage) {
     this.ensureContext();
     if (!this.ctx || this.isMuted) return;
@@ -177,11 +219,30 @@ export class SoundSystem {
         break;
 
       case 'BOOST_MUSHROOM':
+      case 'GOLDEN_MUSHROOM':
         osc.type = 'sawtooth';
         osc.frequency.setValueAtTime(320, now);
-        osc.frequency.exponentialRampToValueAtTime(740, now + 0.4);
+        osc.frequency.exponentialRampToValueAtTime(820, now + 0.35);
         gain.gain.setValueAtTime(0.25, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+        break;
+
+      case 'SUPER_STAR':
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(523.25, now); // C5
+        osc.frequency.setValueAtTime(659.25, now + 0.08); // E5
+        osc.frequency.setValueAtTime(783.99, now + 0.16); // G5
+        osc.frequency.setValueAtTime(1046.5, now + 0.24); // C6
+        gain.gain.setValueAtTime(0.24, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+        break;
+
+      case 'FAKE_ITEM_BOX':
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(440, now);
+        osc.frequency.exponentialRampToValueAtTime(160, now + 0.25);
+        gain.gain.setValueAtTime(0.22, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
         break;
 
       case 'BLUE_SHELL':

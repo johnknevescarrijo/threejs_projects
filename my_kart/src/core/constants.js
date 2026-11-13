@@ -58,7 +58,17 @@ export const ITEM_TYPES = {
   BANANA: 'BANANA',
   BOOST_MUSHROOM: 'BOOST_MUSHROOM',
   LIGHTNING: 'LIGHTNING',
-  BLUE_SHELL: 'BLUE_SHELL'
+  BLUE_SHELL: 'BLUE_SHELL',
+  SUPER_STAR: 'SUPER_STAR',
+  GOLDEN_MUSHROOM: 'GOLDEN_MUSHROOM',
+  FAKE_ITEM_BOX: 'FAKE_ITEM_BOX'
+};
+
+export const COIN_CONFIG = {
+  MAX_COINS: 10,
+  SPEED_BONUS_PER_COIN: 0.012, // +1.2% effective top speed per coin (up to +12%)
+  DROP_ON_HIT: 3,
+  RESPAWN_TIME: 8.0
 };
 
 export const ITEM_PROPERTIES = {
@@ -108,5 +118,28 @@ export const ITEM_PROPERTIES = {
     icon: '⚡',
     type: 'area_shock',
     duration: 4.5
+  },
+  [ITEM_TYPES.SUPER_STAR]: {
+    name: 'Super Estrela',
+    color: 0xfacc15,
+    icon: '⭐',
+    type: 'invincibility_star',
+    boostSpeed: 20,
+    duration: 6.5
+  },
+  [ITEM_TYPES.GOLDEN_MUSHROOM]: {
+    name: 'Cogumelo Dourado',
+    color: 0xfbbf24,
+    icon: '👑🍄',
+    type: 'golden_boost',
+    boostSpeed: 26,
+    duration: 5.5
+  },
+  [ITEM_TYPES.FAKE_ITEM_BOX]: {
+    name: 'Caixa Falsa',
+    color: 0xef4444,
+    icon: '📦',
+    type: 'ground_trap',
+    lifetime: 50
   }
 };

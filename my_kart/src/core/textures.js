@@ -197,30 +197,171 @@ export class ProceduralTextures {
     canvas.height = 256;
     const ctx = canvas.getContext('2d');
 
-    // Rainbow diagonal gradient
+    // Vibrant arcade rainbow diagonal gradient
     const grad = ctx.createLinearGradient(0, 0, 256, 256);
-    grad.addColorStop(0, 'rgba(255, 56, 96, 0.85)');
-    grad.addColorStop(0.25, 'rgba(255, 206, 0, 0.85)');
-    grad.addColorStop(0.5, 'rgba(34, 211, 238, 0.85)');
-    grad.addColorStop(0.75, 'rgba(168, 85, 247, 0.85)');
-    grad.addColorStop(1, 'rgba(255, 56, 96, 0.85)');
+    grad.addColorStop(0, '#ff1a75');
+    grad.addColorStop(0.22, '#ff9900');
+    grad.addColorStop(0.48, '#ffee00');
+    grad.addColorStop(0.72, '#00e5ff');
+    grad.addColorStop(0.88, '#9d00ff');
+    grad.addColorStop(1, '#ff1a75');
 
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 256, 256);
 
-    // Glowing border frame
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 12;
-    ctx.strokeRect(10, 10, 236, 236);
+    // Inner bright glass highlight
+    const highlight = ctx.createRadialGradient(128, 80, 10, 128, 128, 140);
+    highlight.addColorStop(0, 'rgba(255, 255, 255, 0.45)');
+    highlight.addColorStop(0.6, 'rgba(255, 255, 255, 0.08)');
+    highlight.addColorStop(1, 'rgba(0, 0, 0, 0.25)');
+    ctx.fillStyle = highlight;
+    ctx.fillRect(0, 0, 256, 256);
 
-    // Question Mark
-    ctx.font = '900 150px Montserrat, sans-serif';
+    // Glowing thick white border frame with inner bevel
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+    ctx.lineWidth = 14;
+    ctx.strokeRect(12, 12, 232, 232);
+
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(20, 20, 216, 216);
+
+    // Bold classic question mark with drop shadow and outline
+    ctx.font = '900 156px Montserrat, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
-    ctx.fillText('?', 134, 140);
+
+    // Deep shadow
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+    ctx.fillText('?', 136, 144);
+
+    // Outer dark stroke for readability
+    ctx.strokeStyle = '#1e1b4b';
+    ctx.lineWidth = 10;
+    ctx.strokeText('?', 128, 134);
+
+    // Crisp white fill
     ctx.fillStyle = '#ffffff';
     ctx.fillText('?', 128, 134);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
+  static createDoubleItemBoxTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+
+    // Rich dual-tone gold & cyan gradient
+    const grad = ctx.createLinearGradient(0, 0, 256, 256);
+    grad.addColorStop(0, '#facc15');
+    grad.addColorStop(0.35, '#fb923c');
+    grad.addColorStop(0.7, '#06b6d4');
+    grad.addColorStop(1, '#3b82f6');
+
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 256, 256);
+
+    // Radial sparkle highlight
+    const radial = ctx.createRadialGradient(128, 100, 15, 128, 128, 140);
+    radial.addColorStop(0, 'rgba(255, 255, 255, 0.55)');
+    radial.addColorStop(0.65, 'rgba(255, 255, 255, 0.12)');
+    radial.addColorStop(1, 'rgba(0, 0, 0, 0.28)');
+    ctx.fillStyle = radial;
+    ctx.fillRect(0, 0, 256, 256);
+
+    // Double frame (gold-tinted outer + white inner)
+    ctx.strokeStyle = '#fef08a';
+    ctx.lineWidth = 14;
+    ctx.strokeRect(12, 12, 232, 232);
+
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(20, 20, 216, 216);
+
+    // Top "2X" badge
+    ctx.font = 'italic 900 48px Montserrat, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.fillText('2X', 132, 60);
+    ctx.fillStyle = '#fef08a';
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 6;
+    ctx.strokeText('2X', 128, 56);
+    ctx.fillText('2X', 128, 56);
+
+    // Question mark slightly lower
+    ctx.font = '900 126px Montserrat, sans-serif';
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+    ctx.fillText('?', 134, 158);
+
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 10;
+    ctx.strokeText('?', 128, 152);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('?', 128, 152);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
+  static createFakeItemBoxTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+
+    // Danger red/orange gradient (Classic Fake Item Box alert)
+    const grad = ctx.createLinearGradient(0, 0, 256, 256);
+    grad.addColorStop(0, '#dc2626');
+    grad.addColorStop(0.5, '#ea580c');
+    grad.addColorStop(1, '#991b1b');
+
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 256, 256);
+
+    // Red warning aura
+    const aura = ctx.createRadialGradient(128, 128, 20, 128, 128, 135);
+    aura.addColorStop(0, 'rgba(254, 202, 202, 0.35)');
+    aura.addColorStop(0.7, 'rgba(185, 28, 28, 0.2)');
+    aura.addColorStop(1, 'rgba(69, 10, 10, 0.6)');
+    ctx.fillStyle = aura;
+    ctx.fillRect(0, 0, 256, 256);
+
+    // Dark danger border with red inner rim
+    ctx.strokeStyle = '#fca5a5';
+    ctx.lineWidth = 14;
+    ctx.strokeRect(12, 12, 232, 232);
+
+    ctx.strokeStyle = '#7f1d1d';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(20, 20, 216, 216);
+
+    // Inverted Question Mark (Mario Kart Fake Item Box feature: dot is at the top!)
+    ctx.save();
+    ctx.translate(128, 128);
+    ctx.rotate(Math.PI); // Upside down !
+
+    ctx.font = '900 156px Montserrat, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+    ctx.fillText('?', 6, 8);
+
+    ctx.strokeStyle = '#450a0a';
+    ctx.lineWidth = 10;
+    ctx.strokeText('?', 0, 0);
+
+    ctx.fillStyle = '#fef08a'; // Glowing yellow upside-down question mark
+    ctx.fillText('?', 0, 0);
+    ctx.restore();
 
     const tex = new THREE.CanvasTexture(canvas);
     tex.colorSpace = THREE.SRGBColorSpace;
