@@ -977,6 +977,10 @@ button {
   border-color: rgba(250, 204, 21, 0.55);
   opacity: 0.9;
 }
+.color-swatch:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
 
 .swatch-disc {
   width: 14px;
@@ -1183,6 +1187,14 @@ button {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.room-team-customize {
+  background: rgba(15, 23, 42, 0.58);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
 }
 
 /* =========================================================================
