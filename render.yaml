@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: futebol-de-botao-3d
+    runtime: node
+    plan: free
+    rootDir: jogo_fubetol
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
