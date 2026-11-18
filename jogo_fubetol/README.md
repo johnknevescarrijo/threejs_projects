@@ -68,7 +68,7 @@ Acesse **`http://localhost:8000`**. O jogo detecta automaticamente que não há 
 Você pode hospedar o jogo completo (Frontend 3D + Backend REST + WebSocket Multiplayer) gratuitamente no **Render** conectado ao seu repositório **GitHub**:
 
 ### Passo 1: Enviar o código para o GitHub
-1. Crie um repositório no GitHub (ou use o repositório existente com `render.yaml` na raiz).
+1. Crie um repositório no GitHub (ou use o repositório existente, onde a configuração deste jogo fica isolada em `jogo_fubetol/render.yaml`).
 2. Faça o push da branch principal com os commits atualizados:
    ```bash
    git push origin main
@@ -76,13 +76,8 @@ Você pode hospedar o jogo completo (Frontend 3D + Backend REST + WebSocket Mult
 
 ### Passo 2: Criar o serviço no Render
 
-- **Opção A — Blueprint em 1 clique (Recomendado):**
-  1. Acesse o [Dashboard do Render](https://dashboard.render.com/) → **New + → Blueprint**.
-  2. Conecte seu repositório do GitHub.
-  3. O Render lerá automaticamente o arquivo `render.yaml` na raiz do repositório (`rootDir: jogo_fubetol`, `plan: free`, `healthCheckPath: /api/health`) e criará o serviço Web `futebol-de-botao-3d`.
-
-- **Opção B — Configuração Manual (`New → Web Service`):**
-  1. Acesse **New + → Web Service** e conecte seu repositório GitHub.
+- **Opção A — Web Service Direto (`New → Web Service`) (Recomendado para monorepo com vários jogos):**
+  1. Acesse o [Dashboard do Render](https://dashboard.render.com/) → **New + → Web Service** e conecte seu repositório GitHub.
   2. Preencha os campos:
      - **Root Directory:** `jogo_fubetol`
      - **Runtime:** `Node`
@@ -91,6 +86,10 @@ Você pode hospedar o jogo completo (Frontend 3D + Backend REST + WebSocket Mult
      - **Plan:** `Free`
      - **Health Check Path (Advanced):** `/api/health`
   3. Adicione a variável de ambiente `NODE_ENV=production` e clique em **Create Web Service**.
+
+- **Opção B — Blueprint (`New → Blueprint`) usando `jogo_fubetol/render.yaml`:**
+  1. Acesse **New + → Blueprint** e conecte seu repositório do GitHub.
+  2. Aponte o **Blueprint Path** para `jogo_fubetol/render.yaml` (ele já define `rootDir: jogo_fubetol`, `plan: free`, `healthCheckPath: /api/health` e `NODE_ENV=production`) para criar o serviço Web `futebol-de-botao-3d` mantendo a raiz do monorepo limpa.
 
 ### Observações do Plano Gratuito (Render Free)
 - **Hibernação por inatividade (spin-down):** Serviços gratuitos dormem após ~15 minutos sem tráfego. O primeiro acesso após hibernar pode levar cerca de **30 a 50 segundos** para acordar o container (o cliente já usa timeout tolerante de `12s` + retry automático em domínios remotos para evitar falso fallback offline).
@@ -131,6 +130,7 @@ jogo_fubetol/
 │   ├── localProfileAndRules.test.mjs
 │   └── serverMultiplayer.test.mjs
 ├── package.json
+├── render.yaml
 ├── README.md
 ├── AGENTS.md
 └── MEMORY.md
