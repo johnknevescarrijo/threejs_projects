@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { WebSocket } from 'ws';
-import { createGameServer } from '../server/index.js';
+import { createGameServer, startServerWithFallback } from '../server/index.js';
 
 function createWsHelper(url) {
   const ws = new WebSocket(url);
@@ -468,4 +468,107 @@ test('Multiplayer disconnect during active match declares W.O. forfeit and clean
   const hostEntry = lb.leaderboard.find((e) => e.username === 'wo_host');
   assert.equal(hostEntry.wins, 1);
   assert.equal(hostEntry.points, 3);
+});
+
+test('Dual-stack default bind responds 200 OK via IPv4, IPv6 (::1), and localhost', async (t) => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fubetol-dualstack-test-'));
+  const dataFile = path.join(tmpDir, 'db.json');
+  const gameServer = createGameServer({ port: 0, dataFile });
+  const { port } = await gameServer.start();
+
+  t.after(async () => {
+    await gameServer.close();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  const [ipv4Res, ipv6Res, localhostRes] = await Promise.all([
+    fetch(`http://127.0.0.1:${port}/api/health`),
+    fetch(`http://[::1]:${port}/api/health`),
+    fetch(`http://localhost:${port}/api/health`),
+  ]);
+
+  assert.equal(ipv4Res.status, 200);
+  assert.equal(ipv6Res.status, 200);
+  assert.equal(localhostRes.status, 200);
+
+  const [ipv4Json, ipv6Json, localhostJson] = await Promise.all([
+    ipv4Res.json(),
+    ipv6Res.json(),
+    localhostRes.json(),
+  ]);
+  assert.equal(ipv4Json.ok, true);
+  assert.equal(ipv6Json.ok, true);
+  assert.equal(localhostJson.ok, true);
+
+  // Também valida WebSocket via IPv6 (::1) e localhost
+  const ws6 = createWsHelper(`ws://[::1]:${port}/ws`);
+  const wsLocal = createWsHelper(`ws://localhost:${port}/ws`);
+  t.after(async () => {
+    await ws6.close();
+    await wsLocal.close();
+  });
+
+  await Promise.all([ws6.waitForOpen(), wsLocal.waitForOpen()]);
+  const [welcome6, welcomeLocal] = await Promise.all([
+    ws6.nextMessage((m) => m.type === 'welcome'),
+    wsLocal.nextMessage((m) => m.type === 'welcome'),
+  ]);
+  assert.ok(welcome6.clientId);
+  assert.ok(welcomeLocal.clientId);
+});
+
+test('startServerWithFallback switches to next free port when PORT is not explicit and fails clearly when explicit', async (t) => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fubetol-fallback-test-'));
+  const firstData = path.join(tmpDir, 'db1.json');
+  const secondData = path.join(tmpDir, 'db2.json');
+
+  const firstServer = createGameServer({ port: 0, dataFile: firstData });
+  const { port: occupiedPort } = await firstServer.start();
+
+  const warnings = [];
+  const silentLogger = {
+    warn: (msg) => warnings.push(msg),
+  };
+
+  let fallbackResult = null;
+  t.after(async () => {
+    if (fallbackResult?.gameServer) {
+      await fallbackResult.gameServer.close();
+    }
+    await firstServer.close();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  // Fallback automático quando explicitPort=false
+  fallbackResult = await startServerWithFallback({
+    port: occupiedPort,
+    explicitPort: false,
+    maxFallbackSteps: 5,
+    dataFile: secondData,
+    logger: silentLogger,
+  });
+
+  assert.ok(fallbackResult.port > occupiedPort);
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], new RegExp(`Porta ${occupiedPort} em uso`));
+
+  // Verifica que o servidor em fallback responde normalmente
+  const healthRes = await fetch(`http://localhost:${fallbackResult.port}/api/health`);
+  assert.equal(healthRes.status, 200);
+
+  // Quando explicitPort=true, não faz fallback e informa como trocar a porta
+  await assert.rejects(
+    () =>
+      startServerWithFallback({
+        port: occupiedPort,
+        explicitPort: true,
+        dataFile: secondData,
+        logger: silentLogger,
+      }),
+    (err) => {
+      assert.equal(err.code, 'EADDRINUSE');
+      assert.match(err.friendlyMessage, /PORT=\d+ npm start/);
+      return true;
+    }
+  );
 });
