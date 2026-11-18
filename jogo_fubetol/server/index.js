@@ -89,6 +89,7 @@ export function createGameServer({
   host = undefined,
   dataFile = DEFAULT_DATA_FILE,
   staticDir = DEFAULT_STATIC_DIR,
+  wsHeartbeatIntervalMs = 25000,
 } = {}) {
   const normalizedHost = typeof host === 'string' && host.trim() ? host.trim() : undefined;
   const resolvedStaticDir = path.resolve(staticDir);
@@ -190,7 +191,15 @@ export function createGameServer({
     // REST API Routes
     if (pathname.startsWith('/api/')) {
       try {
-        if (method === 'GET' && pathname === '/api/health') {
+        if ((method === 'GET' || method === 'HEAD') && pathname === '/api/health') {
+          if (method === 'HEAD') {
+            res.writeHead(200, {
+              'Content-Type': 'application/json; charset=utf-8',
+              'Cache-Control': 'no-store',
+            });
+            res.end();
+            return;
+          }
           sendJson(res, 200, {
             ok: true,
             mode: 'online',
@@ -370,15 +379,46 @@ export function createGameServer({
   // Evita crash por EventEmitter unhandled 'error' quando o http.Server emite EADDRINUSE durante start()
   wss.on('error', () => {});
 
+  // Keepalive server-side para manter conexões WebSocket ativas através de proxies (ex: Render)
+  // e encerrar conexões mortas sem prender o event loop (.unref).
+  const wsHeartbeatTimer =
+    Number.isFinite(wsHeartbeatIntervalMs) && wsHeartbeatIntervalMs > 0
+      ? setInterval(() => {
+          for (const client of clientsById.values()) {
+            if (!client.isAlive) {
+              try {
+                client.ws.terminate();
+              } catch (err) {}
+              continue;
+            }
+            client.isAlive = false;
+            try {
+              if (client.ws.readyState === WebSocket.OPEN) {
+                client.ws.ping();
+              }
+            } catch (err) {}
+          }
+        }, wsHeartbeatIntervalMs)
+      : null;
+
+  if (wsHeartbeatTimer && typeof wsHeartbeatTimer.unref === 'function') {
+    wsHeartbeatTimer.unref();
+  }
+
   wss.on('connection', (ws) => {
     const client = {
       id: crypto.randomUUID(),
       ws,
+      isAlive: true,
       user: null,
       roomId: null,
       side: null,
     };
     clientsById.set(client.id, client);
+
+    ws.on('pong', () => {
+      client.isAlive = true;
+    });
 
     sendWs(ws, 'welcome', {
       clientId: client.id,
@@ -583,6 +623,9 @@ export function createGameServer({
   }
 
   function close() {
+    if (wsHeartbeatTimer) {
+      clearInterval(wsHeartbeatTimer);
+    }
     return new Promise((resolve) => {
       for (const client of clientsById.values()) {
         try {
@@ -676,6 +719,8 @@ if (isMainModule) {
   const explicitPort = rawPort !== '';
   const port = explicitPort ? Number(rawPort) : 3000;
   const host = process.env.HOST ? process.env.HOST.trim() || undefined : undefined;
+  const rawDataFile = process.env.DATA_FILE ? process.env.DATA_FILE.trim() : '';
+  const dataFile = rawDataFile || DEFAULT_DATA_FILE;
 
   if (explicitPort && (!Number.isInteger(port) || port < 0 || port > 65535)) {
     console.error(
@@ -684,8 +729,41 @@ if (isMainModule) {
     process.exit(1);
   }
 
-  startServerWithFallback({ port, explicitPort, host })
-    .then(({ port: boundPort, host: boundHost }) => {
+  let activeGameServer = null;
+  let isShuttingDown = false;
+
+  function handleShutdown(signal) {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    console.log(`\n🛑 Sinal ${signal} recebido. Encerrando servidor com segurança...`);
+    if (!activeGameServer) {
+      process.exit(0);
+      return;
+    }
+    const forceExitTimer = setTimeout(() => {
+      process.exit(0);
+    }, 5000);
+    if (typeof forceExitTimer.unref === 'function') {
+      forceExitTimer.unref();
+    }
+    activeGameServer
+      .close()
+      .catch(() => {})
+      .finally(() => {
+        clearTimeout(forceExitTimer);
+        process.exit(0);
+      });
+  }
+
+  process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+  process.on('SIGINT', () => handleShutdown('SIGINT'));
+
+  startServerWithFallback({ port, explicitPort, host, dataFile })
+    .then(({ gameServer, port: boundPort, host: boundHost }) => {
+      if (isShuttingDown) {
+        return gameServer.close().catch(() => {});
+      }
+      activeGameServer = gameServer;
       console.log('⚽ Futebol de Botão 3D Online pronto! Abra no navegador:');
       console.log(`   • Local (IPv4/IPv6): http://localhost:${boundPort}`);
       if (!host || host !== '::1') {
