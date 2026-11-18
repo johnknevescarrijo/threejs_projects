@@ -265,6 +265,8 @@
             <span style="font-size: 12px; color: var(--text-muted);" id="online-server-info">Servidor Node.js não conectado</span>
           </div>
 
+          <div class="feedback-banner" id="online-feedback"></div>
+
           <div class="info-banner" id="online-offline-banner">
             <strong>Modo Online pronto para conexão:</strong> para jogar partidas em rede e usar salas ao vivo, inicie o servidor Node.js na pasta do projeto com <code>npm start</code> e recarregue via <code>http://localhost:3000</code>. Enquanto isso, todos os modos locais e contas offline funcionam normalmente.
           </div>
@@ -328,7 +330,7 @@
             <div class="room-waiting-header">
               <div>
                 <div style="font-size: 15px; font-weight: 800;" id="room-title-display">Sala de Espera</div>
-                <div style="font-size: 11.5px; color: var(--text-muted);">Aguardando jogadores ficarem prontos</div>
+                <div style="font-size: 11.5px; color: var(--text-muted);" id="room-waiting-subtitle">Aguardando jogadores ficarem prontos</div>
               </div>
               <div class="inline-form-row">
                 <div class="room-code-box">
@@ -342,6 +344,21 @@
             <div class="room-players-grid">
               <div class="room-player-card" id="room-slot-red"></div>
               <div class="room-player-card" id="room-slot-blue"></div>
+            </div>
+
+            <div class="room-team-customize" id="room-team-customize">
+              <form class="inline-form-row" id="form-room-team" style="margin-bottom: 8px;">
+                <input
+                  type="text"
+                  id="input-room-team-name"
+                  class="text-input"
+                  maxlength="18"
+                  placeholder="Nome do seu time na partida"
+                  autocomplete="off"
+                />
+                <button class="btn-secondary" id="btn-room-team-save" type="submit">Aplicar Nome</button>
+              </form>
+              <div class="color-swatches" id="room-color-swatches"></div>
             </div>
 
             <div class="modal-actions" style="margin-bottom: 12px;">
@@ -367,7 +384,7 @@
         <section class="tab-panel" id="tab-panel-account" data-tab-panel="account" role="tabpanel">
           <div class="account-top-bar">
             <span class="status-badge" id="account-mode-badge">Conta Local (Offline)</span>
-            <span style="font-size: 12px; color: var(--text-muted);">Estatísticas e ranking salvos localmente no navegador</span>
+            <span style="font-size: 12px; color: var(--text-muted);" id="account-storage-note">Estatísticas e ranking salvos localmente no navegador</span>
           </div>
 
           <div class="feedback-banner" id="account-feedback"></div>
@@ -550,6 +567,7 @@
       recordLocalMatchResult,
     } from './js/localProfile.js';
     import { createUIController } from './js/uiController.js';
+    import { initOnlineClient } from './js/onlineClient.js';
 
     // =========================================================================
     // 0. PERSONALIZAÇÃO DE CORES E NOMES DOS TIMES
@@ -1244,6 +1262,7 @@
     let onlineRoomCode = null;
     let isTurnLocked = false;
     let turnLockLabel = '';
+    let pendingOnlineTurnSettle = false;
 
     // Estado da Partida
     let currentTurn = 'red'; // 'red' ou 'blue'
@@ -1991,16 +2010,48 @@
       });
 
       const matchEval = evaluateMatchWinner({ red: scoreRed, blue: scoreBlue }, goalLimit);
+      if (isOnlineMatch) {
+        pendingOnlineTurnSettle = true;
+      }
 
       if (goalResetTimeoutId) clearTimeout(goalResetTimeoutId);
       goalResetTimeoutId = setTimeout(() => {
         goalBanner.classList.remove('show');
         if (matchEval.finished) {
+          if (isOnlineMatch) {
+            isMatchFinished = true;
+            isMoving = false;
+            goalCooldown = false;
+            pendingOnlineTurnSettle = false;
+            pieces.forEach((p) => p.vel.set(0, 0));
+            if (ball) ball.vel.set(0, 0);
+            updateTurnUI();
+            emit('turnSettled', {
+              previousTurn: currentTurn,
+              nextTurn: currentTurn,
+              snapshot: getGameSnapshot(),
+            });
+            return;
+          }
           finishMatch(matchEval);
           return;
         }
         resetPositions();
         goalCooldown = false;
+        if (isOnlineMatch && pendingOnlineTurnSettle) {
+          pendingOnlineTurnSettle = false;
+          isMoving = false;
+          updateDefensiveGoalkeepers();
+          const previousTurn = currentTurn;
+          currentTurn = currentTurn === 'red' ? 'blue' : 'red';
+          updateTurnUI();
+          emit('turnSettled', {
+            previousTurn,
+            nextTurn: currentTurn,
+            snapshot: getGameSnapshot(),
+          });
+          return;
+        }
         triggerBotTurnIfNeeded();
       }, 2400);
     }
@@ -2211,6 +2262,10 @@
         const stillMoving = allEntities.some(ent => ent.vel.lengthSq() > 0.0001);
         if (!stillMoving) {
           isMoving = false;
+          if (isOnlineMatch && goalCooldown) {
+            // Aguarda o timer de reposicionamento do gol antes de sincronizar o turno
+            return;
+          }
           updateDefensiveGoalkeepers();
           const previousTurn = currentTurn;
           if (!isMatchFinished) {
@@ -2299,6 +2354,14 @@
             onlineRoomCode,
           });
         }
+      },
+      onGameOverMenu: () => {
+        if (isOnlineMatch) {
+          emit('roomAction', { action: 'leaveRoom', payload: { code: onlineRoomCode } });
+          exitOnlineMatch();
+          return;
+        }
+        ui.openMenu('play');
       },
     });
 
@@ -2631,12 +2694,25 @@
 
     function applyRemoteStateSync(snapshot) {
       if (!snapshot || typeof snapshot !== 'object') return;
+      if (goalResetTimeoutId) {
+        clearTimeout(goalResetTimeoutId);
+        goalResetTimeoutId = null;
+      }
+      goalCooldown = false;
+      pendingOnlineTurnSettle = false;
+      goalBanner.classList.remove('show');
+
       if (snapshot.teamCustomization) {
         setTeamCustomization(snapshot.teamCustomization, { persist: false, syncInputs: true });
       }
+      const prevRed = scoreRed;
+      const prevBlue = scoreBlue;
       if (Number.isFinite(snapshot.scoreRed)) scoreRed = snapshot.scoreRed;
       if (Number.isFinite(snapshot.scoreBlue)) scoreBlue = snapshot.scoreBlue;
       hudScore.innerText = `${scoreRed} - ${scoreBlue}`;
+      if (scoreRed > prevRed || scoreBlue > prevBlue) {
+        playGoalFanfare();
+      }
 
       if (snapshot.goalLimit !== undefined) {
         goalLimit = normalizeGoalLimit(snapshot.goalLimit);
@@ -2724,9 +2800,22 @@
       turnLockLabel = config.turnLockLabel || '';
       isMatchFinished = false;
       goalCooldown = false;
+      pendingOnlineTurnSettle = false;
 
       if (config.teams) {
         setTeamCustomization(config.teams, { persist: false, syncInputs: true });
+      }
+
+      if (onlinePlayerSide === 'red') {
+        currentCameraViewIdx = 2;
+        camera.position.copy(cameraViews[2].pos);
+        controls.target.copy(cameraViews[2].target);
+        updateCameraButtonLabel();
+      } else if (onlinePlayerSide === 'blue') {
+        currentCameraViewIdx = 3;
+        camera.position.copy(cameraViews[3].pos);
+        controls.target.copy(cameraViews[3].target);
+        updateCameraButtonLabel();
       }
 
       scoreRed = 0;
@@ -2809,12 +2898,17 @@
       // Hooks de UI / Menu / Lobby (Feature 2 & 3)
       openMenu,
       closeMenu,
+      setActiveTab: ui.setActiveTab,
       setOnlineState: ui.setOnlineState,
+      setOnlineFeedback: ui.setOnlineFeedback,
       renderOnlineRooms: ui.renderOnlineRooms,
       renderOnlineRoom: ui.renderOnlineRoom,
       renderLeaderboard: ui.renderLeaderboard,
       setAccountFeedback: ui.setAccountFeedback,
       refreshAccountView: ui.refreshAccountView,
+      updateHUDMeta: ui.updateHUDMeta,
+      showMatchOver: ui.showMatchOver,
+      hideMatchOver: ui.hideMatchOver,
 
       // Hooks de Partida Online (Feature 3)
       startOnlineMatch,
@@ -2833,6 +2927,7 @@
     updateSoundButtonLabel();
     applyTeamAppearance({ syncInputs: true });
     ui.openMenu('play');
+    initOnlineClient(window.FutebolBotaoApp);
 
     // =========================================================================
     // 10. LOOP PRINCIPAL DE RENDERIZAÇÃO

@@ -53,6 +53,7 @@ export function createUIController({
   onUseProfileTeam,
   onPlayAgain,
   onRestartFromMenu,
+  onGameOverMenu,
 } = {}) {
   const safeEmit = typeof emit === 'function' ? emit : () => {};
 
@@ -89,6 +90,7 @@ export function createUIController({
     // Aba 3: Multiplayer Online
     onlineStatusPill: document.getElementById('online-status-pill'),
     onlineServerInfo: document.getElementById('online-server-info'),
+    onlineFeedback: document.getElementById('online-feedback'),
     onlineOfflineBanner: document.getElementById('online-offline-banner'),
     onlineLobbyView: document.getElementById('online-lobby-view'),
     onlineRoomPanel: document.getElementById('online-room-panel'),
@@ -101,11 +103,16 @@ export function createUIController({
     btnRefreshRooms: document.getElementById('btn-refresh-rooms'),
     onlineRoomsList: document.getElementById('online-rooms-list'),
     roomTitleDisplay: document.getElementById('room-title-display'),
+    roomWaitingSubtitle: document.getElementById('room-waiting-subtitle'),
     roomCodeDisplay: document.getElementById('room-code-display'),
     btnCopyRoomCode: document.getElementById('btn-copy-room-code'),
     btnLeaveRoom: document.getElementById('btn-leave-room'),
     roomSlotRed: document.getElementById('room-slot-red'),
     roomSlotBlue: document.getElementById('room-slot-blue'),
+    roomTeamCustomize: document.getElementById('room-team-customize'),
+    formRoomTeam: document.getElementById('form-room-team'),
+    inputRoomTeamName: document.getElementById('input-room-team-name'),
+    roomColorSwatches: document.getElementById('room-color-swatches'),
     btnRoomReady: document.getElementById('btn-room-ready'),
     roomChatFeed: document.getElementById('room-chat-feed'),
     formRoomChat: document.getElementById('form-room-chat'),
@@ -113,6 +120,7 @@ export function createUIController({
 
     // Aba 4: Conta & Ranking
     accountModeBadge: document.getElementById('account-mode-badge'),
+    accountStorageNote: document.getElementById('account-storage-note'),
     accountFeedback: document.getElementById('account-feedback'),
     accountAuthView: document.getElementById('account-auth-view'),
     accountProfileView: document.getElementById('account-profile-view'),
@@ -229,6 +237,17 @@ export function createUIController({
     }
     els.accountFeedback.classList.add(type === 'success' ? 'success' : 'error');
     els.accountFeedback.textContent = message;
+  }
+
+  function setOnlineFeedback(message = '', type = '') {
+    if (!els.onlineFeedback) return;
+    els.onlineFeedback.className = 'feedback-banner';
+    if (!message) {
+      els.onlineFeedback.textContent = '';
+      return;
+    }
+    els.onlineFeedback.classList.add(type === 'success' ? 'success' : 'error');
+    els.onlineFeedback.textContent = message;
   }
 
   function getActiveAccount() {
@@ -551,6 +570,12 @@ export function createUIController({
       els.onlineOfflineBanner.style.display = onlineState.connected ? 'none' : 'block';
     }
 
+    if (els.accountStorageNote) {
+      els.accountStorageNote.textContent = onlineState.connected
+        ? 'Estatísticas e ranking global sincronizados com o servidor online'
+        : 'Estatísticas e ranking salvos localmente no navegador';
+    }
+
     refreshAccountView();
   }
 
@@ -633,6 +658,65 @@ export function createUIController({
     slotEl.appendChild(badge);
   }
 
+  function renderRoomTeamCustomizer(room, mySide) {
+    if (!els.roomTeamCustomize || !els.roomColorSwatches) return;
+    const players = room?.players || {};
+    const me = mySide ? players[mySide] : null;
+    const opponentSide = mySide === 'red' ? 'blue' : 'red';
+    const opponent = mySide ? players[opponentSide] : null;
+
+    if (!me) {
+      els.roomTeamCustomize.style.display = 'none';
+      return;
+    }
+
+    els.roomTeamCustomize.style.display = 'block';
+    if (els.inputRoomTeamName && document.activeElement !== els.inputRoomTeamName) {
+      els.inputRoomTeamName.value = me.teamName || '';
+    }
+
+    els.roomColorSwatches.innerHTML = '';
+    COLOR_ORDER.forEach((colorId) => {
+      const palette = TEAM_COLORS[colorId];
+      const isSelected = me.colorId === colorId;
+      const isTaken = opponent?.colorId === colorId;
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'color-swatch';
+      if (isSelected) btn.classList.add('active');
+      if (isTaken) {
+        btn.classList.add('in-use-other');
+        btn.disabled = true;
+        btn.title = 'Cor em uso pelo adversário';
+      }
+      btn.dataset.color = colorId;
+
+      const disc = document.createElement('span');
+      disc.className = 'swatch-disc';
+      disc.style.background = palette.pieceHex;
+      disc.style.border = `2px solid ${palette.rimHex}`;
+
+      const label = document.createElement('span');
+      label.textContent = isTaken ? `${palette.name} (Rival)` : palette.name;
+
+      btn.appendChild(disc);
+      btn.appendChild(label);
+      btn.addEventListener('click', () => {
+        if (isTaken) return;
+        safeEmit('roomAction', {
+          action: 'updateTeam',
+          payload: {
+            code: currentRoom?.code || null,
+            colorId,
+            teamName: els.inputRoomTeamName?.value,
+          },
+        });
+      });
+      els.roomColorSwatches.appendChild(btn);
+    });
+  }
+
   function renderOnlineRoom(room) {
     currentRoom = room || null;
     if (!room) {
@@ -654,6 +738,32 @@ export function createUIController({
     const players = room.players || {};
     renderRoomSlot(els.roomSlotRed, players.red || room.host || null, 'Time 1');
     renderRoomSlot(els.roomSlotBlue, players.blue || room.guest || null, 'Time 2');
+
+    const mySide = room.mySide || null;
+    const me = mySide ? players[mySide] : null;
+    renderRoomTeamCustomizer(room, mySide);
+
+    if (els.roomWaitingSubtitle) {
+      if (!players.blue) {
+        els.roomWaitingSubtitle.textContent = 'Aguardando o segundo jogador entrar na sala...';
+      } else if (mySide === 'red' && players.blue.ready) {
+        els.roomWaitingSubtitle.textContent = 'Adversário pronto! Clique em Iniciar Partida.';
+      } else if (players.red?.ready && !players.blue?.ready) {
+        els.roomWaitingSubtitle.textContent = 'Aguardando adversário confirmar que está pronto...';
+      } else {
+        els.roomWaitingSubtitle.textContent = 'Confirme quando estiver pronto para jogar';
+      }
+    }
+
+    if (els.btnRoomReady) {
+      if (mySide === 'red' && players.blue?.ready && !me?.ready) {
+        els.btnRoomReady.textContent = '🚀 Iniciar Partida';
+      } else if (me?.ready) {
+        els.btnRoomReady.textContent = '⏸️ Cancelar Pronto';
+      } else {
+        els.btnRoomReady.textContent = '✅ Estou Pronto';
+      }
+    }
 
     if (Array.isArray(room.messages) && els.roomChatFeed) {
       els.roomChatFeed.innerHTML = '';
@@ -688,6 +798,8 @@ export function createUIController({
     scoreBlue,
     goalLimit,
     savedToProfile = false,
+    isOnline = false,
+    reason = 'goal_limit',
   }) {
     if (!els.matchOverOverlay) return;
     const winnerName = winnerSide === 'red' ? redName : blueName;
@@ -700,15 +812,27 @@ export function createUIController({
         : 'Fim de Partida!';
     }
     if (els.matchOverSubtitle) {
-      els.matchOverSubtitle.textContent = `Meta atingida: ${formatGoalLimitLabel(goalLimit, { short: true })}`;
+      els.matchOverSubtitle.textContent =
+        reason === 'forfeit'
+          ? 'Vitória por W.O. (adversário desconectou)'
+          : `Meta atingida: ${formatGoalLimitLabel(goalLimit, { short: true })}`;
     }
     if (els.matchOverNameRed) els.matchOverNameRed.textContent = redName;
     if (els.matchOverNameBlue) els.matchOverNameBlue.textContent = blueName;
     if (els.matchOverScore) els.matchOverScore.textContent = `${scoreRed} - ${scoreBlue}`;
     if (els.matchOverSummary) {
-      els.matchOverSummary.textContent = savedToProfile
-        ? 'Resultado registrado automaticamente nas suas estatísticas e ranking local.'
-        : 'Entre em uma conta na aba Perfil para salvar seu histórico e pontuação no ranking.';
+      if (isOnline) {
+        els.matchOverSummary.textContent =
+          'Resultado oficial registrado no ranking global online!';
+      } else {
+        els.matchOverSummary.textContent = savedToProfile
+          ? 'Resultado registrado automaticamente nas suas estatísticas e ranking local.'
+          : 'Entre em uma conta na aba Perfil para salvar seu histórico e pontuação no ranking.';
+      }
+    }
+    if (els.btnRematch) {
+      els.btnRematch.style.display = isOnline && reason === 'forfeit' ? 'none' : 'inline-flex';
+      els.btnRematch.textContent = isOnline ? '🔄 Solicitar Revanche' : '🔄 Jogar Novamente';
     }
     els.matchOverOverlay.classList.add('active');
   }
@@ -928,6 +1052,20 @@ export function createUIController({
     });
   }
 
+  if (els.formRoomTeam) {
+    els.formRoomTeam.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const teamName = (els.inputRoomTeamName?.value || '').trim();
+      safeEmit('roomAction', {
+        action: 'updateTeam',
+        payload: {
+          code: currentRoom?.code || null,
+          teamName,
+        },
+      });
+    });
+  }
+
   if (els.formRoomChat) {
     els.formRoomChat.addEventListener('submit', (e) => {
       e.preventDefault();
@@ -951,7 +1089,11 @@ export function createUIController({
   if (els.btnGameoverMenu) {
     els.btnGameoverMenu.addEventListener('click', () => {
       hideMatchOver();
-      openMenu('play');
+      if (typeof onGameOverMenu === 'function') {
+        onGameOverMenu();
+      } else {
+        openMenu('play');
+      }
     });
   }
 
@@ -967,6 +1109,7 @@ export function createUIController({
     markMatchStarted,
     setActiveTab,
     setOnlineState,
+    setOnlineFeedback,
     renderOnlineRooms,
     renderOnlineRoom,
     renderLeaderboard,
