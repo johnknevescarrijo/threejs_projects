@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
 import { WebSocket } from 'ws';
 import { createGameServer, startServerWithFallback } from '../server/index.js';
+import { getHealthCheckConfig, isLocalHostEnvironment } from '../js/onlineClient.js';
 
 function createWsHelper(url) {
   const ws = new WebSocket(url);
@@ -571,4 +573,142 @@ test('startServerWithFallback switches to next free port when PORT is not explic
       return true;
     }
   );
+});
+
+test('HEAD /api/health returns 200 OK with empty body and keepalive timer cleans up on close()', async (t) => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fubetol-health-head-test-'));
+  const dataFile = path.join(tmpDir, 'db.json');
+  const gameServer = createGameServer({
+    port: 0,
+    host: '127.0.0.1',
+    dataFile,
+    wsHeartbeatIntervalMs: 40,
+  });
+  const { port } = await gameServer.start();
+  const baseUrl = `http://127.0.0.1:${port}`;
+  const wsUrl = `ws://127.0.0.1:${port}/ws`;
+
+  t.after(async () => {
+    await gameServer.close();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  const headRes = await fetch(`${baseUrl}/api/health`, { method: 'HEAD' });
+  assert.equal(headRes.status, 200);
+  const headBody = await headRes.text();
+  assert.equal(headBody, '');
+
+  // Cliente saudável responde aos pings automáticos e permanece conectado por vários ciclos
+  const client = createWsHelper(wsUrl);
+  let pingCount = 0;
+  client.ws.on('ping', () => {
+    pingCount += 1;
+  });
+
+  await client.waitForOpen();
+  await client.nextMessage((m) => m.type === 'welcome');
+
+  await new Promise((resolve) => setTimeout(resolve, 140));
+  assert.ok(pingCount >= 2, `Esperado >=2 pings de keepalive, recebido ${pingCount}`);
+  assert.equal(client.ws.readyState, WebSocket.OPEN);
+
+  await client.close();
+  await gameServer.close();
+});
+
+test('CLI honors DATA_FILE env var and exits cleanly on SIGTERM (graceful shutdown)', async (t) => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fubetol-cli-sigterm-test-'));
+  const dataFile = path.join(tmpDir, 'custom-db.json');
+  const serverEntry = path.resolve('server/index.js');
+
+  t.after(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  const child = spawn(process.execPath, [serverEntry], {
+    env: {
+      ...process.env,
+      PORT: '0',
+      HOST: '127.0.0.1',
+      DATA_FILE: dataFile,
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  let stdout = '';
+  let stderr = '';
+  child.stdout.on('data', (chunk) => {
+    stdout += chunk.toString('utf8');
+  });
+  child.stderr.on('data', (chunk) => {
+    stderr += chunk.toString('utf8');
+  });
+
+  const boundUrl = await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      reject(new Error(`Timeout aguardando startup CLI. stdout=${stdout} stderr=${stderr}`));
+    }, 5000);
+
+    child.stdout.on('data', () => {
+      const match = stdout.match(/http:\/\/127\.0\.0\.1:(\d+)/);
+      if (match) {
+        clearTimeout(timer);
+        resolve(`http://127.0.0.1:${match[1]}`);
+      }
+    });
+
+    child.once('exit', (code) => {
+      clearTimeout(timer);
+      reject(new Error(`CLI encerrou prematuramente com code=${code}. stderr=${stderr}`));
+    });
+  });
+
+  // Registra um usuário para confirmar que DATA_FILE customizado foi gravado
+  const regRes = await fetch(`${boundUrl}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'render_tester', password: 'segredo123' }),
+  });
+  assert.equal(regRes.status, 201);
+  assert.equal(fs.existsSync(dataFile), true);
+
+  const headRes = await fetch(`${boundUrl}/api/health`, { method: 'HEAD' });
+  assert.equal(headRes.status, 200);
+
+  const exitCode = await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      reject(new Error('Timeout aguardando graceful shutdown no SIGTERM'));
+    }, 5000);
+    child.once('exit', (code) => {
+      clearTimeout(timer);
+      resolve(code);
+    });
+    child.kill('SIGTERM');
+  });
+
+  assert.equal(exitCode, 0);
+});
+
+test('onlineClient health check config uses fast timeout locally and tolerant cold-start retry remotely', () => {
+  assert.equal(isLocalHostEnvironment({ protocol: 'http:', hostname: 'localhost' }), true);
+  assert.equal(isLocalHostEnvironment({ protocol: 'http:', hostname: '127.0.0.1' }), true);
+  assert.equal(
+    isLocalHostEnvironment({ protocol: 'https:', hostname: 'futebol-de-botao-3d.onrender.com' }),
+    false
+  );
+
+  const localCfg = getHealthCheckConfig({ protocol: 'http:', hostname: 'localhost' });
+  assert.equal(localCfg.isRemote, false);
+  assert.equal(localCfg.timeoutMs, 2500);
+  assert.equal(localCfg.maxAttempts, 1);
+
+  const remoteCfg = getHealthCheckConfig({
+    protocol: 'https:',
+    hostname: 'futebol-de-botao-3d.onrender.com',
+  });
+  assert.equal(remoteCfg.isRemote, true);
+  assert.equal(remoteCfg.timeoutMs, 12000);
+  assert.equal(remoteCfg.maxAttempts, 2);
 });

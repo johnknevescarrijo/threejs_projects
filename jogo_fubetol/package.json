@@ -4,6 +4,9 @@
   "private": true,
   "description": "Futebol de Botao 3D em Three.js com servidor multiplayer online Node.js, cadastro e ranking",
   "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "start": "node server/index.js",
     "test": "node --test tests/*.test.mjs"

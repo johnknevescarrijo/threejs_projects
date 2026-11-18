@@ -49,6 +49,29 @@ async function fetchJson(url, { method = 'GET', body, token, timeoutMs = 5000 } 
   }
 }
 
+export function isLocalHostEnvironment(
+  locationLike = typeof window !== 'undefined' ? window.location : null
+) {
+  const protocol = String(locationLike?.protocol || '').toLowerCase();
+  const hostname = String(locationLike?.hostname || '').toLowerCase();
+  if (protocol === 'https:') return false;
+  return (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '::1' ||
+    hostname === '[::1]'
+  );
+}
+
+export function getHealthCheckConfig(
+  locationLike = typeof window !== 'undefined' ? window.location : null
+) {
+  const isLocal = isLocalHostEnvironment(locationLike);
+  return isLocal
+    ? { isRemote: false, timeoutMs: 2500, maxAttempts: 1, retryDelayMs: 0 }
+    : { isRemote: true, timeoutMs: 12000, maxAttempts: 2, retryDelayMs: 1500 };
+}
+
 export function initOnlineClient(app) {
   if (!app || typeof app.on !== 'function') return null;
 
@@ -643,6 +666,54 @@ export function initOnlineClient(app) {
     });
   });
 
+  async function checkHealthWithRetry() {
+    const { isRemote, timeoutMs, maxAttempts, retryDelayMs } = getHealthCheckConfig(window.location);
+
+    if (isRemote) {
+      app.setOnlineState({
+        connected: false,
+        connecting: true,
+        label: 'Conectando...',
+        serverInfo: 'Acordando servidor online (Render)...',
+        account: null,
+      });
+    }
+
+    let lastError = null;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      if (isDisposed) return null;
+      try {
+        const health = await fetchJson('/api/health', { timeoutMs });
+        if (health.ok && health.data?.ok) {
+          return health;
+        }
+        const shouldRetry = isRemote && attempt < maxAttempts && health.status >= 500;
+        if (!shouldRetry) {
+          return health;
+        }
+      } catch (err) {
+        lastError = err;
+        if (attempt >= maxAttempts) {
+          throw err;
+        }
+      }
+
+      if (attempt < maxAttempts && retryDelayMs > 0) {
+        app.setOnlineState({
+          connected: false,
+          connecting: true,
+          label: 'Conectando...',
+          serverInfo: 'Servidor acordando do spin-down... tentando novamente...',
+          account: null,
+        });
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+      }
+    }
+
+    if (lastError) throw lastError;
+    return null;
+  }
+
   async function bootstrap() {
     if (window.location.protocol === 'file:') {
       app.setOnlineState({
@@ -656,8 +727,9 @@ export function initOnlineClient(app) {
     }
 
     try {
-      const health = await fetchJson('/api/health', { timeoutMs: 2000 });
-      if (!health.ok || !health.data?.ok) {
+      const health = await checkHealthWithRetry();
+      if (isDisposed) return;
+      if (!health?.ok || !health.data?.ok) {
         app.setOnlineState({
           connected: false,
           connecting: false,
