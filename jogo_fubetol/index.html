@@ -5,6 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <title>Futebol de Botão 3D</title>
   <style>
+    :root {
+      --team-red-primary: #ef4444;
+      --team-red-glow: rgba(239, 68, 68, 0.45);
+      --team-red-text: #f87171;
+      --team-blue-primary: #3b82f6;
+      --team-blue-glow: rgba(59, 130, 246, 0.45);
+      --team-blue-text: #60a5fa;
+    }
     * {
       box-sizing: border-box;
       margin: 0;
@@ -42,6 +50,9 @@
     .scoreboard {
       display: flex;
       align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      max-width: calc(100vw - 24px);
       background: rgba(15, 23, 42, 0.88);
       padding: 8px 24px;
       border-radius: 40px;
@@ -58,15 +69,17 @@
       font-size: 15px;
       letter-spacing: 0.5px;
     }
-    .badge-red { color: #f87171; }
-    .badge-blue { color: #60a5fa; }
+    .badge-red { color: var(--team-red-text); }
+    .badge-blue { color: var(--team-blue-text); }
     .dot {
       width: 12px;
       height: 12px;
       border-radius: 50%;
+      flex-shrink: 0;
+      border: 1px solid rgba(255, 255, 255, 0.35);
     }
-    .dot-red { background: #ef4444; box-shadow: 0 0 10px #ef4444; }
-    .dot-blue { background: #3b82f6; box-shadow: 0 0 10px #3b82f6; }
+    .dot-red { background: var(--team-red-primary); box-shadow: 0 0 10px var(--team-red-glow); }
+    .dot-blue { background: var(--team-blue-primary); box-shadow: 0 0 10px var(--team-blue-glow); }
 
     .score {
       font-size: 28px;
@@ -205,9 +218,11 @@
       background: linear-gradient(145deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98));
       border: 1px solid rgba(255, 255, 255, 0.2);
       border-radius: 20px;
-      width: 90%;
-      max-width: 480px;
-      padding: 28px;
+      width: 92%;
+      max-width: 560px;
+      max-height: 92vh;
+      overflow-y: auto;
+      padding: 24px;
       box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 30px rgba(59, 130, 246, 0.15);
       transform: scale(0.92);
       transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
@@ -321,6 +336,113 @@
       background: rgba(51, 65, 85, 0.9);
       color: #f1f5f9;
     }
+
+    /* Personalização de Times (Cores e Nomes) */
+    .team-custom-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    @media (max-width: 520px) {
+      .team-custom-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    .team-custom-card {
+      background: rgba(15, 23, 42, 0.68);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .team-custom-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      font-weight: 700;
+      color: #e2e8f0;
+    }
+    .team-custom-title {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .team-name-input {
+      width: 100%;
+      background: rgba(2, 6, 23, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 8px;
+      padding: 7px 10px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #f8fafc;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      user-select: text;
+      -webkit-user-select: text;
+    }
+    .team-name-input:focus {
+      border-color: #60a5fa;
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+    }
+    .color-swatches {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 5px;
+    }
+    .color-swatch {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 6px;
+      border-radius: 8px;
+      border: 1.5px solid rgba(255, 255, 255, 0.14);
+      background: rgba(30, 41, 59, 0.65);
+      color: #cbd5e1;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.16s ease;
+    }
+    .color-swatch:hover {
+      background: rgba(51, 65, 85, 0.85);
+      border-color: rgba(255, 255, 255, 0.35);
+      color: #ffffff;
+    }
+    .color-swatch.active {
+      background: rgba(59, 130, 246, 0.28);
+      border-color: #f8fafc;
+      color: #ffffff;
+      box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+    }
+    .color-swatch.in-use-other {
+      border-style: dashed;
+      border-color: rgba(250, 204, 21, 0.55);
+      opacity: 0.88;
+    }
+    .swatch-disc {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35);
+    }
+    .swatch-swap-badge {
+      margin-left: auto;
+      font-size: 10px;
+      color: #facc15;
+    }
+    .team-dot-inline {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 1.5px solid rgba(255, 255, 255, 0.45);
+    }
   </style>
 </head>
 <body>
@@ -388,13 +510,57 @@
         <label class="form-label">Seu Time</label>
         <div class="btn-group" id="group-team">
           <button class="option-btn selected" data-value="red">
-            <span class="opt-icon" style="color: #ef4444;">🔴</span>
-            <span>Vermelho</span>
+            <span class="opt-icon"><span class="team-dot-inline dot-red" id="btn-team-red-dot"></span></span>
+            <span id="btn-team-red-label">Vermelho</span>
           </button>
           <button class="option-btn" data-value="blue">
-            <span class="opt-icon" style="color: #3b82f6;">🔵</span>
-            <span>Azul</span>
+            <span class="opt-icon"><span class="team-dot-inline dot-blue" id="btn-team-blue-dot"></span></span>
+            <span id="btn-team-blue-label">Azul</span>
           </button>
+        </div>
+      </div>
+
+      <!-- Personalização de Cores e Nomes dos Times -->
+      <div class="form-group" id="section-team-customization">
+        <label class="form-label">Personalização dos Times (Cores &amp; Nomes)</label>
+        <div class="team-custom-grid">
+          <div class="team-custom-card" data-side="red">
+            <div class="team-custom-header">
+              <span class="team-custom-title">
+                <span class="dot dot-red" id="custom-dot-red"></span>
+                <span>Time 1 (Esquerda)</span>
+              </span>
+            </div>
+            <input
+              type="text"
+              id="input-team-name-red"
+              class="team-name-input"
+              maxlength="18"
+              placeholder="Nome do Time 1"
+              aria-label="Nome do Time 1"
+              autocomplete="off"
+            />
+            <div class="color-swatches" id="swatches-red" role="group" aria-label="Cor do Time 1"></div>
+          </div>
+
+          <div class="team-custom-card" data-side="blue">
+            <div class="team-custom-header">
+              <span class="team-custom-title">
+                <span class="dot dot-blue" id="custom-dot-blue"></span>
+                <span>Time 2 (Direita)</span>
+              </span>
+            </div>
+            <input
+              type="text"
+              id="input-team-name-blue"
+              class="team-name-input"
+              maxlength="18"
+              placeholder="Nome do Time 2"
+              aria-label="Nome do Time 2"
+              autocomplete="off"
+            />
+            <div class="color-swatches" id="swatches-blue" role="group" aria-label="Cor do Time 2"></div>
+          </div>
         </div>
       </div>
 
@@ -447,6 +613,48 @@
   <script type="module">
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import {
+      COLOR_ORDER,
+      TEAM_COLORS,
+      DEFAULT_TEAM_CONFIG,
+      TEAM_CUSTOMIZATION_STORAGE_KEY,
+      MAX_TEAM_NAME_LENGTH,
+      getColorPalette,
+      sanitizeTeamName,
+      resolveTeamColorChange,
+      resolveTeamNameChange,
+      normalizeTeamConfig,
+    } from './js/teamColors.js';
+
+    // =========================================================================
+    // 0. PERSONALIZAÇÃO DE CORES E NOMES DOS TIMES
+    // =========================================================================
+    function loadTeamCustomization() {
+      try {
+        const raw = localStorage.getItem(TEAM_CUSTOMIZATION_STORAGE_KEY);
+        if (!raw) return normalizeTeamConfig(DEFAULT_TEAM_CONFIG);
+        return normalizeTeamConfig(JSON.parse(raw));
+      } catch (e) {
+        return normalizeTeamConfig(DEFAULT_TEAM_CONFIG);
+      }
+    }
+
+    function saveTeamCustomization(config) {
+      try {
+        localStorage.setItem(TEAM_CUSTOMIZATION_STORAGE_KEY, JSON.stringify(config));
+      } catch (e) {}
+    }
+
+    let teamCustomization = loadTeamCustomization();
+
+    function getTeamPalette(side) {
+      return getColorPalette(teamCustomization[side]?.colorId, side);
+    }
+
+    function getTeamName(side) {
+      const palette = getTeamPalette(side);
+      return sanitizeTeamName(teamCustomization[side]?.name, palette.defaultTeamName);
+    }
 
     // =========================================================================
     // 1. ÁUDIO SINTETIZADO (Web Audio API)
@@ -556,8 +764,8 @@
     const cameraViews = [
       { pos: new THREE.Vector3(0, 75, 48), target: new THREE.Vector3(0, 0, 0), name: "Isométrica" },
       { pos: new THREE.Vector3(0, 95, 0.1), target: new THREE.Vector3(0, 0, 0), name: "Vista de Cima" },
-      { pos: new THREE.Vector3(-60, 45, 0), target: new THREE.Vector3(0, 0, 0), name: "Atrás do Vermelho" },
-      { pos: new THREE.Vector3(60, 45, 0), target: new THREE.Vector3(0, 0, 0), name: "Atrás do Azul" }
+      { pos: new THREE.Vector3(-60, 45, 0), target: new THREE.Vector3(0, 0, 0), name: `Atrás de ${getTeamName('red')}` },
+      { pos: new THREE.Vector3(60, 45, 0), target: new THREE.Vector3(0, 0, 0), name: `Atrás de ${getTeamName('blue')}` }
     ];
     let currentCameraViewIdx = 0;
     camera.position.copy(cameraViews[0].pos);
@@ -798,54 +1006,88 @@
     let ball = null;
 
     // Gerador de Textura com Adesivo Circular / Número do Botão
-    function createButtonTexture(colorHex, numText) {
+    function createButtonTexture(paletteOrHex, numText) {
+      const palette =
+        typeof paletteOrHex === 'string'
+          ? {
+              pieceHex: paletteOrHex,
+              rimHex: paletteOrHex,
+              ringHex: '#ffffff',
+              stickerBg: 'rgba(0,0,0,0.2)',
+              numberColor: '#ffffff',
+            }
+          : paletteOrHex;
+
       const canvas = document.createElement('canvas');
       canvas.width = 256;
       canvas.height = 256;
       const ctx = canvas.getContext('2d');
 
       // Fundo plástico brilhante
-      ctx.fillStyle = colorHex;
+      ctx.fillStyle = palette.pieceHex;
       ctx.beginPath();
       ctx.arc(128, 128, 128, 0, Math.PI * 2);
       ctx.fill();
 
-      // Anel decorativo interno
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 8;
+      // Borda externa de contraste
+      ctx.strokeStyle = palette.rimHex;
+      ctx.lineWidth = 10;
       ctx.beginPath();
-      ctx.arc(128, 128, 110, 0, Math.PI * 2);
+      ctx.arc(128, 128, 123, 0, Math.PI * 2);
       ctx.stroke();
 
-      ctx.fillStyle = 'rgba(0,0,0,0.2)';
+      // Anel decorativo interno
+      ctx.strokeStyle = palette.ringHex;
+      ctx.lineWidth = 8;
+      ctx.beginPath();
+      ctx.arc(128, 128, 106, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.fillStyle = palette.stickerBg;
       ctx.beginPath();
       ctx.arc(128, 128, 70, 0, Math.PI * 2);
       ctx.fill();
 
       // Número
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 70px "Segoe UI", sans-serif';
+      ctx.fillStyle = palette.numberColor;
+      ctx.font = 'bold 72px "Segoe UI", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(numText, 128, 132);
 
-      return new THREE.CanvasTexture(canvas);
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    function createGoalkeeperLabelTexture(numberColor = '#ffffff') {
+      const labelCanvas = document.createElement('canvas');
+      labelCanvas.width = 128;
+      labelCanvas.height = 128;
+      const ctx = labelCanvas.getContext('2d');
+      ctx.fillStyle = numberColor;
+      ctx.font = 'bold 80px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('1', 64, 64);
+      const tex = new THREE.CanvasTexture(labelCanvas);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
     }
 
     // Criar Botão Circular
     function createButtonPiece(x, z, team, number) {
       const group = new THREE.Group();
-      const colorHex = team === 'red' ? '#dc2626' : '#2563eb';
-      const sideColor = team === 'red' ? 0xb91c1c : 0x1d4ed8;
+      const palette = getTeamPalette(team);
 
       const geom = new THREE.CylinderGeometry(BUTTON_RADIUS, BUTTON_RADIUS, BUTTON_HEIGHT, 32);
       const topMat = new THREE.MeshStandardMaterial({
-        map: createButtonTexture(colorHex, number),
+        map: createButtonTexture(palette, number),
         roughness: 0.2,
         metalness: 0.3
       });
       const sideMat = new THREE.MeshStandardMaterial({
-        color: sideColor,
+        color: new THREE.Color(palette.rimHex),
         roughness: 0.25,
         metalness: 0.3
       });
@@ -863,7 +1105,7 @@
       // Anel indicador de seleção
       const ringGeom = new THREE.RingGeometry(BUTTON_RADIUS * 1.05, BUTTON_RADIUS * 1.35, 32);
       const ringMat = new THREE.MeshBasicMaterial({
-        color: 0xfacc15,
+        color: new THREE.Color(palette.cssText),
         side: THREE.DoubleSide,
         transparent: true,
         opacity: 0
@@ -884,6 +1126,9 @@
         mass: BUTTON_MASS,
         mesh: group,
         ring: ring,
+        topMat: topMat,
+        sideMat: sideMat,
+        ringMat: ringMat,
         pos: new THREE.Vector2(x, z),
         vel: new THREE.Vector2(0, 0),
         initialPos: new THREE.Vector2(x, z)
@@ -896,11 +1141,11 @@
     // Criar Goleiro de Acrílico Retangular
     function createGoalkeeperPiece(x, z, team) {
       const group = new THREE.Group();
-      const gkColor = team === 'red' ? 0xf59e0b : 0x10b981;
+      const palette = getTeamPalette(team);
 
       const geom = new THREE.BoxGeometry(GK_DEPTH, GK_HEIGHT, GK_WIDTH);
       const mat = new THREE.MeshPhysicalMaterial({
-        color: gkColor,
+        color: new THREE.Color(palette.gkHex),
         roughness: 0.1,
         metalness: 0.1,
         transmission: 0.6,
@@ -914,16 +1159,7 @@
       group.add(mesh);
 
       // Adesivo com Escudo / "1" no topo
-      const labelCanvas = document.createElement('canvas');
-      labelCanvas.width = 128;
-      labelCanvas.height = 128;
-      const ctx = labelCanvas.getContext('2d');
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 80px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('1', 64, 64);
-      const labelTex = new THREE.CanvasTexture(labelCanvas);
+      const labelTex = createGoalkeeperLabelTexture(palette.numberColor);
 
       const labelGeom = new THREE.PlaneGeometry(GK_DEPTH * 0.8, GK_WIDTH * 0.5);
       const labelMat = new THREE.MeshBasicMaterial({ map: labelTex, transparent: true });
@@ -945,6 +1181,8 @@
         radius: (GK_WIDTH + GK_DEPTH) / 4, // Raio efetivo de colisão circular suavizada
         mass: GK_MASS,
         mesh: group,
+        bodyMat: mat,
+        labelMat: labelMat,
         pos: new THREE.Vector2(x, z),
         vel: new THREE.Vector2(0, 0),
         initialPos: new THREE.Vector2(x, z)
@@ -1086,39 +1324,46 @@
 
     function updateScoreboardBadges() {
       const diffText = getDifficultyLabel(botDifficulty);
+      const redName = getTeamName('red');
+      const blueName = getTeamName('blue');
+
       if (gameMode === 'pve') {
         if (playerTeam === 'red') {
-          labelRed.innerText = 'VOCÊ';
-          labelBlue.innerText = `BOT (${diffText})`;
+          labelRed.innerText = `${redName} (VOCÊ)`;
+          labelBlue.innerText = `${blueName} (BOT · ${diffText})`;
         } else {
-          labelRed.innerText = `BOT (${diffText})`;
-          labelBlue.innerText = 'VOCÊ';
+          labelRed.innerText = `${redName} (BOT · ${diffText})`;
+          labelBlue.innerText = `${blueName} (VOCÊ)`;
         }
       } else if (gameMode === 'pvp') {
-        labelRed.innerText = 'JOGADOR 1';
-        labelBlue.innerText = 'JOGADOR 2';
+        labelRed.innerText = `${redName} (J1)`;
+        labelBlue.innerText = `${blueName} (J2)`;
       } else if (gameMode === 'eve') {
-        labelRed.innerText = `BOT 1 (${diffText})`;
-        labelBlue.innerText = `BOT 2 (${diffText})`;
+        labelRed.innerText = `${redName} (BOT 1 · ${diffText})`;
+        labelBlue.innerText = `${blueName} (BOT 2 · ${diffText})`;
       }
     }
 
     function updateTurnUI() {
       const isBot = isCurrentTurnBot();
-      const color = currentTurn === 'red' ? '#ef4444' : '#3b82f6';
-      const teamName = currentTurn === 'red' ? 'Vermelho' : 'Azul';
+      const palette = getTeamPalette(currentTurn);
+      const teamName = getTeamName(currentTurn);
+      const borderColor = palette.id === 'black' ? palette.cssText : palette.cssPrimary;
 
       if (isBot) {
-        hudTurn.innerHTML = `🤖 Vez da IA (${teamName}) - calculando jogada...`;
+        hudTurn.innerText = `🤖 Vez da IA (${teamName}) - calculando jogada...`;
       } else {
         if (gameMode === 'pve') {
-          hudTurn.innerHTML = `👉 Sua vez! (Time ${teamName})`;
+          hudTurn.innerText = `👉 Sua vez! (${teamName})`;
         } else {
-          hudTurn.innerHTML = `👉 Vez do Time ${teamName}`;
+          hudTurn.innerText = `👉 Vez de ${teamName}`;
         }
       }
-      hudTurn.style.color = color;
-      hudTurn.style.borderColor = color;
+      hudTurn.style.color = palette.cssText;
+      hudTurn.style.borderColor = borderColor;
+
+      aimLineMat.color.set(palette.cssText);
+      aimCircleMat.color.set(palette.cssText);
     }
 
     // =========================================================================
@@ -1623,6 +1868,7 @@
     }
 
     window.addEventListener('pointerdown', (e) => {
+      if (e.target !== renderer.domElement) return;
       if (e.button !== 0 || isMoving || isBotThinking) return; // Apenas clique esquerdo e com peças paradas
       initAudio();
 
@@ -1639,8 +1885,8 @@
     window.addEventListener('pointermove', (e) => {
       if (!isDragging || !selectedPiece) return;
 
-      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
       raycaster.setFromCamera(mouse, camera);
 
       if (raycaster.ray.intersectPlane(dragPlane, dragCurrentPoint)) {
@@ -1721,15 +1967,14 @@
       if (goalCooldown) return;
       goalCooldown = true;
 
+      const teamName = getTeamName(scoredBy);
       if (scoredBy === 'red') {
         scoreRed++;
-        goalSubtitle.innerText = 'Golaço do Time Vermelho!';
-        goalSubtitle.style.color = '#fca5a5';
       } else {
         scoreBlue++;
-        goalSubtitle.innerText = 'Golaço do Time Azul!';
-        goalSubtitle.style.color = '#93c5fd';
       }
+      goalSubtitle.innerText = `Golaço de ${teamName}!`;
+      goalSubtitle.style.color = '#f0fdf4';
 
       hudScore.innerText = `${scoreRed} - ${scoreBlue}`;
       goalBanner.classList.add('show');
@@ -1909,10 +2154,187 @@
     // =========================================================================
     const modeModal = document.getElementById('mode-modal-overlay');
     const btnMode = document.getElementById('btn-mode');
+    const btnCamera = document.getElementById('btn-camera');
     const btnModalClose = document.getElementById('btn-modal-close');
     const btnModalStart = document.getElementById('btn-modal-start');
     const sectionPlayerTeam = document.getElementById('section-player-team');
     const sectionBotDifficulty = document.getElementById('section-bot-difficulty');
+    const btnTeamRedLabel = document.getElementById('btn-team-red-label');
+    const btnTeamBlueLabel = document.getElementById('btn-team-blue-label');
+    const inputNameRed = document.getElementById('input-team-name-red');
+    const inputNameBlue = document.getElementById('input-team-name-blue');
+    const swatchesRed = document.getElementById('swatches-red');
+    const swatchesBlue = document.getElementById('swatches-blue');
+
+    function updateCameraButtonLabel() {
+      const view = cameraViews[currentCameraViewIdx];
+      btnCamera.innerText = `📷 Câmera: ${view.name}`;
+    }
+
+    function renderColorSwatchesForSide(side, container) {
+      if (!container) return;
+      const otherSide = side === 'red' ? 'blue' : 'red';
+      const activeColorId = getTeamPalette(side).id;
+      const otherColorId = getTeamPalette(otherSide).id;
+
+      container.innerHTML = '';
+      COLOR_ORDER.forEach((colorId) => {
+        const palette = TEAM_COLORS[colorId];
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'color-swatch';
+        btn.dataset.side = side;
+        btn.dataset.color = colorId;
+        btn.setAttribute('aria-pressed', String(colorId === activeColorId));
+
+        if (colorId === activeColorId) {
+          btn.classList.add('active');
+          btn.title = `${palette.name} (selecionado)`;
+        } else if (colorId === otherColorId) {
+          btn.classList.add('in-use-other');
+          btn.title = `${palette.name} — em uso pelo adversário (clique para trocar)`;
+        } else {
+          btn.title = `Escolher cor ${palette.name}`;
+        }
+
+        const disc = document.createElement('span');
+        disc.className = 'swatch-disc';
+        disc.style.background = palette.pieceHex;
+        disc.style.border = `2px solid ${palette.rimHex}`;
+
+        const label = document.createElement('span');
+        label.textContent = palette.name;
+
+        btn.appendChild(disc);
+        btn.appendChild(label);
+
+        if (colorId === otherColorId) {
+          const swapBadge = document.createElement('span');
+          swapBadge.className = 'swatch-swap-badge';
+          swapBadge.textContent = '↔';
+          btn.appendChild(swapBadge);
+        }
+
+        btn.addEventListener('click', () => {
+          setTeamColor(side, colorId);
+        });
+
+        container.appendChild(btn);
+      });
+    }
+
+    function renderTeamCustomizationUI({ syncInputs = true } = {}) {
+      const redPalette = getTeamPalette('red');
+      const bluePalette = getTeamPalette('blue');
+      const redName = getTeamName('red');
+      const blueName = getTeamName('blue');
+
+      if (btnTeamRedLabel) btnTeamRedLabel.innerText = redName;
+      if (btnTeamBlueLabel) btnTeamBlueLabel.innerText = blueName;
+
+      if (inputNameRed) {
+        inputNameRed.placeholder = redPalette.defaultTeamName;
+        if (syncInputs && document.activeElement !== inputNameRed) {
+          inputNameRed.value = redName;
+        }
+      }
+      if (inputNameBlue) {
+        inputNameBlue.placeholder = bluePalette.defaultTeamName;
+        if (syncInputs && document.activeElement !== inputNameBlue) {
+          inputNameBlue.value = blueName;
+        }
+      }
+
+      renderColorSwatchesForSide('red', swatchesRed);
+      renderColorSwatchesForSide('blue', swatchesBlue);
+    }
+
+    function applyTeamAppearance({ syncInputs = true } = {}) {
+      const redPalette = getTeamPalette('red');
+      const bluePalette = getTeamPalette('blue');
+
+      const rootStyle = document.documentElement.style;
+      rootStyle.setProperty('--team-red-primary', redPalette.cssPrimary);
+      rootStyle.setProperty('--team-red-glow', redPalette.cssGlow);
+      rootStyle.setProperty('--team-red-text', redPalette.cssText);
+      rootStyle.setProperty('--team-blue-primary', bluePalette.cssPrimary);
+      rootStyle.setProperty('--team-blue-glow', bluePalette.cssGlow);
+      rootStyle.setProperty('--team-blue-text', bluePalette.cssText);
+
+      // Atualiza peças 3D em campo em tempo real sem recriar WebGLRenderer nem resetar partida
+      pieces.forEach((p) => {
+        const palette = p.team === 'red' ? redPalette : bluePalette;
+        if (p.type === 'button') {
+          if (p.topMat) {
+            if (p.topMat.map) p.topMat.map.dispose();
+            p.topMat.map = createButtonTexture(palette, p.number);
+            p.topMat.needsUpdate = true;
+          }
+          if (p.sideMat) {
+            p.sideMat.color.set(palette.rimHex);
+          }
+          if (p.ringMat) {
+            p.ringMat.color.set(palette.cssText);
+          }
+        } else if (p.type === 'gk') {
+          if (p.bodyMat) {
+            p.bodyMat.color.set(palette.gkHex);
+          }
+          if (p.labelMat) {
+            if (p.labelMat.map) p.labelMat.map.dispose();
+            p.labelMat.map = createGoalkeeperLabelTexture(palette.numberColor);
+            p.labelMat.needsUpdate = true;
+          }
+        }
+      });
+
+      cameraViews[2].name = `Atrás de ${getTeamName('red')}`;
+      cameraViews[3].name = `Atrás de ${getTeamName('blue')}`;
+      updateCameraButtonLabel();
+
+      renderTeamCustomizationUI({ syncInputs });
+      updateScoreboardBadges();
+      updateTurnUI();
+    }
+
+    function getTeamCustomization() {
+      return normalizeTeamConfig(teamCustomization);
+    }
+
+    function setTeamCustomization(nextConfig, { persist = true, syncInputs = true } = {}) {
+      teamCustomization = normalizeTeamConfig(nextConfig);
+      if (persist) {
+        saveTeamCustomization(teamCustomization);
+      }
+      applyTeamAppearance({ syncInputs });
+      return getTeamCustomization();
+    }
+
+    function setTeamColor(side, colorId) {
+      const next = resolveTeamColorChange(teamCustomization, side, colorId);
+      return setTeamCustomization(next, { persist: true, syncInputs: true });
+    }
+
+    function setTeamName(side, rawName, { syncInputs = true } = {}) {
+      const next = resolveTeamNameChange(teamCustomization, side, rawName);
+      return setTeamCustomization(next, { persist: true, syncInputs });
+    }
+
+    function bindTeamNameInput(inputEl, side) {
+      if (!inputEl) return;
+      inputEl.maxLength = MAX_TEAM_NAME_LENGTH;
+
+      inputEl.addEventListener('input', (e) => {
+        setTeamName(side, e.target.value, { syncInputs: false });
+      });
+
+      inputEl.addEventListener('blur', () => {
+        setTeamName(side, inputEl.value, { syncInputs: true });
+      });
+    }
+
+    bindTeamNameInput(inputNameRed, 'red');
+    bindTeamNameInput(inputNameBlue, 'blue');
 
     // Manipulação dos botões do Modal
     function setupButtonGroup(containerId, onChange) {
@@ -1951,6 +2373,7 @@
 
     function openModal() {
       btnModalClose.style.display = 'inline-block';
+      renderTeamCustomizationUI({ syncInputs: true });
       modeModal.classList.add('active');
     }
 
@@ -1979,11 +2402,12 @@
       triggerBotTurnIfNeeded();
     });
 
-    document.getElementById('btn-camera').addEventListener('click', () => {
+    btnCamera.addEventListener('click', () => {
       currentCameraViewIdx = (currentCameraViewIdx + 1) % cameraViews.length;
       const targetView = cameraViews[currentCameraViewIdx];
       camera.position.copy(targetView.pos);
       controls.target.copy(targetView.target);
+      updateCameraButtonLabel();
     });
 
     document.getElementById('btn-reset').addEventListener('click', () => {
@@ -2003,9 +2427,47 @@
       btnSound.innerText = soundEnabled ? '🔊 Som: Ligado' : '🔇 Som: Desligado';
     });
 
-    // Configuração inicial das badges
-    updateScoreboardBadges();
-    updateTurnUI();
+    // Atalhos de Teclado (ignorando digitação em campos de texto)
+    window.addEventListener('keydown', (e) => {
+      const targetTag = e.target?.tagName;
+      if (targetTag === 'INPUT' || targetTag === 'TEXTAREA' || targetTag === 'SELECT' || e.target?.isContentEditable) {
+        if (e.key === 'Escape') {
+          e.target.blur();
+        }
+        return;
+      }
+
+      if (e.key === 'Escape') {
+        if (modeModal.classList.contains('active')) {
+          closeModal();
+        } else {
+          openModal();
+        }
+      } else if (e.key === 'c' || e.key === 'C') {
+        btnCamera.click();
+      } else if (e.key === 'r' || e.key === 'R') {
+        document.getElementById('btn-reset').click();
+      } else if (e.key === 'm' || e.key === 'M') {
+        btnSound.click();
+      }
+    });
+
+    // Ganchos organizados para próximas features (Menu/HUD e Multiplayer)
+    window.FutebolBotaoApp = {
+      COLOR_ORDER,
+      TEAM_COLORS,
+      getColorPalette,
+      getTeamCustomization,
+      setTeamCustomization,
+      setTeamColor,
+      setTeamName,
+      applyTeamAppearance,
+      getTeamPalette,
+      getTeamName,
+    };
+
+    // Aplicação inicial da aparência, badges, câmeras e UI de personalização
+    applyTeamAppearance({ syncInputs: true });
 
     // =========================================================================
     // 10. LOOP PRINCIPAL DE RENDERIZAÇÃO
