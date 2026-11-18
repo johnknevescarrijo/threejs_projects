@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { WebSocketServer, WebSocket } from 'ws';
@@ -85,10 +86,11 @@ function extractBearerToken(req, body) {
 
 export function createGameServer({
   port = 3000,
-  host = '0.0.0.0',
+  host = undefined,
   dataFile = DEFAULT_DATA_FILE,
   staticDir = DEFAULT_STATIC_DIR,
 } = {}) {
+  const normalizedHost = typeof host === 'string' && host.trim() ? host.trim() : undefined;
   const resolvedStaticDir = path.resolve(staticDir);
   const store = createStore({ dataFile });
   const roomManager = createRoomManager({ store });
@@ -365,6 +367,9 @@ export function createGameServer({
 
   const wss = new WebSocketServer({ server, path: '/ws' });
 
+  // Evita crash por EventEmitter unhandled 'error' quando o http.Server emite EADDRINUSE durante start()
+  wss.on('error', () => {});
+
   wss.on('connection', (ws) => {
     const client = {
       id: crypto.randomUUID(),
@@ -564,12 +569,16 @@ export function createGameServer({
         const addr = server.address();
         resolve({
           port: typeof addr === 'object' && addr ? addr.port : port,
-          host: typeof addr === 'object' && addr ? addr.address : host,
+          host: typeof addr === 'object' && addr ? addr.address : normalizedHost || '::',
         });
       };
       server.once('error', onError);
       server.once('listening', onListening);
-      server.listen(port, host);
+      if (normalizedHost) {
+        server.listen(port, normalizedHost);
+      } else {
+        server.listen(port);
+      }
     });
   }
 
@@ -597,20 +606,104 @@ export function createGameServer({
   };
 }
 
+export function getLanIPv4Addresses() {
+  const interfaces = os.networkInterfaces();
+  const addresses = [];
+  for (const entries of Object.values(interfaces)) {
+    if (!Array.isArray(entries)) continue;
+    for (const info of entries) {
+      if (info && (info.family === 'IPv4' || info.family === 4) && !info.internal && info.address) {
+        addresses.push(info.address);
+      }
+    }
+  }
+  return [...new Set(addresses)];
+}
+
+export async function startServerWithFallback({
+  port = 3000,
+  explicitPort = false,
+  host = undefined,
+  maxFallbackSteps = 10,
+  dataFile = DEFAULT_DATA_FILE,
+  staticDir = DEFAULT_STATIC_DIR,
+  logger = console,
+} = {}) {
+  const normalizedHost = typeof host === 'string' && host.trim() ? host.trim() : undefined;
+  const lastPort = explicitPort ? port : port + maxFallbackSteps;
+
+  for (let candidatePort = port; candidatePort <= lastPort; candidatePort += 1) {
+    const gameServer = createGameServer({
+      port: candidatePort,
+      host: normalizedHost,
+      dataFile,
+      staticDir,
+    });
+    try {
+      const bound = await gameServer.start();
+      if (candidatePort > port && logger?.warn) {
+        logger.warn(`⚠️ Porta ${port} em uso, iniciando na porta ${bound.port}...`);
+      }
+      return { gameServer, ...bound };
+    } catch (err) {
+      await gameServer.close().catch(() => {});
+      if (err?.code === 'EADDRINUSE') {
+        if (explicitPort) {
+          const suggestedPort = candidatePort === 3000 ? 3001 : candidatePort + 1;
+          err.friendlyMessage =
+            `A porta ${candidatePort} já está em uso. ` +
+            `Escolha outra porta executando: PORT=${suggestedPort} npm start`;
+          throw err;
+        }
+        if (candidatePort === lastPort) {
+          err.friendlyMessage =
+            `Nenhuma porta livre encontrada entre ${port} e ${lastPort}. ` +
+            `Escolha outra porta manualmente executando: PORT=${lastPort + 1} npm start`;
+          throw err;
+        }
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
 const isMainModule =
   process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
 
 if (isMainModule) {
-  const port = Number(process.env.PORT) || 3000;
-  const host = process.env.HOST || '0.0.0.0';
-  const gameServer = createGameServer({ port, host });
-  gameServer
-    .start()
-    .then(({ port: boundPort }) => {
-      console.log(`⚽ Futebol de Botão 3D Online rodando em http://localhost:${boundPort}`);
+  const rawPort = process.env.PORT !== undefined ? String(process.env.PORT).trim() : '';
+  const explicitPort = rawPort !== '';
+  const port = explicitPort ? Number(rawPort) : 3000;
+  const host = process.env.HOST ? process.env.HOST.trim() || undefined : undefined;
+
+  if (explicitPort && (!Number.isInteger(port) || port < 0 || port > 65535)) {
+    console.error(
+      `❌ Porta inválida em PORT="${rawPort}". Informe um número entre 0 e 65535 (ex: PORT=3001 npm start).`
+    );
+    process.exit(1);
+  }
+
+  startServerWithFallback({ port, explicitPort, host })
+    .then(({ port: boundPort, host: boundHost }) => {
+      console.log('⚽ Futebol de Botão 3D Online pronto! Abra no navegador:');
+      console.log(`   • Local (IPv4/IPv6): http://localhost:${boundPort}`);
+      if (!host || host !== '::1') {
+        console.log(`   • IPv4 direto:       http://127.0.0.1:${boundPort}`);
+      }
+      if (!host || host === '0.0.0.0' || host === '::') {
+        for (const lanIp of getLanIPv4Addresses()) {
+          console.log(`   • Rede local (LAN):  http://${lanIp}:${boundPort}`);
+        }
+      }
+      console.log(`   (Escutando em ${boundHost}:${boundPort} · Ctrl+C para encerrar)`);
     })
     .catch((err) => {
-      console.error('Falha ao iniciar servidor:', err);
+      if (err?.friendlyMessage) {
+        console.error(`❌ ${err.friendlyMessage}`);
+      } else {
+        console.error('❌ Falha ao iniciar servidor:', err);
+      }
       process.exit(1);
     });
 }
