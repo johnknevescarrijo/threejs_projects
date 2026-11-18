@@ -63,6 +63,41 @@ Acesse **`http://localhost:8000`**. O jogo detecta automaticamente que não há 
 
 ---
 
+## ☁️ Publicar Grátis no Render + GitHub
+
+Você pode hospedar o jogo completo (Frontend 3D + Backend REST + WebSocket Multiplayer) gratuitamente no **Render** conectado ao seu repositório **GitHub**:
+
+### Passo 1: Enviar o código para o GitHub
+1. Crie um repositório no GitHub (ou use o repositório existente com `render.yaml` na raiz).
+2. Faça o push da branch principal com os commits atualizados:
+   ```bash
+   git push origin main
+   ```
+
+### Passo 2: Criar o serviço no Render
+
+- **Opção A — Blueprint em 1 clique (Recomendado):**
+  1. Acesse o [Dashboard do Render](https://dashboard.render.com/) → **New + → Blueprint**.
+  2. Conecte seu repositório do GitHub.
+  3. O Render lerá automaticamente o arquivo `render.yaml` na raiz do repositório (`rootDir: jogo_fubetol`, `plan: free`, `healthCheckPath: /api/health`) e criará o serviço Web `futebol-de-botao-3d`.
+
+- **Opção B — Configuração Manual (`New → Web Service`):**
+  1. Acesse **New + → Web Service** e conecte seu repositório GitHub.
+  2. Preencha os campos:
+     - **Root Directory:** `jogo_fubetol`
+     - **Runtime:** `Node`
+     - **Build Command:** `npm install`
+     - **Start Command:** `npm start`
+     - **Plan:** `Free`
+     - **Health Check Path (Advanced):** `/api/health`
+  3. Adicione a variável de ambiente `NODE_ENV=production` e clique em **Create Web Service**.
+
+### Observações do Plano Gratuito (Render Free)
+- **Hibernação por inatividade (spin-down):** Serviços gratuitos dormem após ~15 minutos sem tráfego. O primeiro acesso após hibernar pode levar cerca de **30 a 50 segundos** para acordar o container (o cliente já usa timeout tolerante de `12s` + retry automático em domínios remotos para evitar falso fallback offline).
+- **Disco efêmero:** No plano `Free`, o sistema de arquivos é efêmero — o arquivo `server/data/db.json` (contas e ranking online) é reiniciado em novos deploys ou reinicializações do container. Caso adicione um Render Disk no futuro, basta apontar `DATA_FILE=/var/data/db.json` nas variáveis de ambiente.
+
+---
+
 ## 🧪 Como Executar os Testes
 
 A suíte automatizada utiliza `node:test` nativo e cobre paleta/cores, regras de partida, perfil offline, API REST de autenticação e multiplayer WebSocket ponta a ponta:
