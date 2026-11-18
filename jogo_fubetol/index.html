@@ -4,450 +4,15 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <title>Futebol de Botão 3D</title>
-  <style>
-    :root {
-      --team-red-primary: #ef4444;
-      --team-red-glow: rgba(239, 68, 68, 0.45);
-      --team-red-text: #f87171;
-      --team-blue-primary: #3b82f6;
-      --team-blue-glow: rgba(59, 130, 246, 0.45);
-      --team-blue-text: #60a5fa;
-    }
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      user-select: none;
-      -webkit-user-select: none;
-    }
-    body {
-      overflow: hidden;
-      background: #0f172a;
-      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-      color: #fff;
-    }
-    canvas {
-      display: block;
-      width: 100vw;
-      height: 100vh;
-      outline: none;
-    }
-
-    /* Placar & Header Superior */
-    #hud {
-      position: absolute;
-      top: 16px;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 8px;
-      pointer-events: none;
-      z-index: 10;
-    }
-
-    .scoreboard {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-wrap: wrap;
-      max-width: calc(100vw - 24px);
-      background: rgba(15, 23, 42, 0.88);
-      padding: 8px 24px;
-      border-radius: 40px;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
-      backdrop-filter: blur(10px);
-      gap: 18px;
-    }
-    .team-badge {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-weight: 700;
-      font-size: 15px;
-      letter-spacing: 0.5px;
-    }
-    .badge-red { color: var(--team-red-text); }
-    .badge-blue { color: var(--team-blue-text); }
-    .dot {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      flex-shrink: 0;
-      border: 1px solid rgba(255, 255, 255, 0.35);
-    }
-    .dot-red { background: var(--team-red-primary); box-shadow: 0 0 10px var(--team-red-glow); }
-    .dot-blue { background: var(--team-blue-primary); box-shadow: 0 0 10px var(--team-blue-glow); }
-
-    .score {
-      font-size: 28px;
-      font-weight: 900;
-      color: #f8fafc;
-      min-width: 70px;
-      text-align: center;
-      background: rgba(0, 0, 0, 0.4);
-      padding: 2px 14px;
-      border-radius: 12px;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-    }
-
-    .turn-indicator {
-      font-size: 13px;
-      font-weight: 600;
-      padding: 5px 16px;
-      border-radius: 20px;
-      background: rgba(15, 23, 42, 0.9);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-      transition: all 0.3s ease;
-    }
-
-    /* Painel de Controles & Instruções */
-    #bottom-bar {
-      position: absolute;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 10px;
-      z-index: 10;
-    }
-    .btn {
-      background: rgba(15, 23, 42, 0.85);
-      color: #e2e8f0;
-      border: 1px solid rgba(255, 255, 255, 0.18);
-      padding: 10px 16px;
-      border-radius: 10px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      backdrop-filter: blur(8px);
-      transition: all 0.2s;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .btn:hover {
-      background: rgba(30, 41, 59, 0.95);
-      border-color: rgba(255, 255, 255, 0.35);
-      transform: translateY(-2px);
-    }
-    .btn:active {
-      transform: translateY(0);
-    }
-
-    #help-box {
-      position: absolute;
-      top: 16px;
-      left: 16px;
-      background: rgba(15, 23, 42, 0.85);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      padding: 12px 16px;
-      border-radius: 12px;
-      font-size: 12px;
-      line-height: 1.5;
-      color: #94a3b8;
-      backdrop-filter: blur(8px);
-      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
-      max-width: 260px;
-      pointer-events: none;
-      z-index: 10;
-    }
-    #help-box strong { color: #f8fafc; }
-
-    /* Modal / Banner de GOL */
-    #goal-banner {
-      position: absolute;
-      top: 45%;
-      left: 50%;
-      transform: translate(-50%, -50%) scale(0.5);
-      background: linear-gradient(135deg, #16a34a, #15803d);
-      color: #ffffff;
-      padding: 24px 60px;
-      border-radius: 24px;
-      font-size: 48px;
-      font-weight: 900;
-      text-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
-      box-shadow: 0 0 50px rgba(34, 197, 94, 0.8), 0 20px 40px rgba(0, 0, 0, 0.7);
-      border: 3px solid #86efac;
-      pointer-events: none;
-      opacity: 0;
-      z-index: 100;
-      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-      text-align: center;
-      letter-spacing: 2px;
-    }
-    #goal-banner.show {
-      opacity: 1;
-      transform: translate(-50%, -50%) scale(1);
-    }
-    #goal-banner span {
-      display: block;
-      font-size: 18px;
-      font-weight: 600;
-      margin-top: 6px;
-      color: #dcfce7;
-      text-shadow: none;
-      letter-spacing: normal;
-    }
-
-    /* Modal de Configuração / Modo de Jogo */
-    #mode-modal-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(8, 14, 26, 0.75);
-      backdrop-filter: blur(8px);
-      z-index: 200;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.3s ease;
-    }
-    #mode-modal-overlay.active {
-      opacity: 1;
-      pointer-events: auto;
-    }
-    .modal-card {
-      background: linear-gradient(145deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98));
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 20px;
-      width: 92%;
-      max-width: 560px;
-      max-height: 92vh;
-      overflow-y: auto;
-      padding: 24px;
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 30px rgba(59, 130, 246, 0.15);
-      transform: scale(0.92);
-      transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    }
-    #mode-modal-overlay.active .modal-card {
-      transform: scale(1);
-    }
-    .modal-header {
-      text-align: center;
-      margin-bottom: 20px;
-    }
-    .modal-header h2 {
-      font-size: 24px;
-      font-weight: 800;
-      color: #f8fafc;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-    }
-    .modal-header p {
-      font-size: 13px;
-      color: #94a3b8;
-      margin-top: 4px;
-    }
-
-    .form-group {
-      margin-bottom: 18px;
-    }
-    .form-label {
-      display: block;
-      font-size: 13px;
-      font-weight: 700;
-      color: #cbd5e1;
-      margin-bottom: 8px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    .btn-group {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-      gap: 8px;
-    }
-    .option-btn {
-      background: rgba(15, 23, 42, 0.7);
-      border: 1.5px solid rgba(255, 255, 255, 0.15);
-      color: #cbd5e1;
-      padding: 10px 8px;
-      border-radius: 10px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 4px;
-      text-align: center;
-    }
-    .option-btn:hover {
-      background: rgba(51, 65, 85, 0.8);
-      border-color: rgba(255, 255, 255, 0.3);
-      color: #fff;
-    }
-    .option-btn.selected {
-      background: linear-gradient(135deg, rgba(59, 130, 246, 0.35), rgba(37, 99, 235, 0.55));
-      border-color: #60a5fa;
-      color: #ffffff;
-      box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
-    }
-    .option-btn .opt-icon {
-      font-size: 18px;
-    }
-
-    .modal-actions {
-      display: flex;
-      gap: 12px;
-      margin-top: 24px;
-    }
-    .btn-primary {
-      flex: 1;
-      background: linear-gradient(135deg, #2563eb, #1d4ed8);
-      border: 1px solid #60a5fa;
-      color: white;
-      padding: 12px;
-      font-size: 15px;
-      font-weight: 700;
-      border-radius: 12px;
-      cursor: pointer;
-      box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4);
-      transition: all 0.2s;
-    }
-    .btn-primary:hover {
-      background: linear-gradient(135deg, #3b82f6, #2563eb);
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(37, 99, 235, 0.6);
-    }
-    .btn-secondary {
-      background: rgba(30, 41, 59, 0.8);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      color: #94a3b8;
-      padding: 12px 18px;
-      font-size: 14px;
-      font-weight: 600;
-      border-radius: 12px;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .btn-secondary:hover {
-      background: rgba(51, 65, 85, 0.9);
-      color: #f1f5f9;
-    }
-
-    /* Personalização de Times (Cores e Nomes) */
-    .team-custom-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-    }
-    @media (max-width: 520px) {
-      .team-custom-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-    .team-custom-card {
-      background: rgba(15, 23, 42, 0.68);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 12px;
-      padding: 10px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .team-custom-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      font-size: 12px;
-      font-weight: 700;
-      color: #e2e8f0;
-    }
-    .team-custom-title {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .team-name-input {
-      width: 100%;
-      background: rgba(2, 6, 23, 0.65);
-      border: 1px solid rgba(255, 255, 255, 0.16);
-      border-radius: 8px;
-      padding: 7px 10px;
-      font-size: 13px;
-      font-weight: 600;
-      color: #f8fafc;
-      outline: none;
-      transition: border-color 0.2s, box-shadow 0.2s;
-      user-select: text;
-      -webkit-user-select: text;
-    }
-    .team-name-input:focus {
-      border-color: #60a5fa;
-      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
-    }
-    .color-swatches {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 5px;
-    }
-    .color-swatch {
-      position: relative;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      padding: 5px 6px;
-      border-radius: 8px;
-      border: 1.5px solid rgba(255, 255, 255, 0.14);
-      background: rgba(30, 41, 59, 0.65);
-      color: #cbd5e1;
-      font-size: 11px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.16s ease;
-    }
-    .color-swatch:hover {
-      background: rgba(51, 65, 85, 0.85);
-      border-color: rgba(255, 255, 255, 0.35);
-      color: #ffffff;
-    }
-    .color-swatch.active {
-      background: rgba(59, 130, 246, 0.28);
-      border-color: #f8fafc;
-      color: #ffffff;
-      box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
-    }
-    .color-swatch.in-use-other {
-      border-style: dashed;
-      border-color: rgba(250, 204, 21, 0.55);
-      opacity: 0.88;
-    }
-    .swatch-disc {
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      flex-shrink: 0;
-      box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35);
-    }
-    .swatch-swap-badge {
-      margin-left: auto;
-      font-size: 10px;
-      color: #facc15;
-    }
-    .team-dot-inline {
-      display: inline-block;
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      border: 1.5px solid rgba(255, 255, 255, 0.45);
-    }
-  </style>
+  <link rel="stylesheet" href="./css/ui.css" />
 </head>
 <body>
   <!-- HUD Superior -->
   <div id="hud">
+    <div class="hud-top-meta">
+      <span class="hud-pill" id="hud-match-badge">1P vs Bot · Convidado</span>
+      <span class="hud-pill hud-pill-goal" id="hud-goal-limit">Meta: Até 5 gols</span>
+    </div>
     <div class="scoreboard">
       <div class="team-badge badge-red">
         <span class="dot dot-red"></span> <span id="label-red">VERMELHO</span>
@@ -460,136 +25,485 @@
     <div class="turn-indicator" id="turn-text" style="color: #ef4444; border-color: #ef4444;">
       👉 Vez do Time Vermelho
     </div>
+    <div class="power-meter" id="power-meter" aria-hidden="true">
+      <div class="power-meter-header">
+        <span>Força do Chute</span>
+        <span id="power-meter-value">0%</span>
+      </div>
+      <div class="power-meter-track">
+        <div class="power-meter-fill" id="power-meter-fill"></div>
+      </div>
+    </div>
   </div>
 
   <!-- Ajuda / Instruções -->
   <div id="help-box">
-    <strong>🕹️ Como Jogar:</strong><br/>
-    1. Clique e puxe para trás no botão do seu time para mirar e dosar a força.<br/>
-    2. Solte para chutar (estilo estilingue).<br/>
-    3. Use o botão direito para girar a câmera e scroll para zoom.
+    <strong>🕹️ Como Jogar</strong>
+    1. Clique e puxe para trás no botão do seu time.<br />
+    2. Solte para chutar (estilo estilingue).<br />
+    3. Botão direito gira a câmera · Scroll dá zoom.
   </div>
 
-  <!-- Barra de Botões -->
+  <!-- Barra de Controles Inferior -->
   <div id="bottom-bar">
-    <button class="btn" id="btn-mode">⚙️ Modo de Jogo</button>
-    <button class="btn" id="btn-camera">📷 Alternar Câmera</button>
-    <button class="btn" id="btn-reset">🔄 Reiniciar Partida</button>
-    <button class="btn" id="btn-sound">🔊 Som: Ligado</button>
+    <button class="btn" id="btn-mode" type="button">⚙️ Menu <span class="kbd-hint">ESC</span></button>
+    <button class="btn" id="btn-camera" type="button">📷 Câmera <span class="kbd-hint">C</span></button>
+    <button class="btn" id="btn-sound" type="button">🔊 Som: Ligado <span class="kbd-hint">M</span></button>
+    <button class="btn" id="btn-reset" type="button">🔄 Reiniciar <span class="kbd-hint">R</span></button>
+    <button class="btn btn-danger-outline" id="btn-exit-online" type="button" style="display:none;">🚪 Sair da Sala</button>
   </div>
 
-  <!-- Modal de Modo de Jogo -->
+  <!-- Menu Glassmorphism com 4 Abas -->
   <div id="mode-modal-overlay" class="active">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h2>⚽ Opções da Partida</h2>
-        <p>Escolha o modo de jogo, time e nível de desafio</p>
-      </div>
-
-      <!-- Escolha do Modo -->
-      <div class="form-group">
-        <label class="form-label">Modo de Jogo</label>
-        <div class="btn-group" id="group-mode">
-          <button class="option-btn selected" data-value="pve">
-            <span class="opt-icon">👤🤖</span>
-            <span>1 Jogador (vs Bot)</span>
+    <div class="menu-shell" role="dialog" aria-modal="true" aria-labelledby="menu-main-title">
+      <div class="menu-header">
+        <div class="menu-brand">
+          <h1 id="menu-main-title">⚽ Futebol de Botão 3D</h1>
+          <p>Mesa Clássica · Física 2.5D · IA &amp; Multiplayer</p>
+        </div>
+        <div class="menu-header-right">
+          <button class="profile-chip" id="header-profile-chip" type="button" title="Abrir Conta & Ranking">
+            <span class="profile-chip-avatar" id="header-profile-avatar">CV</span>
+            <span class="profile-chip-name" id="header-profile-name">Convidado</span>
+            <span class="status-badge" id="header-online-badge">Offline</span>
           </button>
-          <button class="option-btn" data-value="pvp">
-            <span class="opt-icon">👥</span>
-            <span>2 Jogadores (Local)</span>
-          </button>
-          <button class="option-btn" data-value="eve">
-            <span class="opt-icon">🤖🤖</span>
-            <span>Assistir (Bot vs Bot)</span>
-          </button>
+          <button class="btn-icon-close" id="btn-modal-close" type="button" style="display:none;">✕ Voltar</button>
         </div>
       </div>
 
-      <!-- Escolha do Time do Jogador (apenas se 1P vs Bot) -->
-      <div class="form-group" id="section-player-team">
-        <label class="form-label">Seu Time</label>
-        <div class="btn-group" id="group-team">
-          <button class="option-btn selected" data-value="red">
-            <span class="opt-icon"><span class="team-dot-inline dot-red" id="btn-team-red-dot"></span></span>
-            <span id="btn-team-red-label">Vermelho</span>
-          </button>
-          <button class="option-btn" data-value="blue">
-            <span class="opt-icon"><span class="team-dot-inline dot-blue" id="btn-team-blue-dot"></span></span>
-            <span id="btn-team-blue-label">Azul</span>
-          </button>
-        </div>
+      <div class="menu-tabs" role="tablist" aria-label="Navegação do Menu">
+        <button class="menu-tab active" type="button" role="tab" data-tab="play" aria-selected="true">⚽ Jogar</button>
+        <button class="menu-tab" type="button" role="tab" data-tab="teams" aria-selected="false">🎨 Cores &amp; Times</button>
+        <button class="menu-tab" type="button" role="tab" data-tab="online" aria-selected="false">🌐 Multiplayer Online</button>
+        <button class="menu-tab" type="button" role="tab" data-tab="account" aria-selected="false">👤 Conta &amp; Ranking</button>
       </div>
 
-      <!-- Personalização de Cores e Nomes dos Times -->
-      <div class="form-group" id="section-team-customization">
-        <label class="form-label">Personalização dos Times (Cores &amp; Nomes)</label>
-        <div class="team-custom-grid">
-          <div class="team-custom-card" data-side="red">
-            <div class="team-custom-header">
-              <span class="team-custom-title">
-                <span class="dot dot-red" id="custom-dot-red"></span>
-                <span>Time 1 (Esquerda)</span>
-              </span>
+      <div class="menu-body">
+        <!-- ABA 1: JOGAR -->
+        <section class="tab-panel active" id="tab-panel-play" data-tab-panel="play" role="tabpanel">
+          <div class="form-group">
+            <label class="form-label">Modo de Jogo</label>
+            <div class="btn-group" id="group-mode">
+              <button class="option-btn selected" type="button" data-value="pve">
+                <span class="opt-icon">👤🤖</span>
+                <span>1 Jogador vs Bot</span>
+                <span class="opt-sub">Desafio solo</span>
+              </button>
+              <button class="option-btn" type="button" data-value="pvp">
+                <span class="opt-icon">👥</span>
+                <span>2 Jogadores Local</span>
+                <span class="opt-sub">Mesmo dispositivo</span>
+              </button>
+              <button class="option-btn" type="button" data-value="eve">
+                <span class="opt-icon">🤖🤖</span>
+                <span>Bot vs Bot</span>
+                <span class="opt-sub">Modo espectador</span>
+              </button>
             </div>
-            <input
-              type="text"
-              id="input-team-name-red"
-              class="team-name-input"
-              maxlength="18"
-              placeholder="Nome do Time 1"
-              aria-label="Nome do Time 1"
-              autocomplete="off"
-            />
-            <div class="color-swatches" id="swatches-red" role="group" aria-label="Cor do Time 1"></div>
           </div>
 
-          <div class="team-custom-card" data-side="blue">
-            <div class="team-custom-header">
-              <span class="team-custom-title">
-                <span class="dot dot-blue" id="custom-dot-blue"></span>
-                <span>Time 2 (Direita)</span>
+          <div class="form-group" id="section-player-team">
+            <label class="form-label">Seu Lado na Mesa</label>
+            <div class="btn-group" id="group-team">
+              <button class="option-btn selected" type="button" data-value="red">
+                <span class="opt-icon"><span class="team-dot-inline dot-red" id="btn-team-red-dot"></span></span>
+                <span id="btn-team-red-label">Vermelho</span>
+                <span class="opt-sub">Ataca à direita</span>
+              </button>
+              <button class="option-btn" type="button" data-value="blue">
+                <span class="opt-icon"><span class="team-dot-inline dot-blue" id="btn-team-blue-dot"></span></span>
+                <span id="btn-team-blue-label">Azul</span>
+                <span class="opt-sub">Ataca à esquerda</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="form-group" id="section-bot-difficulty">
+            <label class="form-label">Dificuldade da IA</label>
+            <div class="btn-group" id="group-diff">
+              <button class="option-btn" type="button" data-value="easy">
+                <span class="opt-icon">🟢</span>
+                <span>Fácil</span>
+              </button>
+              <button class="option-btn selected" type="button" data-value="medium">
+                <span class="opt-icon">🟡</span>
+                <span>Médio</span>
+              </button>
+              <button class="option-btn" type="button" data-value="hard">
+                <span class="opt-icon">🔴</span>
+                <span>Craque</span>
+              </button>
+              <button class="option-btn" type="button" data-value="legendary">
+                <span class="opt-icon">👑</span>
+                <span>Lendário</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="form-group" id="section-goal-limit">
+            <label class="form-label">Meta de Gols</label>
+            <div class="btn-group" id="group-goal-limit">
+              <button class="option-btn" type="button" data-value="3">
+                <span>3 Gols</span>
+                <span class="opt-sub">Partida rápida</span>
+              </button>
+              <button class="option-btn selected" type="button" data-value="5">
+                <span>5 Gols</span>
+                <span class="opt-sub">Padrão</span>
+              </button>
+              <button class="option-btn" type="button" data-value="7">
+                <span>7 Gols</span>
+                <span class="opt-sub">Clássico</span>
+              </button>
+              <button class="option-btn" type="button" data-value="0">
+                <span>Livre</span>
+                <span class="opt-sub">Sem limite</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="matchup-banner" id="play-matchup-preview">
+            <div class="matchup-sides">
+              <span class="matchup-side-pill">
+                <span class="dot" id="play-preview-dot-red"></span>
+                <span id="play-preview-name-red">Vermelho</span>
+              </span>
+              <span class="matchup-vs">VS</span>
+              <span class="matchup-side-pill">
+                <span id="play-preview-name-blue">Azul</span>
+                <span class="dot" id="play-preview-dot-blue"></span>
               </span>
             </div>
-            <input
-              type="text"
-              id="input-team-name-blue"
-              class="team-name-input"
-              maxlength="18"
-              placeholder="Nome do Time 2"
-              aria-label="Nome do Time 2"
-              autocomplete="off"
-            />
-            <div class="color-swatches" id="swatches-blue" role="group" aria-label="Cor do Time 2"></div>
+            <button class="btn-link-subtle" id="btn-goto-teams" type="button">🎨 Personalizar Times →</button>
           </div>
-        </div>
+
+          <div class="modal-actions">
+            <button class="btn-secondary" id="btn-modal-resume" type="button" style="display:none;">↩️ Continuar Partida</button>
+            <button class="btn-primary" id="btn-modal-start" type="button">▶️ Iniciar Partida</button>
+          </div>
+        </section>
+
+        <!-- ABA 2: CORES & TIMES -->
+        <section class="tab-panel" id="tab-panel-teams" data-tab-panel="teams" role="tabpanel">
+          <div class="teams-preview-stage" id="teams-piece-preview">
+            <div class="preview-team-box">
+              <div class="preview-pieces-row">
+                <div class="preview-disc" id="preview-disc-red">
+                  <div class="preview-disc-inner" id="preview-disc-inner-red">10</div>
+                </div>
+                <div class="preview-gk" id="preview-gk-red">1</div>
+              </div>
+              <div class="preview-team-label" id="preview-title-red">Vermelho</div>
+            </div>
+
+            <div class="preview-vs-badge">VS</div>
+
+            <div class="preview-team-box">
+              <div class="preview-pieces-row">
+                <div class="preview-gk" id="preview-gk-blue">1</div>
+                <div class="preview-disc" id="preview-disc-blue">
+                  <div class="preview-disc-inner" id="preview-disc-inner-blue">10</div>
+                </div>
+              </div>
+              <div class="preview-team-label" id="preview-title-blue">Azul</div>
+            </div>
+          </div>
+
+          <div class="team-custom-grid">
+            <div class="team-custom-card" data-side="red">
+              <div class="team-custom-header">
+                <span class="team-custom-title">
+                  <span class="dot dot-red" id="custom-dot-red"></span>
+                  <span>Time 1 (Esquerda)</span>
+                </span>
+              </div>
+              <input
+                type="text"
+                id="input-team-name-red"
+                class="team-name-input"
+                maxlength="18"
+                placeholder="Nome do Time 1"
+                aria-label="Nome do Time 1"
+                autocomplete="off"
+              />
+              <div class="color-swatches" id="swatches-red" role="group" aria-label="Cor do Time 1"></div>
+            </div>
+
+            <div class="team-custom-card" data-side="blue">
+              <div class="team-custom-header">
+                <span class="team-custom-title">
+                  <span class="dot dot-blue" id="custom-dot-blue"></span>
+                  <span>Time 2 (Direita)</span>
+                </span>
+              </div>
+              <input
+                type="text"
+                id="input-team-name-blue"
+                class="team-name-input"
+                maxlength="18"
+                placeholder="Nome do Time 2"
+                aria-label="Nome do Time 2"
+                autocomplete="off"
+              />
+              <div class="color-swatches" id="swatches-blue" role="group" aria-label="Cor do Time 2"></div>
+            </div>
+          </div>
+
+          <div class="teams-footer-bar">
+            <span class="teams-footer-note">As cores escolhidas atualizam a mesa 3D ao vivo com troca automática anti-colisão.</span>
+            <button class="btn-secondary" id="btn-reset-teams" type="button">↺ Restaurar Padrão</button>
+          </div>
+        </section>
+
+        <!-- ABA 3: MULTIPLAYER ONLINE -->
+        <section class="tab-panel" id="tab-panel-online" data-tab-panel="online" role="tabpanel">
+          <div class="online-status-bar">
+            <div class="online-status-left">
+              <span>Status do Servidor:</span>
+              <span class="status-badge" id="online-status-pill">Modo Offline</span>
+            </div>
+            <span style="font-size: 12px; color: var(--text-muted);" id="online-server-info">Servidor Node.js não conectado</span>
+          </div>
+
+          <div class="info-banner" id="online-offline-banner">
+            <strong>Modo Online pronto para conexão:</strong> para jogar partidas em rede e usar salas ao vivo, inicie o servidor Node.js na pasta do projeto com <code>npm start</code> e recarregue via <code>http://localhost:3000</code>. Enquanto isso, todos os modos locais e contas offline funcionam normalmente.
+          </div>
+
+          <div id="online-lobby-view">
+            <div class="online-grid">
+              <div class="panel-card">
+                <div class="panel-card-title">🏟️ Criar Sala</div>
+                <form class="stack-form" id="form-create-room">
+                  <input
+                    type="text"
+                    id="input-room-name"
+                    class="text-input"
+                    maxlength="28"
+                    placeholder="Nome da sala (ex: Copa do Bairro)"
+                    autocomplete="off"
+                  />
+                  <div class="two-col-inputs">
+                    <select id="select-room-visibility" class="select-input" aria-label="Visibilidade da sala">
+                      <option value="public">Pública</option>
+                      <option value="private">Privada (só código)</option>
+                    </select>
+                    <select id="select-room-goal-limit" class="select-input" aria-label="Meta de gols da sala">
+                      <option value="3">Até 3 gols</option>
+                      <option value="5" selected>Até 5 gols</option>
+                      <option value="7">Até 7 gols</option>
+                      <option value="0">Livre</option>
+                    </select>
+                  </div>
+                  <button class="btn-primary" id="btn-create-room" type="submit">➕ Criar Sala</button>
+                </form>
+              </div>
+
+              <div class="panel-card">
+                <div class="panel-card-title">🔑 Entrar por Código</div>
+                <form class="stack-form" id="form-join-code">
+                  <input
+                    type="text"
+                    id="input-room-code"
+                    class="text-input"
+                    maxlength="6"
+                    placeholder="Código (6 caracteres)"
+                    style="text-transform: uppercase; letter-spacing: 2px;"
+                    autocomplete="off"
+                  />
+                  <button class="btn-secondary" id="btn-join-code" type="submit">Entrar na Sala</button>
+                </form>
+              </div>
+            </div>
+
+            <div class="panel-card">
+              <div class="panel-card-title">
+                <span>📋 Salas Abertas</span>
+                <button class="btn-link-subtle" id="btn-refresh-rooms" type="button">🔄 Atualizar</button>
+              </div>
+              <div class="rooms-list" id="online-rooms-list"></div>
+            </div>
+          </div>
+
+          <div id="online-room-panel" class="panel-card" style="display:none;">
+            <div class="room-waiting-header">
+              <div>
+                <div style="font-size: 15px; font-weight: 800;" id="room-title-display">Sala de Espera</div>
+                <div style="font-size: 11.5px; color: var(--text-muted);">Aguardando jogadores ficarem prontos</div>
+              </div>
+              <div class="inline-form-row">
+                <div class="room-code-box">
+                  <span id="room-code-display">------</span>
+                  <button class="btn-link-subtle" id="btn-copy-room-code" type="button">📋 Copiar</button>
+                </div>
+                <button class="btn-secondary" id="btn-leave-room" type="button">🚪 Sair da Sala</button>
+              </div>
+            </div>
+
+            <div class="room-players-grid">
+              <div class="room-player-card" id="room-slot-red"></div>
+              <div class="room-player-card" id="room-slot-blue"></div>
+            </div>
+
+            <div class="modal-actions" style="margin-bottom: 12px;">
+              <button class="btn-primary" id="btn-room-ready" type="button">✅ Pronto / Iniciar</button>
+            </div>
+
+            <div class="room-chat-feed" id="room-chat-feed"></div>
+            <form class="inline-form-row" id="form-room-chat">
+              <input
+                type="text"
+                id="input-room-chat"
+                class="text-input"
+                maxlength="160"
+                placeholder="Enviar mensagem rápida para a sala..."
+                autocomplete="off"
+              />
+              <button class="btn-secondary" id="btn-send-room-chat" type="submit">Enviar</button>
+            </form>
+          </div>
+        </section>
+
+        <!-- ABA 4: CONTA & RANKING -->
+        <section class="tab-panel" id="tab-panel-account" data-tab-panel="account" role="tabpanel">
+          <div class="account-top-bar">
+            <span class="status-badge" id="account-mode-badge">Conta Local (Offline)</span>
+            <span style="font-size: 12px; color: var(--text-muted);">Estatísticas e ranking salvos localmente no navegador</span>
+          </div>
+
+          <div class="feedback-banner" id="account-feedback"></div>
+
+          <!-- Deslogado -->
+          <div id="account-auth-view">
+            <div class="panel-card" style="margin-bottom: 14px;">
+              <div class="account-top-bar" style="margin-bottom: 10px;">
+                <div class="segmented-toggle" role="group" aria-label="Alternar Login ou Cadastro">
+                  <button class="segmented-btn active" id="btn-auth-mode-login" type="button">Entrar</button>
+                  <button class="segmented-btn" id="btn-auth-mode-register" type="button">Criar Conta</button>
+                </div>
+                <button class="btn-link-subtle" id="btn-continue-guest" type="button">Continuar como Convidado</button>
+              </div>
+
+              <form class="stack-form" id="form-local-login">
+                <div class="two-col-inputs">
+                  <input type="text" id="input-login-username" class="text-input" placeholder="Usuário" autocomplete="username" required />
+                  <input type="password" id="input-login-password" class="text-input" placeholder="Senha" autocomplete="current-password" required />
+                </div>
+                <button class="btn-primary" id="btn-login-submit" type="submit">🔓 Entrar na Conta</button>
+              </form>
+
+              <form class="stack-form" id="form-local-register" style="display:none;">
+                <div class="two-col-inputs">
+                  <input type="text" id="input-reg-username" class="text-input" maxlength="20" placeholder="Usuário (3-20 chars, a-z 0-9 _ -)" autocomplete="username" required />
+                  <input type="text" id="input-reg-displayname" class="text-input" maxlength="24" placeholder="Nome de exibição" autocomplete="nickname" />
+                </div>
+                <div class="two-col-inputs">
+                  <input type="password" id="input-reg-password" class="text-input" minlength="4" placeholder="Senha (mín. 4 caracteres)" autocomplete="new-password" required />
+                  <input type="text" id="input-reg-teamname" class="text-input" maxlength="18" placeholder="Nome padrão do time (opcional)" />
+                </div>
+                <div>
+                  <span class="form-label" style="margin-bottom: 6px;">Cor Favorita</span>
+                  <div class="color-swatches" id="reg-favorite-color-swatches"></div>
+                </div>
+                <button class="btn-primary" id="btn-register-submit" type="submit">✨ Criar Conta &amp; Entrar</button>
+              </form>
+            </div>
+          </div>
+
+          <!-- Logado -->
+          <div id="account-profile-view" style="display:none;">
+            <div class="profile-summary-card">
+              <div class="profile-identity">
+                <div class="profile-avatar-lg" id="profile-avatar">JG</div>
+                <div>
+                  <div style="font-size: 16px; font-weight: 800;" id="profile-displayname">Jogador</div>
+                  <div style="font-size: 12px; color: var(--text-muted);">
+                    <span id="profile-username">@jogador</span> · <span id="profile-mode-tag">Offline</span>
+                  </div>
+                </div>
+              </div>
+              <button class="btn-secondary" id="btn-logout" type="button">Sair</button>
+            </div>
+
+            <div class="stats-grid">
+              <div class="stat-box"><strong id="stat-matches">0</strong><span>Partidas</span></div>
+              <div class="stat-box"><strong id="stat-wins">0</strong><span>Vitórias</span></div>
+              <div class="stat-box"><strong id="stat-goals-for">0</strong><span>Gols Pró</span></div>
+              <div class="stat-box"><strong id="stat-winrate">0%</strong><span>Aproveit.</span></div>
+              <div class="stat-box"><strong id="stat-points">0</strong><span>Pontos</span></div>
+            </div>
+
+            <div class="panel-card" style="margin-bottom: 12px;">
+              <div class="panel-card-title">⚙️ Editar Perfil &amp; Time Favorito</div>
+              <form class="stack-form" id="form-profile-edit">
+                <div class="two-col-inputs">
+                  <input type="text" id="input-profile-displayname" class="text-input" maxlength="24" placeholder="Nome de exibição" />
+                  <input type="text" id="input-profile-teamname" class="text-input" maxlength="18" placeholder="Time padrão" />
+                </div>
+                <div class="color-swatches" id="profile-color-swatches"></div>
+                <div class="inline-form-row" style="flex-wrap: wrap;">
+                  <button class="btn-secondary" id="btn-save-profile" type="submit">💾 Salvar Perfil</button>
+                  <button class="btn-link-subtle" id="btn-apply-profile-team" type="button">🎨 Usar minhas cores no Time 1</button>
+                </div>
+              </form>
+            </div>
+
+            <div class="panel-card" style="margin-bottom: 12px;">
+              <div class="panel-card-title">🕒 Histórico Recente</div>
+              <div class="history-list" id="profile-history-list"></div>
+            </div>
+          </div>
+
+          <!-- Tabela de Ranking -->
+          <div class="panel-card" id="leaderboard-section">
+            <div class="panel-card-title">
+              <span>🏆 Tabela de Ranking</span>
+              <span style="font-size: 11px; color: var(--text-muted);" id="leaderboard-subtitle">Ranking Local</span>
+            </div>
+            <div class="leaderboard-table-wrap">
+              <table class="leaderboard-table">
+                <thead>
+                  <tr>
+                    <th>Pos</th>
+                    <th>Jogador</th>
+                    <th>J</th>
+                    <th>V</th>
+                    <th>SG</th>
+                    <th>Pts</th>
+                  </tr>
+                </thead>
+                <tbody id="leaderboard-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Fim de Partida -->
+  <div id="match-over-overlay">
+    <div class="match-over-card" role="dialog" aria-modal="true" aria-labelledby="match-over-title">
+      <div class="match-over-trophy" id="match-over-badge">🏆</div>
+      <h2 id="match-over-title">Fim de Partida!</h2>
+      <p class="match-over-subtitle" id="match-over-subtitle">Meta atingida</p>
+
+      <div class="match-over-scoreline">
+        <span class="match-over-team badge-red">
+          <span class="dot dot-red"></span>
+          <span id="match-over-name-red">Vermelho</span>
+        </span>
+        <span class="match-over-score" id="match-over-score">0 - 0</span>
+        <span class="match-over-team badge-blue">
+          <span id="match-over-name-blue">Azul</span>
+          <span class="dot dot-blue"></span>
+        </span>
       </div>
 
-      <!-- Dificuldade do Bot -->
-      <div class="form-group" id="section-bot-difficulty">
-        <label class="form-label">Dificuldade da IA</label>
-        <div class="btn-group" id="group-diff">
-          <button class="option-btn" data-value="easy">
-            <span class="opt-icon">🟢</span>
-            <span>Fácil</span>
-          </button>
-          <button class="option-btn selected" data-value="medium">
-            <span class="opt-icon">🟡</span>
-            <span>Médio</span>
-          </button>
-          <button class="option-btn" data-value="hard">
-            <span class="opt-icon">🔴</span>
-            <span>Craque</span>
-          </button>
-          <button class="option-btn" data-value="legendary">
-            <span class="opt-icon">👑</span>
-            <span>Lendário</span>
-          </button>
-        </div>
-      </div>
+      <p class="match-over-summary" id="match-over-summary"></p>
 
       <div class="modal-actions">
-        <button class="btn-secondary" id="btn-modal-close" style="display:none;">Fechar</button>
-        <button class="btn-primary" id="btn-modal-start">▶️ Iniciar Jogo</button>
+        <button class="btn-secondary" id="btn-gameover-menu" type="button">🏠 Voltar ao Menu</button>
+        <button class="btn-primary" id="btn-rematch" type="button">🔁 Revanche</button>
       </div>
     </div>
   </div>
@@ -625,6 +539,17 @@
       resolveTeamNameChange,
       normalizeTeamConfig,
     } from './js/teamColors.js';
+    import {
+      DEFAULT_GOAL_LIMIT,
+      GOAL_LIMIT_OPTIONS,
+      normalizeGoalLimit,
+      evaluateMatchWinner,
+    } from './js/matchRules.js';
+    import {
+      getCurrentLocalAccount,
+      recordLocalMatchResult,
+    } from './js/localProfile.js';
+    import { createUIController } from './js/uiController.js';
 
     // =========================================================================
     // 0. PERSONALIZAÇÃO DE CORES E NOMES DOS TIMES
@@ -1278,18 +1203,54 @@
     aimCircle.visible = false;
     scene.add(aimCircle);
 
-    // Configurações de Modo de Jogo e IA
-    let gameMode = 'pve';          // 'pve' (1P vs Bot), 'pvp' (2P Local), 'eve' (Bot vs Bot)
+    // Sistema simples de eventos para integração com a Feature 3 (Online)
+    const eventListeners = new Map();
+    function on(eventName, fn) {
+      if (typeof eventName !== 'string' || typeof fn !== 'function') return () => {};
+      if (!eventListeners.has(eventName)) {
+        eventListeners.set(eventName, new Set());
+      }
+      eventListeners.get(eventName).add(fn);
+      return () => off(eventName, fn);
+    }
+    function off(eventName, fn) {
+      const set = eventListeners.get(eventName);
+      if (set) set.delete(fn);
+    }
+    function emit(eventName, payload) {
+      const set = eventListeners.get(eventName);
+      if (!set) return;
+      set.forEach((fn) => {
+        try {
+          fn(payload);
+        } catch (err) {
+          console.error(`[FutebolBotaoApp] Erro no listener "${eventName}":`, err);
+        }
+      });
+    }
+
+    // Configurações de Modo de Jogo, Meta de Gols, Online e IA
+    let gameMode = 'pve';          // 'pve', 'pvp', 'eve', 'online'
     let playerTeam = 'red';        // Time do jogador no modo 1P ('red' ou 'blue')
-    let botDifficulty = 'medium';  // 'easy', 'medium', 'hard'
+    let botDifficulty = 'medium';  // 'easy', 'medium', 'hard', 'legendary'
+    let goalLimit = DEFAULT_GOAL_LIMIT; // 3, 5, 7 ou 0 (Livre)
     let isBotThinking = false;
     let botTimeoutId = null;
+    let goalResetTimeoutId = null;
+
+    // Estado de Partida Online (Feature 3)
+    let isOnlineMatch = false;
+    let onlinePlayerSide = null;
+    let onlineRoomCode = null;
+    let isTurnLocked = false;
+    let turnLockLabel = '';
 
     // Estado da Partida
     let currentTurn = 'red'; // 'red' ou 'blue'
     let scoreRed = 0;
     let scoreBlue = 0;
     let isMoving = false;
+    let isMatchFinished = false;
     let selectedPiece = null;
     let isDragging = false;
     const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -1303,9 +1264,11 @@
     const labelBlue = document.getElementById('label-blue');
     const goalBanner = document.getElementById('goal-banner');
     const goalSubtitle = document.getElementById('goal-subtitle');
+    const btnExitOnline = document.getElementById('btn-exit-online');
 
     // Retorna se o turno atual pertence a uma IA
     function isCurrentTurnBot() {
+      if (isOnlineMatch || gameMode === 'online') return false;
       if (gameMode === 'eve') return true;
       if (gameMode === 'pvp') return false;
       if (gameMode === 'pve') {
@@ -1327,7 +1290,10 @@
       const redName = getTeamName('red');
       const blueName = getTeamName('blue');
 
-      if (gameMode === 'pve') {
+      if (isOnlineMatch || gameMode === 'online') {
+        labelRed.innerText = onlinePlayerSide === 'red' ? `${redName} (VOCÊ)` : `${redName} (ONLINE)`;
+        labelBlue.innerText = onlinePlayerSide === 'blue' ? `${blueName} (VOCÊ)` : `${blueName} (ONLINE)`;
+      } else if (gameMode === 'pve') {
         if (playerTeam === 'red') {
           labelRed.innerText = `${redName} (VOCÊ)`;
           labelBlue.innerText = `${blueName} (BOT · ${diffText})`;
@@ -1350,7 +1316,16 @@
       const teamName = getTeamName(currentTurn);
       const borderColor = palette.id === 'black' ? palette.cssText : palette.cssPrimary;
 
-      if (isBot) {
+      if (isMatchFinished) {
+        hudTurn.innerText = '🏁 Partida encerrada';
+      } else if (isOnlineMatch && isTurnLocked) {
+        hudTurn.innerText = turnLockLabel || `⏳ Aguardando adversário (${teamName})...`;
+      } else if (isOnlineMatch) {
+        const isMine = onlinePlayerSide === currentTurn;
+        hudTurn.innerText = isMine
+          ? `👉 Sua vez! (${teamName})`
+          : `🌐 Vez do adversário (${teamName})`;
+      } else if (isBot) {
         hudTurn.innerText = `🤖 Vez da IA (${teamName}) - calculando jogada...`;
       } else {
         if (gameMode === 'pve') {
@@ -1540,7 +1515,7 @@
     }
 
     function triggerBotTurnIfNeeded() {
-      if (isMoving || goalCooldown || isBotThinking) return;
+      if (isMoving || goalCooldown || isBotThinking || isMatchFinished) return;
       if (!isCurrentTurnBot()) return;
 
       isBotThinking = true;
@@ -1550,7 +1525,7 @@
       const baseThink = botDifficulty === 'legendary' ? 320 : 650;
       const thinkTime = baseThink + Math.random() * 300;
       botTimeoutId = setTimeout(() => {
-        if (!isMoving && !goalCooldown && isCurrentTurnBot()) {
+        if (!isMoving && !goalCooldown && !isMatchFinished && isCurrentTurnBot()) {
           executeBotTurn();
         } else {
           isBotThinking = false;
@@ -1837,6 +1812,11 @@
         aimLine.visible = false;
         aimCircle.visible = false;
 
+        if (isMatchFinished || goalCooldown || !isCurrentTurnBot()) {
+          isBotThinking = false;
+          return;
+        }
+
         const speedMultiplier = botDifficulty === 'legendary' ? 3.4 : 2.8;
         const speed = bestTargetPower * speedMultiplier;
         bestPiece.vel.x = bestShotDir.x * speed;
@@ -1850,7 +1830,11 @@
 
     // Interação com Mouse / Touch para jogadores humanos
     function getIntersectedPiece(event) {
-      if (isCurrentTurnBot()) return null; // Bloqueia toque humano no turno do Bot
+      if (isCurrentTurnBot() || isMatchFinished || goalCooldown) return null;
+      if (isOnlineMatch) {
+        if (isTurnLocked) return null;
+        if (onlinePlayerSide && currentTurn !== onlinePlayerSide) return null;
+      }
 
       mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
       mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
@@ -1869,7 +1853,7 @@
 
     window.addEventListener('pointerdown', (e) => {
       if (e.target !== renderer.domElement) return;
-      if (e.button !== 0 || isMoving || isBotThinking) return; // Apenas clique esquerdo e com peças paradas
+      if (e.button !== 0 || isMoving || isBotThinking || isMatchFinished || goalCooldown) return;
       initAudio();
 
       const piece = getIntersectedPiece(e);
@@ -1877,6 +1861,7 @@
         selectedPiece = piece;
         isDragging = true;
         controls.enabled = false; // Desativa órbita durante o chute
+        ui.setPowerMeter(0, true);
 
         if (piece.ring) piece.ring.material.opacity = 0.8;
       }
@@ -1899,10 +1884,13 @@
 
         const maxPull = 18.0;
         const pullLen = Math.hypot(pullX, pullZ);
+        const clampedLen = Math.min(pullLen, maxPull);
         if (pullLen > maxPull) {
           pullX = (pullX / pullLen) * maxPull;
           pullZ = (pullZ / pullLen) * maxPull;
         }
+
+        ui.setPowerMeter(clampedLen / maxPull, true);
 
         // Atualiza a linha de mira (aponta na direção do chute, que é oposta à puxada)
         const shootTargetX = originX + pullX;
@@ -1926,6 +1914,7 @@
     window.addEventListener('pointerup', (e) => {
       if (!isDragging || !selectedPiece) {
         controls.enabled = true;
+        ui.setPowerMeter(0, false);
         return;
       }
 
@@ -1941,18 +1930,32 @@
           // Dispara o botão
           const powerRatio = Math.min(pullLen / 18.0, 1.0);
           const speed = powerRatio * 2.8;
+          const vx = (pullX / pullLen) * speed;
+          const vz = (pullZ / pullLen) * speed;
 
-          selectedPiece.vel.x = (pullX / pullLen) * speed;
-          selectedPiece.vel.y = (pullZ / pullLen) * speed;
+          selectedPiece.vel.x = vx;
+          selectedPiece.vel.y = vz;
 
           playShootSound(powerRatio);
           isMoving = true;
+
+          const pieceIndex = pieces.indexOf(selectedPiece);
+          emit('shot', {
+            side: selectedPiece.team,
+            pieceIndex,
+            pieceNumber: selectedPiece.number,
+            pieceType: selectedPiece.type,
+            vx,
+            vz,
+            powerRatio,
+          });
         }
       }
 
       if (selectedPiece.ring) selectedPiece.ring.material.opacity = 0;
       aimLine.visible = false;
       aimCircle.visible = false;
+      ui.setPowerMeter(0, false);
       selectedPiece = null;
       isDragging = false;
       controls.enabled = true;
@@ -1964,7 +1967,7 @@
     let goalCooldown = false;
 
     function handleGoal(scoredBy) {
-      if (goalCooldown) return;
+      if (goalCooldown || isMatchFinished) return;
       goalCooldown = true;
 
       const teamName = getTeamName(scoredBy);
@@ -1980,12 +1983,80 @@
       goalBanner.classList.add('show');
       playGoalFanfare();
 
-      setTimeout(() => {
+      emit('goal', {
+        scoredBy,
+        scoreRed,
+        scoreBlue,
+        goalLimit,
+      });
+
+      const matchEval = evaluateMatchWinner({ red: scoreRed, blue: scoreBlue }, goalLimit);
+
+      if (goalResetTimeoutId) clearTimeout(goalResetTimeoutId);
+      goalResetTimeoutId = setTimeout(() => {
         goalBanner.classList.remove('show');
+        if (matchEval.finished) {
+          finishMatch(matchEval);
+          return;
+        }
         resetPositions();
         goalCooldown = false;
         triggerBotTurnIfNeeded();
-      }, 2500);
+      }, 2400);
+    }
+
+    function finishMatch({ winnerSide, loserSide }) {
+      isMatchFinished = true;
+      isMoving = false;
+      isBotThinking = false;
+      goalCooldown = false;
+      if (botTimeoutId) clearTimeout(botTimeoutId);
+      pieces.forEach((p) => p.vel.set(0, 0));
+      if (ball) ball.vel.set(0, 0);
+      updateTurnUI();
+
+      let savedToProfile = false;
+      if (!isOnlineMatch && gameMode !== 'eve') {
+        const activeAccount = getCurrentLocalAccount();
+        if (activeAccount) {
+          const pSide = gameMode === 'pve' ? playerTeam : 'red';
+          const oppSide = pSide === 'red' ? 'blue' : 'red';
+          const opponentLabel =
+            gameMode === 'pve'
+              ? `${getTeamName(oppSide)} (Bot · ${getDifficultyLabel(botDifficulty)})`
+              : `${getTeamName(oppSide)} (Local)`;
+          const res = recordLocalMatchResult({
+            mode: gameMode,
+            playerSide: pSide,
+            opponentName: opponentLabel,
+            scoreRed,
+            scoreBlue,
+            winnerSide,
+            goalLimit,
+          });
+          savedToProfile = Boolean(res?.ok);
+          ui.refreshAccountView();
+        }
+      }
+
+      emit('matchEnded', {
+        winnerSide,
+        loserSide,
+        scoreRed,
+        scoreBlue,
+        goalLimit,
+        mode: isOnlineMatch ? 'online' : gameMode,
+      });
+
+      ui.showMatchOver({
+        winnerSide,
+        redName: getTeamName('red'),
+        blueName: getTeamName('blue'),
+        scoreRed,
+        scoreBlue,
+        goalLimit,
+        savedToProfile,
+      });
     }
 
     function resetPositions() {
@@ -1995,7 +2066,7 @@
       pieces.forEach(p => {
         p.pos.copy(p.initialPos);
         p.vel.set(0, 0);
-        p.mesh.position.set(p.pos.x, p.type === 'gk' ? 0 : 0, p.pos.y);
+        p.mesh.position.set(p.pos.x, 0, p.pos.y);
         if (p.ring) p.ring.material.opacity = 0;
       });
       aimLine.visible = false;
@@ -2141,22 +2212,31 @@
         if (!stillMoving) {
           isMoving = false;
           updateDefensiveGoalkeepers();
-          // Alterna turno
-          currentTurn = currentTurn === 'red' ? 'blue' : 'red';
+          const previousTurn = currentTurn;
+          if (!isMatchFinished) {
+            currentTurn = currentTurn === 'red' ? 'blue' : 'red';
+          }
           updateTurnUI();
+          emit('turnSettled', {
+            previousTurn,
+            nextTurn: currentTurn,
+            snapshot: getGameSnapshot(),
+          });
           triggerBotTurnIfNeeded();
         }
       }
     }
 
     // =========================================================================
-    // 9. CONTROLES DE INTERFACE (BOTÕES & MODAL DE CONFIGURAÇÃO)
+    // 9. CONTROLES DE INTERFACE (MENU 4 ABAS, HUD, CONTA & ONLINE HOOKS)
     // =========================================================================
     const modeModal = document.getElementById('mode-modal-overlay');
     const btnMode = document.getElementById('btn-mode');
     const btnCamera = document.getElementById('btn-camera');
-    const btnModalClose = document.getElementById('btn-modal-close');
+    const btnReset = document.getElementById('btn-reset');
+    const btnSound = document.getElementById('btn-sound');
     const btnModalStart = document.getElementById('btn-modal-start');
+    const btnResetTeams = document.getElementById('btn-reset-teams');
     const sectionPlayerTeam = document.getElementById('section-player-team');
     const sectionBotDifficulty = document.getElementById('section-bot-difficulty');
     const btnTeamRedLabel = document.getElementById('btn-team-red-label');
@@ -2166,9 +2246,71 @@
     const swatchesRed = document.getElementById('swatches-red');
     const swatchesBlue = document.getElementById('swatches-blue');
 
+    function startNewLocalMatch() {
+      initAudio();
+      if (goalResetTimeoutId) clearTimeout(goalResetTimeoutId);
+      isOnlineMatch = false;
+      onlinePlayerSide = null;
+      onlineRoomCode = null;
+      isTurnLocked = false;
+      turnLockLabel = '';
+      isMatchFinished = false;
+      goalCooldown = false;
+      if (btnExitOnline) btnExitOnline.style.display = 'none';
+      goalBanner.classList.remove('show');
+      ui.hideMatchOver();
+      ui.markMatchStarted();
+      ui.closeMenu();
+
+      scoreRed = 0;
+      scoreBlue = 0;
+      hudScore.innerText = '0 - 0';
+      currentTurn = 'red';
+      updateScoreboardBadges();
+      updateTurnUI();
+      ui.updateHUDMeta({ gameMode, goalLimit, onlineRoomCode });
+      resetPositions();
+      triggerBotTurnIfNeeded();
+    }
+
+    const ui = createUIController({
+      emit,
+      onUseProfileTeam: (account) => {
+        const favColor = getColorPalette(account.favoriteColor, 'red').id;
+        let next = resolveTeamColorChange(teamCustomization, 'red', favColor);
+        if (account.defaultTeamName) {
+          next = resolveTeamNameChange(next, 'red', account.defaultTeamName);
+        }
+        setTeamCustomization(next, { persist: true, syncInputs: true });
+      },
+      onPlayAgain: () => {
+        if (isOnlineMatch) {
+          emit('roomAction', { action: 'rematch', payload: { code: onlineRoomCode } });
+          return;
+        }
+        startNewLocalMatch();
+      },
+      onRestartFromMenu: ({ syncMetaOnly } = {}) => {
+        if (syncMetaOnly) {
+          updateScoreboardBadges();
+          ui.updateHUDMeta({
+            gameMode: isOnlineMatch ? 'online' : gameMode,
+            goalLimit,
+            onlineRoomCode,
+          });
+        }
+      },
+    });
+
     function updateCameraButtonLabel() {
       const view = cameraViews[currentCameraViewIdx];
-      btnCamera.innerText = `📷 Câmera: ${view.name}`;
+      btnCamera.innerHTML = `📷 ${view.name} <span class="kbd-hint">C</span>`;
+    }
+
+    function updateSoundButtonLabel() {
+      btnSound.innerHTML = soundEnabled
+        ? '🔊 Som: Ligado <span class="kbd-hint">M</span>'
+        : '🔇 Som: Desligado <span class="kbd-hint">M</span>';
     }
 
     function renderColorSwatchesForSide(side, container) {
@@ -2247,6 +2389,7 @@
 
       renderColorSwatchesForSide('red', swatchesRed);
       renderColorSwatchesForSide('blue', swatchesBlue);
+      ui.updateTeamPreviews(redPalette, bluePalette, redName, blueName);
     }
 
     function applyTeamAppearance({ syncInputs = true } = {}) {
@@ -2254,12 +2397,21 @@
       const bluePalette = getTeamPalette('blue');
 
       const rootStyle = document.documentElement.style;
-      rootStyle.setProperty('--team-red-primary', redPalette.cssPrimary);
-      rootStyle.setProperty('--team-red-glow', redPalette.cssGlow);
-      rootStyle.setProperty('--team-red-text', redPalette.cssText);
-      rootStyle.setProperty('--team-blue-primary', bluePalette.cssPrimary);
-      rootStyle.setProperty('--team-blue-glow', bluePalette.cssGlow);
-      rootStyle.setProperty('--team-blue-text', bluePalette.cssText);
+      rootStyle.setProperty('--team1-primary', redPalette.cssPrimary);
+      rootStyle.setProperty('--team1-glow', redPalette.cssGlow);
+      rootStyle.setProperty('--team1-text', redPalette.cssText);
+      rootStyle.setProperty('--team1-piece', redPalette.pieceHex);
+      rootStyle.setProperty('--team1-rim', redPalette.rimHex);
+      rootStyle.setProperty('--team1-gk', redPalette.gkHex);
+      rootStyle.setProperty('--team1-number', redPalette.numberColor);
+
+      rootStyle.setProperty('--team2-primary', bluePalette.cssPrimary);
+      rootStyle.setProperty('--team2-glow', bluePalette.cssGlow);
+      rootStyle.setProperty('--team2-text', bluePalette.cssText);
+      rootStyle.setProperty('--team2-piece', bluePalette.pieceHex);
+      rootStyle.setProperty('--team2-rim', bluePalette.rimHex);
+      rootStyle.setProperty('--team2-gk', bluePalette.gkHex);
+      rootStyle.setProperty('--team2-number', bluePalette.numberColor);
 
       // Atualiza peças 3D em campo em tempo real sem recriar WebGLRenderer nem resetar partida
       pieces.forEach((p) => {
@@ -2295,6 +2447,11 @@
       renderTeamCustomizationUI({ syncInputs });
       updateScoreboardBadges();
       updateTurnUI();
+      ui.updateHUDMeta({
+        gameMode: isOnlineMatch ? 'online' : gameMode,
+        goalLimit,
+        onlineRoomCode,
+      });
     }
 
     function getTeamCustomization() {
@@ -2336,9 +2493,16 @@
     bindTeamNameInput(inputNameRed, 'red');
     bindTeamNameInput(inputNameBlue, 'blue');
 
+    if (btnResetTeams) {
+      btnResetTeams.addEventListener('click', () => {
+        setTeamCustomization(DEFAULT_TEAM_CONFIG, { persist: true, syncInputs: true });
+      });
+    }
+
     // Manipulação dos botões do Modal
     function setupButtonGroup(containerId, onChange) {
       const container = document.getElementById(containerId);
+      if (!container) return;
       const buttons = container.querySelectorAll('.option-btn');
       buttons.forEach(btn => {
         btn.addEventListener('click', () => {
@@ -2371,35 +2535,30 @@
       botDifficulty = val;
     });
 
-    function openModal() {
-      btnModalClose.style.display = 'inline-block';
+    setupButtonGroup('group-goal-limit', (val) => {
+      goalLimit = normalizeGoalLimit(val);
+      ui.updateHUDMeta({
+        gameMode: isOnlineMatch ? 'online' : gameMode,
+        goalLimit,
+        onlineRoomCode,
+      });
+    });
+
+    function openMenu(tab) {
       renderTeamCustomizationUI({ syncInputs: true });
-      modeModal.classList.add('active');
+      ui.openMenu(tab);
     }
 
-    function closeModal() {
-      modeModal.classList.remove('active');
+    function closeMenu() {
+      ui.closeMenu();
     }
 
     btnMode.addEventListener('click', () => {
-      openModal();
-    });
-
-    btnModalClose.addEventListener('click', () => {
-      closeModal();
+      openMenu();
     });
 
     btnModalStart.addEventListener('click', () => {
-      initAudio();
-      closeModal();
-      scoreRed = 0;
-      scoreBlue = 0;
-      hudScore.innerText = "0 - 0";
-      currentTurn = 'red';
-      updateScoreboardBadges();
-      updateTurnUI();
-      resetPositions();
-      triggerBotTurnIfNeeded();
+      startNewLocalMatch();
     });
 
     btnCamera.addEventListener('click', () => {
@@ -2410,10 +2569,19 @@
       updateCameraButtonLabel();
     });
 
-    document.getElementById('btn-reset').addEventListener('click', () => {
+    btnReset.addEventListener('click', () => {
+      if (isOnlineMatch) {
+        emit('roomAction', { action: 'requestReset', payload: { code: onlineRoomCode } });
+        return;
+      }
+      if (goalResetTimeoutId) clearTimeout(goalResetTimeoutId);
+      isMatchFinished = false;
+      goalCooldown = false;
+      goalBanner.classList.remove('show');
+      ui.hideMatchOver();
       scoreRed = 0;
       scoreBlue = 0;
-      hudScore.innerText = "0 - 0";
+      hudScore.innerText = '0 - 0';
       currentTurn = 'red';
       updateScoreboardBadges();
       updateTurnUI();
@@ -2421,11 +2589,180 @@
       triggerBotTurnIfNeeded();
     });
 
-    const btnSound = document.getElementById('btn-sound');
     btnSound.addEventListener('click', () => {
       soundEnabled = !soundEnabled;
-      btnSound.innerText = soundEnabled ? '🔊 Som: Ligado' : '🔇 Som: Desligado';
+      updateSoundButtonLabel();
     });
+
+    if (btnExitOnline) {
+      btnExitOnline.addEventListener('click', () => {
+        emit('roomAction', { action: 'leaveRoom', payload: { code: onlineRoomCode } });
+        exitOnlineMatch();
+      });
+    }
+
+    // =========================================================================
+    // 9.1 CONTRATOS E HOOKS DE PARTIDA ONLINE (FEATURE 3)
+    // =========================================================================
+    function getGameSnapshot() {
+      return {
+        currentTurn,
+        scoreRed,
+        scoreBlue,
+        goalLimit,
+        isMoving,
+        isMatchFinished,
+        teamCustomization: getTeamCustomization(),
+        ball: ball
+          ? { x: ball.pos.x, z: ball.pos.y, vx: ball.vel.x, vz: ball.vel.y }
+          : null,
+        pieces: pieces.map((p, index) => ({
+          index,
+          type: p.type,
+          team: p.team,
+          number: p.number,
+          x: p.pos.x,
+          z: p.pos.y,
+          vx: p.vel.x,
+          vz: p.vel.y,
+        })),
+      };
+    }
+
+    function applyRemoteStateSync(snapshot) {
+      if (!snapshot || typeof snapshot !== 'object') return;
+      if (snapshot.teamCustomization) {
+        setTeamCustomization(snapshot.teamCustomization, { persist: false, syncInputs: true });
+      }
+      if (Number.isFinite(snapshot.scoreRed)) scoreRed = snapshot.scoreRed;
+      if (Number.isFinite(snapshot.scoreBlue)) scoreBlue = snapshot.scoreBlue;
+      hudScore.innerText = `${scoreRed} - ${scoreBlue}`;
+
+      if (snapshot.goalLimit !== undefined) {
+        goalLimit = normalizeGoalLimit(snapshot.goalLimit);
+      }
+      if (snapshot.currentTurn === 'red' || snapshot.currentTurn === 'blue') {
+        currentTurn = snapshot.currentTurn;
+      }
+      if (typeof snapshot.isMatchFinished === 'boolean') {
+        isMatchFinished = snapshot.isMatchFinished;
+      }
+
+      if (snapshot.ball && ball) {
+        if (Number.isFinite(snapshot.ball.x)) ball.pos.x = snapshot.ball.x;
+        if (Number.isFinite(snapshot.ball.z)) ball.pos.y = snapshot.ball.z;
+        if (Number.isFinite(snapshot.ball.vx)) ball.vel.x = snapshot.ball.vx;
+        if (Number.isFinite(snapshot.ball.vz)) ball.vel.y = snapshot.ball.vz;
+        ball.mesh.position.set(ball.pos.x, BALL_RADIUS, ball.pos.y);
+      }
+
+      if (Array.isArray(snapshot.pieces)) {
+        snapshot.pieces.forEach((sp, idx) => {
+          const target =
+            (Number.isInteger(sp.index) && pieces[sp.index]) ||
+            pieces.find((p) => p.team === sp.team && p.number === sp.number && p.type === sp.type) ||
+            pieces[idx];
+          if (!target) return;
+          if (Number.isFinite(sp.x)) target.pos.x = sp.x;
+          if (Number.isFinite(sp.z)) target.pos.y = sp.z;
+          if (Number.isFinite(sp.vx)) target.vel.x = sp.vx;
+          if (Number.isFinite(sp.vz)) target.vel.y = sp.vz;
+          target.mesh.position.set(target.pos.x, 0, target.pos.y);
+        });
+      }
+
+      isMoving = Boolean(snapshot.isMoving);
+      updateScoreboardBadges();
+      updateTurnUI();
+      ui.updateHUDMeta({
+        gameMode: isOnlineMatch ? 'online' : gameMode,
+        goalLimit,
+        onlineRoomCode,
+      });
+    }
+
+    function applyRemoteShot(payload) {
+      if (!payload || typeof payload !== 'object') return false;
+      const targetPiece =
+        (Number.isInteger(payload.pieceIndex) && pieces[payload.pieceIndex]) ||
+        pieces.find(
+          (p) =>
+            p.team === payload.side &&
+            String(p.number) === String(payload.pieceNumber) &&
+            (!payload.pieceType || p.type === payload.pieceType)
+        );
+      if (!targetPiece) return false;
+
+      const vx = Number(payload.vx ?? 0);
+      const vz = Number(payload.vz ?? payload.vy ?? 0);
+      if (!Number.isFinite(vx) || !Number.isFinite(vz)) return false;
+
+      targetPiece.vel.x = vx;
+      targetPiece.vel.y = vz;
+      playShootSound(Number(payload.powerRatio ?? 0.7));
+      isMoving = true;
+      return true;
+    }
+
+    function setTurnLock(locked, label = '') {
+      isTurnLocked = Boolean(locked);
+      turnLockLabel = typeof label === 'string' ? label : '';
+      updateTurnUI();
+    }
+
+    function startOnlineMatch(config = {}) {
+      initAudio();
+      if (goalResetTimeoutId) clearTimeout(goalResetTimeoutId);
+      if (botTimeoutId) clearTimeout(botTimeoutId);
+      isBotThinking = false;
+      isOnlineMatch = true;
+      gameMode = 'online';
+      onlinePlayerSide = config.playerSide === 'blue' ? 'blue' : config.playerSide === 'red' ? 'red' : null;
+      onlineRoomCode = config.roomCode || null;
+      goalLimit = normalizeGoalLimit(config.goalLimit ?? goalLimit);
+      isTurnLocked = Boolean(config.turnLocked);
+      turnLockLabel = config.turnLockLabel || '';
+      isMatchFinished = false;
+      goalCooldown = false;
+
+      if (config.teams) {
+        setTeamCustomization(config.teams, { persist: false, syncInputs: true });
+      }
+
+      scoreRed = 0;
+      scoreBlue = 0;
+      hudScore.innerText = '0 - 0';
+      currentTurn = config.initialTurn === 'blue' ? 'blue' : 'red';
+      goalBanner.classList.remove('show');
+      ui.hideMatchOver();
+      ui.markMatchStarted();
+      ui.closeMenu();
+
+      if (btnExitOnline) btnExitOnline.style.display = 'inline-flex';
+      resetPositions();
+      updateScoreboardBadges();
+      updateTurnUI();
+      ui.updateHUDMeta({ gameMode: 'online', goalLimit, onlineRoomCode });
+    }
+
+    function exitOnlineMatch() {
+      if (goalResetTimeoutId) clearTimeout(goalResetTimeoutId);
+      isOnlineMatch = false;
+      onlinePlayerSide = null;
+      onlineRoomCode = null;
+      isTurnLocked = false;
+      turnLockLabel = '';
+      isMatchFinished = false;
+      goalCooldown = false;
+      gameMode = 'pve';
+      if (btnExitOnline) btnExitOnline.style.display = 'none';
+      goalBanner.classList.remove('show');
+      ui.hideMatchOver();
+      updateScoreboardBadges();
+      updateTurnUI();
+      ui.updateHUDMeta({ gameMode, goalLimit, onlineRoomCode: null });
+      openMenu('online');
+    }
 
     // Atalhos de Teclado (ignorando digitação em campos de texto)
     window.addEventListener('keydown', (e) => {
@@ -2439,14 +2776,14 @@
 
       if (e.key === 'Escape') {
         if (modeModal.classList.contains('active')) {
-          closeModal();
+          closeMenu();
         } else {
-          openModal();
+          openMenu();
         }
       } else if (e.key === 'c' || e.key === 'C') {
         btnCamera.click();
       } else if (e.key === 'r' || e.key === 'R') {
-        document.getElementById('btn-reset').click();
+        btnReset.click();
       } else if (e.key === 'm' || e.key === 'M') {
         btnSound.click();
       }
@@ -2456,6 +2793,7 @@
     window.FutebolBotaoApp = {
       COLOR_ORDER,
       TEAM_COLORS,
+      GOAL_LIMIT_OPTIONS,
       getColorPalette,
       getTeamCustomization,
       setTeamCustomization,
@@ -2464,10 +2802,37 @@
       applyTeamAppearance,
       getTeamPalette,
       getTeamName,
+      normalizeGoalLimit,
+      evaluateMatchWinner,
+      getCurrentLocalAccount,
+
+      // Hooks de UI / Menu / Lobby (Feature 2 & 3)
+      openMenu,
+      closeMenu,
+      setOnlineState: ui.setOnlineState,
+      renderOnlineRooms: ui.renderOnlineRooms,
+      renderOnlineRoom: ui.renderOnlineRoom,
+      renderLeaderboard: ui.renderLeaderboard,
+      setAccountFeedback: ui.setAccountFeedback,
+      refreshAccountView: ui.refreshAccountView,
+
+      // Hooks de Partida Online (Feature 3)
+      startOnlineMatch,
+      exitOnlineMatch,
+      applyRemoteShot,
+      applyRemoteStateSync,
+      getGameSnapshot,
+      setTurnLock,
+
+      // Barramento de Eventos
+      on,
+      off,
     };
 
     // Aplicação inicial da aparência, badges, câmeras e UI de personalização
+    updateSoundButtonLabel();
     applyTeamAppearance({ syncInputs: true });
+    ui.openMenu('play');
 
     // =========================================================================
     // 10. LOOP PRINCIPAL DE RENDERIZAÇÃO
