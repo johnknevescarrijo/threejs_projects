@@ -140,12 +140,16 @@
     </div>
   </div>
 
-  <!-- CS:GO net_graph Telemetry Bar (Toggle F3, Cycle Preset F4) -->
+  <!-- CS:GO net_graph Telemetry Bar (Toggle F3, Cycle Preset F4, Toggle NetSim F6) -->
   <div id="net-graph" class="net-graph" style="display: none;">
     <span>fps: <strong id="ng-fps">0</strong></span>
     <span>ms: <strong id="ng-ms">0.0</strong></span>
     <span>dc: <strong id="ng-dc">0</strong></span>
     <span>tris: <strong id="ng-tris">0k</strong></span>
+    <span>ping: <strong id="ng-ping">0ms</strong></span>
+    <span>tick: <strong id="ng-tick">64Hz</strong></span>
+    <span>loss: <strong id="ng-loss">0.0%</strong></span>
+    <span id="ng-netmode" class="ng-tag">LOCAL 0ms</span>
     <span id="ng-preset" class="ng-tag">1080p Low (CS:GO)</span>
     <span id="ng-backend" class="ng-tag">WebGL2</span>
   </div>
@@ -230,7 +234,8 @@
         <div class="control-item"><span class="control-key">G / B</span> Dropar / Buy Menu</div>
         <div class="control-item"><span class="control-key">Q / R</span> Quick-Switch / Recarregar</div>
         <div class="control-item"><span class="control-key">ESPAÇO / CTRL</span> Pular / Agachar</div>
-        <div class="control-item"><span class="control-key">F3 / F4</span> net_graph / Qualidade</div>
+        <div class="control-item"><span class="control-key">F3 / F4</span> Net Graph / Qualidade</div>
+        <div class="control-item"><span class="control-key">F6</span> Simulador Netcode (0ms / 45ms)</div>
       </div>
 
       <button id="btn-start" class="btn-primary">JOGAR AGORA</button>

@@ -182,7 +182,7 @@ export class GrenadeManager {
     }
 
     if (bounced && impactSpeed > 1.2 && p.bounceCooldown <= 0) {
-      sounds.playGrenadeBounce();
+      sounds.playGrenadeBounce(p.mesh.position);
       p.bounceCooldown = 0.08;
     }
 
@@ -268,7 +268,7 @@ export class GrenadeManager {
   }
 
   _spawnSmokeCloud(pos) {
-    sounds.playSmokeBloom();
+    sounds.playSmokeBloom(pos);
     const cluster = new THREE.Group();
     cluster.position.copy(pos);
     const sprites = [];
@@ -321,7 +321,7 @@ export class GrenadeManager {
     const detPos = p.mesh.position.clone().add(new THREE.Vector3(0, 0.2, 0));
 
     if (p.type === 'he') {
-      sounds.playExplosion();
+      sounds.playExplosion(detPos);
       this._spawnExplosionEffect(detPos);
 
       // Damage enemy bots (respect solid wall occlusion and playerTeam)
