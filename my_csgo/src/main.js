@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { sounds } from './audio/soundManager.js';
 import { FIXED_HZ, createFixedStepper } from './core/fixedLoop.js';
 import { createMap } from './world/mapRegistry.js';
+import { GraphicsPipeline } from './world/graphicsPipeline.js';
 import { PooledParticleSystem } from './world/pooledParticles.js';
 import { DecalManager } from './world/decals.js';
 import { WeaponManager } from './entities/weapon.js';
@@ -52,25 +53,30 @@ class Game {
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.toneMappingExposure = 1.06;
     this.renderer.autoClear = false;
     this.container.appendChild(this.renderer.domElement);
 
-    // 2. Match Selection & Systems
+    // 2. Graphics Pipeline, Match Selection & Systems
+    this.graphics = new GraphicsPipeline(this.renderer, this.scene, this.viewmodelScene, 'low');
     this.selectedMapId = 'dust2';
     this.playerTeam = 'CT';
-    this.map = createMap(this.selectedMapId, this.scene);
+    this.map = createMap(this.selectedMapId, this.scene, this.graphics);
+    this.graphics.setEnvironmentTheme(this.map.theme || 'desert');
     this.particles = new PooledParticleSystem(this.scene, this.map);
     this.decals = new DecalManager(this.scene);
     this.weapons = new WeaponManager(this.camera, this.viewmodelCamera, this.particles, this.decals);
+    this.graphics.applyPreset(this.graphics.presetId, this.map);
     this.player = new Player(this.camera, this.renderer.domElement, this.map);
     this.grenades = new GrenadeManager(this.scene, this.map);
     this.droppedWeapons = new DroppedWeaponManager(this.scene, this.map);
     this.hud = new HUD();
+    this.hud.setNetGraphVisible(false);
+    this._netGraphPreferredVisible = true;
 
     // 3. Round, C4, Economy & Flash State
     this.roundManager = new RoundManager({ mode: this.map.defaultMode });
@@ -123,7 +129,9 @@ class Game {
 
     if (this.map && this.map.id !== mapId) {
       this.map.dispose();
-      this.map = createMap(mapId, this.scene);
+      this.map = createMap(mapId, this.scene, this.graphics);
+      this.graphics.setEnvironmentTheme(this.map.theme || 'desert');
+      this.graphics.applyPreset(this.graphics.presetId, this.map);
       this.particles.map = this.map;
       this.grenades.map = this.map;
       this.droppedWeapons.map = this.map;
@@ -551,6 +559,20 @@ class Game {
     });
 
     window.addEventListener('keydown', (e) => {
+      if (e.code === 'F3') {
+        e.preventDefault();
+        if (this.isGameRunning) {
+          this._netGraphPreferredVisible = this.hud.toggleNetGraph();
+        }
+        return;
+      }
+      if (e.code === 'F4') {
+        e.preventDefault();
+        const nextPreset = this.graphics.cyclePreset(this.map);
+        this._syncQualityButtons(nextPreset.id);
+        return;
+      }
+
       if (!this.isGameRunning) return;
 
       if (e.code === 'KeyB') {
@@ -590,6 +612,13 @@ class Game {
     });
   }
 
+  _syncQualityButtons(presetId) {
+    const qualityBtns = document.querySelectorAll('#quality-selector .setup-option-btn');
+    qualityBtns.forEach((btn) => {
+      btn.classList.toggle('active', btn.getAttribute('data-quality') === presetId);
+    });
+  }
+
   _setupUIEvents() {
     const startScreen = document.getElementById('start-screen');
     const btnStart = document.getElementById('btn-start');
@@ -615,12 +644,22 @@ class Game {
       });
     });
 
+    const qualityBtns = document.querySelectorAll('#quality-selector .setup-option-btn');
+    qualityBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const presetId = btn.getAttribute('data-quality') || 'low';
+        this.graphics.applyPreset(presetId, this.map);
+        this._syncQualityButtons(presetId);
+      });
+    });
+
     btnStart.addEventListener('click', () => {
       sounds.init();
       sounds.resume();
       this.renderer.domElement.requestPointerLock();
       startScreen.style.display = 'none';
       this.isGameRunning = true;
+      this.hud.setNetGraphVisible(this._netGraphPreferredVisible);
     });
 
     if (btnCloseArsenal) {
@@ -1153,11 +1192,20 @@ class Game {
         });
       }
 
+      // Focused texel-snapped directional shadow around player
+      this.graphics.updateFocusedShadow(this.map.sunLight, this.player.camera.position);
+
       // 2-Pass Anti-Clipping Render: World first, clear depth, Viewmodel on top
+      this.graphics.beginFrame();
       this.renderer.clear();
       this.renderer.render(this.scene, this.camera);
       this.renderer.clearDepth();
       this.renderer.render(this.viewmodelScene, this.viewmodelCamera);
+
+      if (this.isGameRunning) {
+        const telemetry = this.graphics.sampleTelemetry(frameDelta);
+        this.hud.updateNetGraph(telemetry, frameDelta);
+      }
     });
   }
 }
