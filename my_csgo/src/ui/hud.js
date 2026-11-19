@@ -17,11 +17,17 @@ export class HUD {
       slot2: document.getElementById('weapon-slot-2'),
       slot3: document.getElementById('weapon-slot-3'),
       slot4: document.getElementById('weapon-slot-4'),
+      slot5: document.getElementById('weapon-slot-5'),
+      kitBadge: document.getElementById('kit-badge'),
       killfeed: document.getElementById('killfeed'),
       hitmarker: document.getElementById('hitmarker'),
       damageOverlay: document.getElementById('damage-overlay'),
       flashOverlay: document.getElementById('flash-overlay'),
       pickupPrompt: document.getElementById('pickup-prompt'),
+      objectivePrompt: document.getElementById('objective-prompt'),
+      actionProgressWrap: document.getElementById('action-progress-wrap'),
+      actionProgressLabel: document.getElementById('action-progress-label'),
+      actionProgressFill: document.getElementById('action-progress-fill'),
       crosshair: document.getElementById('crosshair-container'),
       crossTop: document.getElementById('ch-top'),
       crossBottom: document.getElementById('ch-bottom'),
@@ -38,8 +44,13 @@ export class HUD {
       scoreKills: document.getElementById('score-kills'),
       scoreDeaths: document.getElementById('score-deaths'),
       timer: document.getElementById('match-timer'),
+      roundBadge: document.getElementById('round-badge'),
+      zoneBadge: document.getElementById('zone-badge'),
+      roundBanner: document.getElementById('round-banner'),
       deathScreen: document.getElementById('death-screen'),
+      deathStatusText: document.getElementById('death-status-text'),
       deathTimerVal: document.getElementById('death-timer-val'),
+      deathBarContainer: document.getElementById('death-bar-container'),
       deathBarFill: document.getElementById('death-bar-fill')
     };
 
@@ -132,11 +143,12 @@ export class HUD {
     }, 4500);
   }
 
-  renderArsenalMenu(weaponManager, economy, playerArmor, callbacks = {}) {
+  renderArsenalMenu(weaponManager, economy, playerArmor, callbacks = {}, extras = {}) {
     if (!this.dom.arsenalCategories) return;
     this.dom.arsenalCategories.innerHTML = '';
 
     const { onSelectWeapon, onBuyUtility, onToggleSandbox } = callbacks;
+    const { playerTeam = 'CT', hasDefuseKit = false } = extras;
 
     if (this.dom.arsenalMoneyVal) {
       this.dom.arsenalMoneyVal.textContent = economy?.sandboxFree
@@ -227,7 +239,9 @@ export class HUD {
     utilTitle.textContent = 'Equipamento & Granadas';
     utilCol.appendChild(utilTitle);
 
-    const utilityOrder = ['he', 'flash', 'smoke', 'kevlar'];
+    const utilityOrder = playerTeam === 'CT'
+      ? ['he', 'flash', 'smoke', 'kevlar', 'defuse_kit']
+      : ['he', 'flash', 'smoke', 'kevlar'];
     for (const uId of utilityOrder) {
       const item = UTILITY_ITEMS[uId];
       if (!item) continue;
@@ -246,6 +260,9 @@ export class HUD {
         } else {
           ownedText = 'Colete + Capacete';
         }
+      } else if (item.type === 'kit') {
+        isMaxed = Boolean(hasDefuseKit);
+        ownedText = isMaxed ? 'EQUIPADO (5s)' : 'Defuse em 5.0s';
       } else {
         const count = weaponManager.grenades[item.id] || 0;
         isMaxed = count >= item.maxCarry;
@@ -258,6 +275,7 @@ export class HUD {
       card.className = `arsenal-card${isMaxed ? ' maxed' : ''}${!affordable && !isMaxed ? ' unaffordable' : ''}`;
 
       const priceText = isMaxed ? 'MÁX' : (economy?.sandboxFree ? 'GRÁTIS' : this._formatMoney(price));
+      const tagText = item.type === 'armor' ? 'PROTEÇÃO' : (item.type === 'kit' ? 'CT KIT' : 'SLOT 4');
 
       card.innerHTML = `
         <div class="arsenal-card-top">
@@ -265,7 +283,7 @@ export class HUD {
           <span class="arsenal-card-price">${priceText}</span>
         </div>
         <div class="arsenal-stat-row">
-          <span class="arsenal-card-tag">${item.type === 'armor' ? 'PROTEÇÃO' : 'SLOT 4'}</span>
+          <span class="arsenal-card-tag">${tagText}</span>
           <span>${ownedText}</span>
         </div>
       `;
@@ -288,7 +306,15 @@ export class HUD {
   }
 
   update(delta, player, weaponManager, elapsedTime, scoreCT = 0, scoreT = 0, extras = {}) {
-    const { economy = null, flashIntensity = 0, pickupTarget = null } = extras;
+    const {
+      economy = null,
+      flashIntensity = 0,
+      pickupTarget = null,
+      zoneName = null,
+      roundManager = null,
+      objectivePrompt = null,
+      actionProgress = null
+    } = extras;
 
     // 1. Money, Health & Armor (dirty-checked)
     if (this.dom.moneyVal && economy) {
@@ -315,6 +341,10 @@ export class HUD {
       if (this.dom.armorBar) this.dom.armorBar.style.width = `${clampedArmor}%`;
     }
 
+    if (this.dom.kitBadge) {
+      this._setStyle('kitDisplay', this.dom.kitBadge, 'display', player.hasDefuseKit ? 'inline-block' : 'none');
+    }
+
     if (player.health < this.lastHealth) {
       this.showDamageFlash();
     }
@@ -328,6 +358,9 @@ export class HUD {
       if (curW.isMelee) {
         ammoValText = '--';
         reserveValText = '--';
+      } else if (curW.isC4) {
+        ammoValText = 'C4';
+        reserveValText = 'OBJ';
       } else if (curW.isGrenade) {
         ammoValText = curW.count;
         reserveValText = weaponManager.getTotalGrenades();
@@ -348,6 +381,8 @@ export class HUD {
       let cls = 'fire-mode-badge';
       if (curW.isMelee) {
         label = 'MELEE';
+      } else if (curW.isC4) {
+        label = 'EXPLOSIVO';
       } else if (curW.isGrenade) {
         label = 'GRANADA';
       } else if (curW.fireMode === 'burst') {
@@ -390,6 +425,33 @@ export class HUD {
       this._setText('slot4Text', this.dom.slot4, slot4Text);
       this._setClassToggle('slot4Empty', this.dom.slot4, 'empty', totalG === 0);
       this._setClassToggle('slot4Active', this.dom.slot4, 'active', weaponManager.activeSlot === 4);
+    }
+
+    // Slot 5 pill (C4)
+    if (this.dom.slot5) {
+      this._setStyle('slot5Display', this.dom.slot5, 'display', weaponManager.hasC4 ? 'block' : 'none');
+      this._setClassToggle('slot5Active', this.dom.slot5, 'active', weaponManager.activeSlot === 5);
+    }
+
+    // Objective prompt & plant/defuse progress bar
+    if (this.dom.objectivePrompt) {
+      if (objectivePrompt && player.isAlive && !this.isArsenalOpen) {
+        this._setText('objPromptText', this.dom.objectivePrompt, objectivePrompt);
+        this._setStyle('objPromptDisplay', this.dom.objectivePrompt, 'display', 'block');
+      } else {
+        this._setStyle('objPromptDisplay', this.dom.objectivePrompt, 'display', 'none');
+      }
+    }
+
+    if (this.dom.actionProgressWrap) {
+      if (actionProgress && player.isAlive) {
+        const pct = Math.max(0, Math.min(100, actionProgress.progress * 100));
+        this._setStyle('actionWrapDisplay', this.dom.actionProgressWrap, 'display', 'block');
+        this._setText('actionLabel', this.dom.actionProgressLabel, actionProgress.label);
+        this._setStyle('actionFillWidth', this.dom.actionProgressFill, 'width', `${pct.toFixed(1)}%`);
+      } else {
+        this._setStyle('actionWrapDisplay', this.dom.actionProgressWrap, 'display', 'none');
+      }
     }
 
     // 3. Sniper Scope, Flashbang Overlay & Dynamic Crosshair
@@ -460,32 +522,102 @@ export class HUD {
       }
     }
 
-    // 5. Team Score, Personal K/D & Timer (dirty-checked)
+    // 5. Team Score, Personal K/D, Zone Callout, Round Banner & Timer (dirty-checked)
     this._setText('scoreCT', this.dom.scoreCT, scoreCT);
     this._setText('scoreT', this.dom.scoreT, scoreT);
     this._setText('scoreKills', this.dom.scoreKills, player.kills);
     this._setText('scoreDeaths', this.dom.scoreDeaths, player.deaths);
 
-    if (this.dom.timer) {
-      const totalSeconds = Math.max(0, Math.floor(elapsedTime));
-      if (this._last.timerSec !== totalSeconds) {
-        this._last.timerSec = totalSeconds;
-        const minutes = Math.floor(totalSeconds / 60);
-        const seconds = totalSeconds % 60;
-        this.dom.timer.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    if (this.dom.zoneBadge && zoneName) {
+      this._setText('zoneBadge', this.dom.zoneBadge, `📍 ${zoneName}`);
+    }
+
+    if (roundManager) {
+      if (this.dom.roundBadge) {
+        const badgeText = roundManager.mode === 'deathmatch'
+          ? 'DEATHMATCH'
+          : `ROUND ${roundManager.roundNumber}`;
+        this._setText('roundBadge', this.dom.roundBadge, badgeText);
+      }
+
+      if (this.dom.roundBanner) {
+        let bannerText = '';
+        let bannerCls = '';
+        if (roundManager.mode === 'bomb_defusal') {
+          if (roundManager.phase === 'FREEZETIME') {
+            bannerText = `FREEZETIME • COMPRE ARMAS [B] (${roundManager.phaseTimer.toFixed(1)}s)`;
+          } else if (roundManager.phase === 'BOMB_PLANTED') {
+            bannerText = `💣 BOMB PLANTED AT ${roundManager.bombSite} (${Math.ceil(roundManager.bombTimer)}s)`;
+            bannerCls = 'c4-alert';
+          } else if (roundManager.phase === 'ROUND_END') {
+            const reasonMap = {
+              elimination: 'ELIMINAÇÃO',
+              bomb_defused: 'C4 DESARMADA',
+              target_bombed: 'ALVO DESTRUÍDO',
+              time_expired: 'TEMPO ESGOTADO'
+            };
+            const rLabel = reasonMap[roundManager.lastReason] || 'FIM DE ROUND';
+            bannerText = `${roundManager.lastWinner} VENCEU • ${rLabel}`;
+            bannerCls = roundManager.lastWinner === 'CT' ? 'win-ct' : 'win-t';
+          }
+        }
+        if (bannerText) {
+          this._setText('roundBannerText', this.dom.roundBanner, bannerText);
+          this._setClassName('roundBannerCls', this.dom.roundBanner, bannerCls);
+          this._setStyle('roundBannerDisplay', this.dom.roundBanner, 'display', 'block');
+        } else {
+          this._setStyle('roundBannerDisplay', this.dom.roundBanner, 'display', 'none');
+        }
       }
     }
 
-    // 6. Death Screen with Auto-Respawn Countdown
+    if (this.dom.timer) {
+      let timerValue = elapsedTime;
+      let isBombC4 = false;
+      if (roundManager) {
+        if (roundManager.mode === 'deathmatch') {
+          timerValue = roundManager.matchElapsed;
+        } else if (roundManager.phase === 'BOMB_PLANTED') {
+          timerValue = roundManager.bombTimer;
+          isBombC4 = true;
+        } else {
+          timerValue = roundManager.phaseTimer;
+        }
+      }
+
+      if (isBombC4) {
+        const c4Sec = Math.max(0, timerValue).toFixed(1);
+        this._setText('timerText', this.dom.timer, `C4 ${c4Sec}s`);
+        this._setStyle('timerColor', this.dom.timer, 'color', '#f87171');
+      } else {
+        const totalSeconds = Math.max(0, Math.ceil(timerValue));
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        const formatted = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        this._setText('timerText', this.dom.timer, formatted);
+        this._setStyle('timerColor', this.dom.timer, 'color', '#e2e8f0');
+      }
+    }
+
+    // 6. Death Screen
     if (this.dom.deathScreen) {
       if (!player.isAlive) {
         this._setStyle('deathDisplay', this.dom.deathScreen, 'display', 'flex');
-        const remainingSec = `${Math.max(0, player.autoRespawnTimer).toFixed(1)}s`;
-        this._setText('deathTimerVal', this.dom.deathTimerVal, remainingSec);
-        if (this.dom.deathBarFill) {
-          const pct = Math.max(0, Math.min(100, (player.autoRespawnTimer / player.maxRespawnTime) * 100));
-          const pctStr = `${pct.toFixed(1)}%`;
-          this._setStyle('deathBarWidth', this.dom.deathBarFill, 'width', pctStr);
+        if (player.allowAutoRespawn) {
+          this._setStyle('deathBarVis', this.dom.deathBarContainer, 'display', 'block');
+          if (this.dom.deathStatusText) {
+            const remainingSec = `${Math.max(0, player.autoRespawnTimer).toFixed(1)}s`;
+            this._setText('deathStatus', this.dom.deathStatusText, `Respawn automático em ${remainingSec}`);
+          }
+          if (this.dom.deathBarFill) {
+            const pct = Math.max(0, Math.min(100, (player.autoRespawnTimer / player.maxRespawnTime) * 100));
+            this._setStyle('deathBarWidth', this.dom.deathBarFill, 'width', `${pct.toFixed(1)}%`);
+          }
+        } else {
+          this._setStyle('deathBarVis', this.dom.deathBarContainer, 'display', 'none');
+          if (this.dom.deathStatusText) {
+            this._setText('deathStatus', this.dom.deathStatusText, 'Aguardando próximo round...');
+          }
         }
       } else {
         this._setStyle('deathDisplay', this.dom.deathScreen, 'display', 'none');

@@ -15,8 +15,17 @@
   <!-- Flashbang Whiteout Overlay -->
   <div id="flash-overlay"></div>
 
-  <!-- Pickup Weapon Prompt -->
+  <!-- Pickup Weapon / Objective Prompts -->
   <div id="pickup-prompt" style="display: none;"></div>
+  <div id="objective-prompt" style="display: none;"></div>
+
+  <!-- Plant / Defuse Action Progress Bar -->
+  <div id="action-progress-wrap" style="display: none;">
+    <div id="action-progress-label">PLANTANDO C4...</div>
+    <div class="action-progress-track">
+      <div id="action-progress-fill"></div>
+    </div>
+  </div>
 
   <!-- Sniper Scope Overlay -->
   <div id="sniper-scope">
@@ -40,25 +49,33 @@
   <!-- Hitmarker -->
   <div id="hitmarker"></div>
 
-  <!-- Top HUD (Team Scoreboard & Match Timer) -->
-  <div id="top-hud">
-    <div class="team-score-card ct">
-      <span class="team-tag ct">CT</span>
-      <span id="score-ct" class="team-score-val">0</span>
-    </div>
+  <!-- Top HUD (Team Scoreboard, Match Timer, Round & Callout Zone) -->
+  <div id="top-hud-stack">
+    <div id="top-hud">
+      <div class="team-score-card ct">
+        <span class="team-tag ct">CT</span>
+        <span id="score-ct" class="team-score-val">0</span>
+      </div>
 
-    <div class="center-match-info">
-      <div id="match-timer">00:00</div>
-      <div class="personal-kd">
-        <span>K: <strong id="score-kills">0</strong></span>
-        <span class="kd-divider">/</span>
-        <span>D: <strong id="score-deaths">0</strong></span>
+      <div class="center-match-info">
+        <div id="round-badge">ROUND 1</div>
+        <div id="match-timer">00:00</div>
+        <div class="personal-kd">
+          <span>K: <strong id="score-kills">0</strong></span>
+          <span class="kd-divider">/</span>
+          <span>D: <strong id="score-deaths">0</strong></span>
+        </div>
+      </div>
+
+      <div class="team-score-card t">
+        <span id="score-t" class="team-score-val">0</span>
+        <span class="team-tag t">T</span>
       </div>
     </div>
 
-    <div class="team-score-card t">
-      <span id="score-t" class="team-score-val">0</span>
-      <span class="team-tag t">T</span>
+    <div class="top-sub-row">
+      <div id="zone-badge">📍 DUST II</div>
+      <div id="round-banner" style="display: none;"></div>
     </div>
   </div>
 
@@ -90,6 +107,7 @@
       <div class="stat-header">
         <span class="stat-icon">🛡️</span>
         <span class="score-label">ARMOR</span>
+        <span id="kit-badge" class="kit-badge" style="display: none;">✂️ KIT</span>
       </div>
       <div id="armor-val" class="stat-val">100</div>
       <div class="bar-bg">
@@ -105,6 +123,7 @@
       <div id="weapon-slot-2" class="weapon-slot-pill">[2] DEAGLE</div>
       <div id="weapon-slot-3" class="weapon-slot-pill">[3] FACA</div>
       <div id="weapon-slot-4" class="weapon-slot-pill">[4] HE • 1/1/1</div>
+      <div id="weapon-slot-5" class="weapon-slot-pill c4-pill" style="display: none;">[5] C4</div>
       <div id="arsenal-hint-pill" class="arsenal-hint-pill">[B] BUY MENU</div>
     </div>
 
@@ -140,35 +159,61 @@
 
   <!-- Start Screen Overlay -->
   <div id="start-screen" class="overlay-screen">
-    <div class="modal-box">
+    <div class="modal-box start-modal-wide">
       <h1 class="modal-title">CS:GO Web Clone</h1>
-      <p class="modal-subtitle">Dust II Mini • 14 Armas, Granadas Táticas & Economia • CT vs T</p>
+      <p class="modal-subtitle">CS 1.6 Completo • Navegação A*, C4 Bomb Defusal, 14 Armas & Economia</p>
+
+      <div class="setup-section">
+        <div class="setup-label">ESCOLHA O MAPA</div>
+        <div class="setup-options" id="map-selector">
+          <button type="button" class="setup-option-btn active" data-map="dust2">
+            <strong>de_dust2 (CS 1.6 Completo)</strong>
+            <span>Bomb Defusal (A/B) • Long, Mid, Catwalk, B Tunnels</span>
+          </button>
+          <button type="button" class="setup-option-btn" data-map="poolday">
+            <strong>fy_pool_day (CS 1.6 Arena)</strong>
+            <span>Deathmatch Rápido • Piscina, Pilares & Vestiários</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="setup-section">
+        <div class="setup-label">ESCOLHA O TIME</div>
+        <div class="setup-options" id="team-selector">
+          <button type="button" class="setup-option-btn ct active" data-team="CT">
+            <strong>CT — Contraterrorista</strong>
+            <span>Defenda os sites e desarme a C4</span>
+          </button>
+          <button type="button" class="setup-option-btn t" data-team="T">
+            <strong>T — Terrorista</strong>
+            <span>Plante a C4 no Bombsite A ou B</span>
+          </button>
+        </div>
+      </div>
 
       <div class="controls-grid">
         <div class="control-item"><span class="control-key">W A S D</span> Movimento</div>
         <div class="control-item"><span class="control-key">MOUSE</span> Olhar / Mirar</div>
-        <div class="control-item"><span class="control-key">CLICK ESQ</span> Atirar / Arremesso Forte</div>
+        <div class="control-item"><span class="control-key">CLICK ESQ</span> Atirar / Plantar C4</div>
         <div class="control-item"><span class="control-key">CLICK DIR</span> Scope / Burst / Arremesso Curto</div>
         <div class="control-item"><span class="control-key">1 / 2 / 3</span> Primária / Pistola / Faca</div>
-        <div class="control-item"><span class="control-key">4</span> Granadas (HE / Flash / Smoke)</div>
-        <div class="control-item"><span class="control-key">G / E</span> Dropar / Pegar Arma</div>
-        <div class="control-item"><span class="control-key">B</span> Buy Menu (Economia)</div>
+        <div class="control-item"><span class="control-key">4 / 5</span> Granadas / C4</div>
+        <div class="control-item"><span class="control-key">E</span> Pegar Arma / Plantar / Defusar</div>
+        <div class="control-item"><span class="control-key">G / B</span> Dropar / Buy Menu</div>
         <div class="control-item"><span class="control-key">Q / R</span> Quick-Switch / Recarregar</div>
-        <div class="control-item"><span class="control-key">ESPAÇO</span> Pular</div>
-        <div class="control-item"><span class="control-key">CTRL / C</span> Agachar</div>
-        <div class="control-item"><span class="control-key">SHIFT</span> Andar (Silencioso)</div>
+        <div class="control-item"><span class="control-key">ESPAÇO / CTRL</span> Pular / Agachar</div>
       </div>
 
       <button id="btn-start" class="btn-primary">JOGAR AGORA</button>
     </div>
   </div>
 
-  <!-- Death Screen Overlay (Auto-Respawn) -->
+  <!-- Death Screen Overlay -->
   <div id="death-screen" class="death-banner-overlay">
     <div class="death-banner-box">
       <h1 class="death-title">VOCÊ FOI ELIMINADO</h1>
-      <p class="modal-subtitle">Respawn automático em <span id="death-timer-val" class="death-timer-highlight">2.5s</span></p>
-      <div class="death-bar-container">
+      <p id="death-status-text" class="modal-subtitle">Respawn automático em <span id="death-timer-val" class="death-timer-highlight">2.5s</span></p>
+      <div id="death-bar-container" class="death-bar-container">
         <div id="death-bar-fill" class="death-bar-fill"></div>
       </div>
     </div>

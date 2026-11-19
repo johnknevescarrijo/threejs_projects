@@ -324,9 +324,10 @@ export class GrenadeManager {
       sounds.playExplosion();
       this._spawnExplosionEffect(detPos);
 
-      // Damage enemy Terrorist bots (respect solid wall occlusion)
+      // Damage enemy bots (respect solid wall occlusion and playerTeam)
+      const friendlyTeam = callbacks?.playerTeam || 'CT';
       for (const bot of bots) {
-        if (!bot.isAlive || bot.team === 'CT') continue;
+        if (!bot.isAlive || bot.team === friendlyTeam) continue;
         const botCenter = bot.group.position.clone().add(new THREE.Vector3(0, 1.1, 0));
         const dist = detPos.distanceTo(botCenter);
         if (dist >= 7.5) continue;

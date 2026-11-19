@@ -39,6 +39,14 @@ export const UTILITY_ITEMS = {
     price: 1000,
     repairPrice: 650,
     type: 'armor'
+  },
+  defuse_kit: {
+    id: 'defuse_kit',
+    name: 'Kit de Defuse',
+    shortName: 'KIT',
+    price: 400,
+    maxCarry: 1,
+    type: 'kit'
   }
 };
 
