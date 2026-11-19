@@ -1134,8 +1134,7 @@ export class WeaponManager {
     return (
       !this.isReloading &&
       this.burstCooldownTimer <= 0 &&
-      this.timeSinceLastShot >= w.fireRate &&
-      w.currentAmmo > 0
+      this.timeSinceLastShot >= w.fireRate
     );
   }
 
@@ -1181,6 +1180,9 @@ export class WeaponManager {
     this.muzzleLight.position.set(0.2, -0.15, -0.9);
     this.muzzleFlashTimer = w.silenced ? 0.025 : 0.05;
 
+    // Capture scope state before bolt-action shot unscopes
+    const wasScoped = this.scopeLevel > 0;
+
     // Mechanical blowback / bolt / pump animations
     this.slideKick = w.slideMesh ? 0.045 : 0.055;
     if (w.isBoltAction) {
@@ -1198,7 +1200,7 @@ export class WeaponManager {
       isCrouching,
       moveSpeed: playerMovementSpeed,
       inAir,
-      isScoped: this.scopeLevel > 0,
+      isScoped: wasScoped,
       rng: Math.random
     });
     this.currentSpread = spray.spread;

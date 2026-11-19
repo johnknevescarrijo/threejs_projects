@@ -206,23 +206,22 @@ export function classifySurfacePenetration(mesh) {
 }
 
 /**
- * Checks whether an attacker is behind the target (dot > 0.45) for knife backstab.
+ * Checks whether an attacker is behind the target (dot > 0.45) in the horizontal XZ plane
+ * so camera-vs-feet Y offset does not break close-range knife backstabs.
  */
 export function isBackstab(attackerPos, targetPos, targetForward) {
   if (!attackerPos || !targetPos || !targetForward) return false;
 
   const dx = targetPos.x - attackerPos.x;
-  const dy = (targetPos.y ?? 0) - (attackerPos.y ?? 0);
   const dz = targetPos.z - attackerPos.z;
-  const len = Math.hypot(dx, dy, dz);
+  const len = Math.hypot(dx, dz);
   if (len < 1e-6) return false;
 
-  const fLen = Math.hypot(targetForward.x, targetForward.y ?? 0, targetForward.z);
+  const fLen = Math.hypot(targetForward.x, targetForward.z);
   if (fLen < 1e-6) return false;
 
   const dot = (
     (dx / len) * (targetForward.x / fLen) +
-    (dy / len) * ((targetForward.y ?? 0) / fLen) +
     (dz / len) * (targetForward.z / fLen)
   );
 

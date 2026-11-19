@@ -388,8 +388,8 @@ class Game {
 
     if (!this.weapons.canShoot()) return;
 
-    // Semi-auto or burst weapons trigger once per click
-    if (!curW.isAutomatic || curW.fireMode === 'burst') {
+    // Semi-auto, burst, or empty mag (avoid dry-fire spam) trigger once per click
+    if (!curW.isAutomatic || curW.fireMode === 'burst' || curW.currentAmmo <= 0) {
       this.player.isShooting = false;
     }
 
@@ -415,8 +415,14 @@ class Game {
         const sensitivityScale = this.camera.fov / 75;
         const weaponMoveSpeed = this.weapons.getActiveMoveSpeed();
 
-        // 2. Update Player & Shooting
+        // 2. Update Player & Shooting (clear sniper scope & pending burst if dead)
         this.player.update(delta, weaponMoveSpeed, sensitivityScale);
+        if (!this.player.isAlive) {
+          if (this.weapons.scopeLevel > 0) {
+            this.weapons.resetScope();
+          }
+          this.weapons.burstRemaining = 0;
+        }
         this._handlePlayerShooting();
 
         // 3. Update Weapons & Burst Follow-Up Shots

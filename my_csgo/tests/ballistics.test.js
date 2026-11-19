@@ -139,11 +139,13 @@ test('generatePelletOffsets creates 9 pellets within spread bounds', () => {
   }
 });
 
-test('isBackstab distinguishes behind vs front vs side', () => {
+test('isBackstab distinguishes behind vs front vs side and handles close-range Y offset', () => {
   const targetPos = { x: 0, y: 0, z: 0 };
   const targetForward = { x: 0, y: 0, z: 1 };
 
   assert.equal(isBackstab({ x: 0, y: 0, z: -1.5 }, targetPos, targetForward), true);
+  assert.equal(isBackstab({ x: 0, y: 1.7, z: -0.5 }, targetPos, targetForward), true);
+  assert.equal(isBackstab({ x: 0, y: 1.7, z: 0.5 }, targetPos, targetForward), false);
   assert.equal(isBackstab({ x: 0, y: 0, z: 1.5 }, targetPos, targetForward), false);
   assert.equal(isBackstab({ x: 1.5, y: 0, z: 0 }, targetPos, targetForward), false);
 });
