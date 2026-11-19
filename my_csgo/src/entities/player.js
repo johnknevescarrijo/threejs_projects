@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { sounds } from '../audio/soundManager.js';
+import { computeSurfaceHeight } from '../world/surfaceHeight.js';
 
 export class Player {
   constructor(camera, domElement, map) {
@@ -66,6 +67,9 @@ export class Player {
 
     // Bounding radius for collisions
     this.radius = 0.45;
+    this._colBox = new THREE.Box3();
+    this._colMin = new THREE.Vector3();
+    this._colMax = new THREE.Vector3();
 
     this._setupInputListeners();
   }
@@ -267,16 +271,16 @@ export class Player {
     const nextX = this.camera.position.x + this.velocity.x * delta;
     const nextZ = this.camera.position.z + this.velocity.z * delta;
     const currentY = this.camera.position.y;
+    const feetY = currentY - this.currentHeight;
 
-    // Check collision X
-    let playerBoxX = new THREE.Box3(
-      new THREE.Vector3(nextX - this.radius, currentY - this.currentHeight + 0.1, this.camera.position.z - this.radius),
-      new THREE.Vector3(nextX + this.radius, currentY + 0.2, this.camera.position.z + this.radius)
-    );
+    // Raise horizontal AABB floor (+0.38m) for natural step-up on ramps and low ledges
+    this._colMin.set(nextX - this.radius, feetY + 0.38, this.camera.position.z - this.radius);
+    this._colMax.set(nextX + this.radius, currentY + 0.2, this.camera.position.z + this.radius);
+    this._colBox.set(this._colMin, this._colMax);
 
     let collideX = false;
     for (const box of this.map.colliders) {
-      if (playerBoxX.intersectsBox(box)) {
+      if (this._colBox.intersectsBox(box)) {
         collideX = true;
         this.velocity.x = 0;
         break;
@@ -287,14 +291,13 @@ export class Player {
     }
 
     // Check collision Z
-    let playerBoxZ = new THREE.Box3(
-      new THREE.Vector3(this.camera.position.x - this.radius, currentY - this.currentHeight + 0.1, nextZ - this.radius),
-      new THREE.Vector3(this.camera.position.x + this.radius, currentY + 0.2, nextZ + this.radius)
-    );
+    this._colMin.set(this.camera.position.x - this.radius, feetY + 0.38, nextZ - this.radius);
+    this._colMax.set(this.camera.position.x + this.radius, currentY + 0.2, nextZ + this.radius);
+    this._colBox.set(this._colMin, this._colMax);
 
     let collideZ = false;
     for (const box of this.map.colliders) {
-      if (playerBoxZ.intersectsBox(box)) {
+      if (this._colBox.intersectsBox(box)) {
         collideZ = true;
         this.velocity.z = 0;
         break;
@@ -304,26 +307,15 @@ export class Player {
       this.camera.position.z = nextZ;
     }
 
-    // Vertical step
+    // Vertical step using unified surface height (ground, ramps, decks, step-up colliders)
     let nextY = this.camera.position.y + this.velocity.y * delta;
-    
-    // Check floor ground level (0 by default, or elevated platforms)
-    let groundHeight = 0;
-
-    // Check if on top of any elevated platform or crate
-    const feetPos = new THREE.Vector3(this.camera.position.x, nextY - this.currentHeight, this.camera.position.z);
-    for (const box of this.map.colliders) {
-      if (
-        this.camera.position.x >= box.min.x - 0.2 &&
-        this.camera.position.x <= box.max.x + 0.2 &&
-        this.camera.position.z >= box.min.z - 0.2 &&
-        this.camera.position.z <= box.max.z + 0.2
-      ) {
-        if (box.max.y <= this.camera.position.y - this.currentHeight + 0.5) {
-          groundHeight = Math.max(groundHeight, box.max.y);
-        }
-      }
-    }
+    const groundHeight = computeSurfaceHeight(
+      this.camera.position.x,
+      this.camera.position.z,
+      this.map,
+      feetY,
+      0.48
+    );
 
     const minCameraY = groundHeight + this.currentHeight;
 

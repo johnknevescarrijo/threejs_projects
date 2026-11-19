@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { computeSurfaceHeight } from '../world/surfaceHeight.js';
 
 export class DroppedWeaponManager {
   constructor(scene, map) {
@@ -93,18 +94,8 @@ export class DroppedWeaponManager {
     return item;
   }
 
-  _getSurfaceHeight(x, z) {
-    let groundY = 0;
-    if (x >= 10 && x <= 26 && z >= 10 && z <= 26) {
-      groundY = 1.2;
-    } else if (x >= 16 && x <= 20 && z >= 2 && z <= 10) {
-      groundY = THREE.MathUtils.clamp((z - 2) / 8, 0, 1) * 1.2;
-    } else if (x >= 6.4 && x <= 10.6 && z >= 0.2 && z <= 6.2) {
-      groundY = THREE.MathUtils.clamp((z - 0.2) / 6, 0, 1) * 1.2;
-    } else if (x >= 6.4 && x <= 14.5 && z >= 6.2 && z <= 15) {
-      groundY = 1.2;
-    }
-    return groundY;
+  _getSurfaceHeight(x, z, currentY = Infinity, stepOffset = 0.2) {
+    return computeSurfaceHeight(x, z, this.map, currentY, stepOffset);
   }
 
   update(delta, playerPos = null) {
@@ -148,16 +139,7 @@ export class DroppedWeaponManager {
         else item.mesh.position.z = nextZ;
 
         const nextY = item.mesh.position.y + item.velocity.y * delta;
-        let floorY = this._getSurfaceHeight(item.mesh.position.x, item.mesh.position.z);
-        for (const box of this.map.colliders) {
-          if (
-            item.mesh.position.x + r > box.min.x && item.mesh.position.x - r < box.max.x &&
-            item.mesh.position.z + r > box.min.z && item.mesh.position.z - r < box.max.z &&
-            item.mesh.position.y >= box.max.y - 0.2
-          ) {
-            floorY = Math.max(floorY, box.max.y);
-          }
-        }
+        const floorY = this._getSurfaceHeight(item.mesh.position.x, item.mesh.position.z, item.mesh.position.y, 0.2);
 
         if (nextY <= floorY + 0.08) {
           item.mesh.position.y = floorY + 0.08;

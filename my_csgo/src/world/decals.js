@@ -1,10 +1,13 @@
 import * as THREE from 'three';
 
+const _TMP_LOOK_TARGET = new THREE.Vector3();
+
 export class DecalManager {
   constructor(scene) {
     this.scene = scene;
     this.decals = [];
     this.maxDecals = 60;
+    this.cursor = 0;
 
     // Create procedural bullet hole texture
     const canvas = document.createElement('canvas');
@@ -33,10 +36,7 @@ export class DecalManager {
 
     this.bulletTexture = new THREE.CanvasTexture(canvas);
     this.geometry = new THREE.PlaneGeometry(0.18, 0.18);
-  }
-
-  addBulletHole(position, normal) {
-    const material = new THREE.MeshBasicMaterial({
+    this.material = new THREE.MeshBasicMaterial({
       map: this.bulletTexture,
       transparent: true,
       depthWrite: false,
@@ -44,23 +44,26 @@ export class DecalManager {
       polygonOffsetFactor: -4
     });
 
-    const mesh = new THREE.Mesh(this.geometry, material);
-    
-    // Position slightly off the surface to avoid z-fighting
-    mesh.position.copy(position).add(normal.clone().multiplyScalar(0.01));
-    
-    // Align decal orientation with surface normal
-    mesh.lookAt(position.clone().add(normal));
-    mesh.rotateZ(Math.random() * Math.PI * 2);
-
-    this.scene.add(mesh);
-    this.decals.push(mesh);
-
-    // Limit maximum decals
-    if (this.decals.length > this.maxDecals) {
-      const old = this.decals.shift();
-      this.scene.remove(old);
-      old.material.dispose();
+    // Pre-allocate fixed ring pool (zero runtime material/mesh allocation or disposal)
+    for (let i = 0; i < this.maxDecals; i++) {
+      const mesh = new THREE.Mesh(this.geometry, this.material);
+      mesh.visible = false;
+      this.scene.add(mesh);
+      this.decals.push(mesh);
     }
+  }
+
+  addBulletHole(position, normal) {
+    const mesh = this.decals[this.cursor];
+    this.cursor = (this.cursor + 1) % this.maxDecals;
+
+    // Position slightly off the surface to avoid z-fighting
+    mesh.position.copy(position).addScaledVector(normal, 0.01);
+
+    // Align decal orientation with surface normal
+    _TMP_LOOK_TARGET.copy(position).add(normal);
+    mesh.lookAt(_TMP_LOOK_TARGET);
+    mesh.rotateZ(Math.random() * Math.PI * 2);
+    mesh.visible = true;
   }
 }
