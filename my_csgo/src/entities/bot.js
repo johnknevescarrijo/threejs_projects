@@ -1,5 +1,16 @@
 import * as THREE from 'three';
 import { sounds } from '../audio/soundManager.js';
+import { computeSurfaceHeight } from '../world/surfaceHeight.js';
+
+const MUZZLE_FLASH_GEO = new THREE.PlaneGeometry(0.24, 0.24);
+const MUZZLE_FLASH_MAT = new THREE.MeshBasicMaterial({
+  color: 0xffcf55,
+  transparent: true,
+  opacity: 0.92,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+  side: THREE.DoubleSide
+});
 
 export class Bot {
   constructor(id, scene, map, spawnPos, name = 'Bot', team = 'T') {
@@ -45,6 +56,10 @@ export class Bot {
     this.respawnTimer = 0;
     this.stuckTimer = 0;
     this.walkCycle = Math.random() * Math.PI * 2;
+    this.muzzleFlashTimer = 0;
+    this._colBox = new THREE.Box3();
+    this._colMin = new THREE.Vector3();
+    this._colMax = new THREE.Vector3();
 
     // 3D Mesh
     this.group = new THREE.Group();
@@ -95,29 +110,8 @@ export class Bot {
     this.group.add(this.allyMarker);
   }
 
-  _getGroundHeight(x, z) {
-    let groundY = 0;
-
-    // 1. Bombsite A elevated platform (x: 10 to 26, z: 10 to 26)
-    if (x >= 10 && x <= 26 && z >= 10 && z <= 26) {
-      groundY = 1.2;
-    }
-    // 2. Bombsite A ramp (x: 16 to 20, z: 2 to 10)
-    else if (x >= 16 && x <= 20 && z >= 2 && z <= 10) {
-      const rampProgress = THREE.MathUtils.clamp((z - 2) / 8, 0, 1);
-      groundY = rampProgress * 1.2;
-    }
-    // 3. Low obstacles/colliders
-    else {
-      for (const box of this.map.colliders) {
-        if (x >= box.min.x && x <= box.max.x && z >= box.min.z && z <= box.max.z) {
-          if (box.max.y <= 1.5) {
-            groundY = Math.max(groundY, box.max.y);
-          }
-        }
-      }
-    }
-    return groundY;
+  _getGroundHeight(x, z, currentFeetY = 1.5, stepOffset = 0.48) {
+    return computeSurfaceHeight(x, z, this.map, currentFeetY, stepOffset);
   }
 
   _buildMesh() {
@@ -232,10 +226,16 @@ export class Bot {
     this.group.add(gunGroup);
     this.gunMesh = gunGroup;
 
-    // Muzzle light for bot shooting
-    this.muzzleLight = new THREE.PointLight(0xffaa22, 0, 6);
-    this.muzzleLight.position.set(0.22, 1.15, 0.7);
-    this.group.add(this.muzzleLight);
+    // Lightweight additive muzzle flash mesh (zero PointLight fragment cost)
+    const flashGroup = new THREE.Group();
+    const flashPlaneA = new THREE.Mesh(MUZZLE_FLASH_GEO, MUZZLE_FLASH_MAT);
+    const flashPlaneB = new THREE.Mesh(MUZZLE_FLASH_GEO, MUZZLE_FLASH_MAT);
+    flashPlaneB.rotation.y = Math.PI / 2;
+    flashGroup.add(flashPlaneA, flashPlaneB);
+    flashGroup.position.set(0.22, 1.17, 0.72);
+    flashGroup.visible = false;
+    this.group.add(flashGroup);
+    this.muzzleFlashMesh = flashGroup;
   }
 
   getForwardVector() {
@@ -276,10 +276,11 @@ export class Bot {
     if (this.rightLeg) this.rightLeg.rotation.x = 0;
 
     // Death collapse animation firmly on ground
-    const currentGround = this._getGroundHeight(this.group.position.x, this.group.position.z);
+    const currentGround = this._getGroundHeight(this.group.position.x, this.group.position.z, this.group.position.y);
     this.group.rotation.set(-Math.PI / 2, 0, 0);
     this.group.position.y = currentGround + 0.2;
-    this.muzzleLight.intensity = 0;
+    this.muzzleFlashTimer = 0;
+    if (this.muzzleFlashMesh) this.muzzleFlashMesh.visible = false;
 
     if (this.allyMarker) {
       this.allyMarker.visible = false;
@@ -296,6 +297,8 @@ export class Bot {
     this.velocityY = 0;
     this.stuckTimer = 0;
     this.blindTimer = 0;
+    this.muzzleFlashTimer = 0;
+    if (this.muzzleFlashMesh) this.muzzleFlashMesh.visible = false;
     this.group.rotation.set(0, 0, 0);
 
     if (this.leftLeg) this.leftLeg.rotation.x = 0;
@@ -386,15 +389,14 @@ export class Bot {
     const nextX = curX + moveDir.x * this.speed * delta;
     const nextZ = curZ + moveDir.z * this.speed * delta;
 
-    // Check collision along X
-    const botBoxX = new THREE.Box3(
-      new THREE.Vector3(nextX - this.radius, curY + 0.1, curZ - this.radius),
-      new THREE.Vector3(nextX + this.radius, curY + 1.8, curZ + this.radius)
-    );
+    // Check collision along X (raise bottom +0.38m for ramp/step-up traversal)
+    this._colMin.set(nextX - this.radius, curY + 0.38, curZ - this.radius);
+    this._colMax.set(nextX + this.radius, curY + 1.8, curZ + this.radius);
+    this._colBox.set(this._colMin, this._colMax);
 
     let collideX = false;
     for (const box of this.map.colliders) {
-      if (botBoxX.intersectsBox(box)) {
+      if (this._colBox.intersectsBox(box)) {
         collideX = true;
         break;
       }
@@ -404,14 +406,13 @@ export class Bot {
     }
 
     // Check collision along Z
-    const botBoxZ = new THREE.Box3(
-      new THREE.Vector3(this.group.position.x - this.radius, curY + 0.1, nextZ - this.radius),
-      new THREE.Vector3(this.group.position.x + this.radius, curY + 1.8, nextZ + this.radius)
-    );
+    this._colMin.set(this.group.position.x - this.radius, curY + 0.38, nextZ - this.radius);
+    this._colMax.set(this.group.position.x + this.radius, curY + 1.8, nextZ + this.radius);
+    this._colBox.set(this._colMin, this._colMax);
 
     let collideZ = false;
     for (const box of this.map.colliders) {
-      if (botBoxZ.intersectsBox(box)) {
+      if (this._colBox.intersectsBox(box)) {
         collideZ = true;
         break;
       }
@@ -442,6 +443,13 @@ export class Bot {
       return;
     }
 
+    if (this.muzzleFlashTimer > 0) {
+      this.muzzleFlashTimer = Math.max(0, this.muzzleFlashTimer - delta);
+      if (this.muzzleFlashTimer <= 0 && this.muzzleFlashMesh) {
+        this.muzzleFlashMesh.visible = false;
+      }
+    }
+
     let isMoving = false;
 
     if (this.blindTimer > 0) {
@@ -451,7 +459,8 @@ export class Bot {
       this.currentTarget = null;
       this.reactionTimer = 0;
       this.shotsInBurst = 0;
-      this.muzzleLight.intensity = 0;
+      this.muzzleFlashTimer = 0;
+      if (this.muzzleFlashMesh) this.muzzleFlashMesh.visible = false;
 
       const stumbleDir = this.getForwardVector().negate();
       stumbleDir.y = 0;
@@ -491,7 +500,8 @@ export class Bot {
         this.currentTarget = null;
         this.reactionTimer = 0;
         this.shotsInBurst = 0;
-        this.muzzleLight.intensity = 0;
+        this.muzzleFlashTimer = 0;
+        if (this.muzzleFlashMesh) this.muzzleFlashMesh.visible = false;
 
         // Patrol between waypoints with solid physics
         const targetWaypoint = this.map.waypoints[this.currentWaypointIndex];
@@ -528,7 +538,7 @@ export class Bot {
     }
 
     // --- Vertical Physics & Ground Clamping ---
-    const targetGroundY = this._getGroundHeight(this.group.position.x, this.group.position.z);
+    const targetGroundY = this._getGroundHeight(this.group.position.x, this.group.position.z, this.group.position.y);
     if (this.group.position.y > targetGroundY + 0.05) {
       this.velocityY -= 22.0 * delta;
       this.group.position.y += this.velocityY * delta;
@@ -551,11 +561,13 @@ export class Bot {
 
     sounds.playBotShot();
 
-    // Muzzle flash
-    this.muzzleLight.intensity = 2.4;
-    setTimeout(() => {
-      if (this.muzzleLight) this.muzzleLight.intensity = 0;
-    }, 45);
+    // Muzzle flash (frame-updated mesh timer, zero setTimeout/PointLight)
+    if (this.muzzleFlashMesh) {
+      this.muzzleFlashMesh.visible = true;
+      this.muzzleFlashMesh.rotation.z = Math.random() * Math.PI * 2;
+      this.muzzleFlashMesh.scale.setScalar(0.8 + Math.random() * 0.45);
+      this.muzzleFlashTimer = 0.05;
+    }
 
     // Bot accuracy deviation
     const spread = (Math.random() - 0.5) * 0.6;

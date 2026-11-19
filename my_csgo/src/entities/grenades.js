@@ -6,6 +6,7 @@ import {
   doesSegmentIntersectSphere
 } from '../combat/tactical.js';
 import { classifySurfacePenetration } from '../combat/ballistics.js';
+import { computeSurfaceHeight } from '../world/surfaceHeight.js';
 
 const _TMP_DIR = new THREE.Vector3();
 const _CAM_FWD = new THREE.Vector3();
@@ -102,18 +103,8 @@ export class GrenadeManager {
     });
   }
 
-  _getSurfaceHeight(x, z) {
-    let groundY = 0;
-    if (x >= 10 && x <= 26 && z >= 10 && z <= 26) {
-      groundY = 1.2;
-    } else if (x >= 16 && x <= 20 && z >= 2 && z <= 10) {
-      groundY = THREE.MathUtils.clamp((z - 2) / 8, 0, 1) * 1.2;
-    } else if (x >= 6.4 && x <= 10.6 && z >= 0.2 && z <= 6.2) {
-      groundY = THREE.MathUtils.clamp((z - 0.2) / 6, 0, 1) * 1.2;
-    } else if (x >= 6.4 && x <= 14.5 && z >= 6.2 && z <= 15) {
-      groundY = 1.2;
-    }
-    return groundY;
+  _getSurfaceHeight(x, z, currentY = Infinity, stepOffset = 0.2) {
+    return computeSurfaceHeight(x, z, this.map, currentY, stepOffset);
   }
 
   _stepProjectile(p, delta) {
@@ -170,16 +161,7 @@ export class GrenadeManager {
 
     // Vertical Y (colliders + terrain/ramps)
     const nextY = p.mesh.position.y + p.velocity.y * delta;
-    let floorY = this._getSurfaceHeight(p.mesh.position.x, p.mesh.position.z);
-    for (const box of this.map.colliders) {
-      if (
-        p.mesh.position.x + radius > box.min.x && p.mesh.position.x - radius < box.max.x &&
-        p.mesh.position.z + radius > box.min.z && p.mesh.position.z - radius < box.max.z &&
-        p.mesh.position.y >= box.max.y - 0.2
-      ) {
-        floorY = Math.max(floorY, box.max.y);
-      }
-    }
+    const floorY = this._getSurfaceHeight(p.mesh.position.x, p.mesh.position.z, p.mesh.position.y, 0.2);
 
     if (nextY <= floorY + radius) {
       impactSpeed = Math.max(impactSpeed, Math.abs(p.velocity.y));
