@@ -34,13 +34,16 @@ export class Player {
     this.isShooting = false;
     this.isAlive = true;
 
-    // Health & Armor
+    // Health, Armor & Equipment
     this.health = 100;
     this.armor = 100;
+    this.hasDefuseKit = false;
     this.kills = 0;
     this.deaths = 0;
     this.autoRespawnTimer = 0;
     this.maxRespawnTime = 2.5;
+    this.allowAutoRespawn = true;
+    this.isFrozen = false;
 
     // Key states
     this.keys = {
@@ -50,7 +53,8 @@ export class Player {
       right: false,
       jump: false,
       crouch: false,
-      walk: false
+      walk: false,
+      use: false
     };
 
     // Pointer Lock & Mouse Look
@@ -108,6 +112,7 @@ export class Player {
         case 'ControlLeft':
         case 'KeyC': this.keys.crouch = true; break;
         case 'ShiftLeft': this.keys.walk = true; break;
+        case 'KeyE': this.keys.use = true; break;
       }
     });
 
@@ -121,6 +126,7 @@ export class Player {
         case 'ControlLeft':
         case 'KeyC': this.keys.crouch = false; break;
         case 'ShiftLeft': this.keys.walk = false; break;
+        case 'KeyE': this.keys.use = false; break;
       }
     });
 
@@ -165,29 +171,43 @@ export class Player {
     this.viewpunchYaw = THREE.MathUtils.clamp(this.viewpunchYaw + yaw, -0.25, 0.25);
   }
 
-  respawn() {
-    this.health = 100;
-    this.armor = 100;
+  spawnAt(pos, yaw = 0, resetHealth = true) {
+    if (resetHealth) {
+      this.health = 100;
+      this.armor = 100;
+    }
     this.isAlive = true;
     this.isShooting = false;
     this.autoRespawnTimer = 0;
     this.velocity.set(0, 0, 0);
-    this.camera.position.set(0, 1.7, -20);
+    const px = pos?.x ?? 0;
+    const pz = pos?.z ?? -20;
+    const groundY = computeSurfaceHeight(px, pz, this.map, pos?.y ?? 0, 0.48);
+    this.camera.position.set(px, groundY + this.standingHeight, pz);
+    this.currentHeight = this.standingHeight;
+    this.isGrounded = true;
     this.pitch = 0;
-    this.yaw = 0;
+    this.yaw = yaw;
     this.viewpunchPitch = 0;
     this.viewpunchYaw = 0;
-    this.camera.rotation.set(0, 0, 0);
+    this.camera.rotation.set(0, yaw, 0);
+  }
+
+  respawn(pos = null, yaw = 0) {
+    const target = pos || (this.defaultSpawnPos ? this.defaultSpawnPos : { x: 0, y: 0, z: -20 });
+    const targetYaw = pos ? yaw : (this.defaultSpawnYaw ?? 0);
+    this.spawnAt(target, targetYaw, true);
   }
 
   update(delta, weaponMoveSpeed = null, sensitivityScale = 1.0) {
     this.sensitivityScale = sensitivityScale;
 
     if (!this.isAlive) {
-      // Auto-respawn countdown
-      this.autoRespawnTimer -= delta;
-      if (this.autoRespawnTimer <= 0) {
-        this.respawn();
+      if (this.allowAutoRespawn) {
+        this.autoRespawnTimer -= delta;
+        if (this.autoRespawnTimer <= 0) {
+          this.respawn();
+        }
       }
       return;
     }
@@ -197,6 +217,12 @@ export class Player {
     this.viewpunchYaw = THREE.MathUtils.lerp(this.viewpunchYaw, 0, Math.min(1, delta * 11));
     const totalPitch = THREE.MathUtils.clamp(this.pitch + this.viewpunchPitch, -Math.PI / 2 + 0.01, Math.PI / 2 - 0.01);
     this.camera.rotation.set(totalPitch, this.yaw + this.viewpunchYaw, 0);
+
+    if (this.isFrozen) {
+      this.velocity.set(0, 0, 0);
+      this.isShooting = false;
+      return;
+    }
 
     // 1. Crouch interpolation
     this.isCrouching = this.keys.crouch;
