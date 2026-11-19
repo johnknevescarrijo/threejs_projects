@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { sounds } from './audio/soundManager.js';
+import { FIXED_HZ, createFixedStepper } from './core/fixedLoop.js';
 import { DustMap } from './world/map.js';
-import { ParticleSystem } from './world/particles.js';
+import { PooledParticleSystem } from './world/pooledParticles.js';
 import { DecalManager } from './world/decals.js';
 import { WeaponManager } from './entities/weapon.js';
 import { Player } from './entities/player.js';
@@ -56,7 +57,7 @@ class Game {
 
     // 2. Systems
     this.map = new DustMap(this.scene);
-    this.particles = new ParticleSystem(this.scene);
+    this.particles = new PooledParticleSystem(this.scene, this.map);
     this.decals = new DecalManager(this.scene);
     this.weapons = new WeaponManager(this.camera, this.viewmodelCamera, this.particles, this.decals);
     this.player = new Player(this.camera, this.renderer.domElement, this.map);
@@ -80,6 +81,7 @@ class Game {
 
     // 5. Timing & State
     this.clock = new THREE.Clock();
+    this.fixedStepper = createFixedStepper({ stepHz: FIXED_HZ, maxFrameDelta: 0.1, maxSubsteps: 5 });
     this.elapsedTime = 0;
     this.isGameRunning = false;
 
@@ -590,67 +592,99 @@ class Game {
 
   start() {
     this.renderer.setAnimationLoop(() => {
-      const delta = Math.min(this.clock.getDelta(), 0.1);
+      const rawDelta = this.clock.getDelta();
+      const frameDelta = Math.min(rawDelta, 0.1);
       if (this.isGameRunning) {
-        this.elapsedTime += delta;
+        this.elapsedTime += frameDelta;
 
-        // 1. Update Scope FOV & Mouse Sensitivity scaling
+        // 1. Smooth Scope FOV & Mouse Sensitivity scaling at render frame rate
         const targetFov = this.weapons.getScopeFov();
         if (Math.abs(this.camera.fov - targetFov) > 0.05) {
-          this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, targetFov, Math.min(1, delta * 18));
+          this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, targetFov, Math.min(1, frameDelta * 18));
           this.camera.updateProjectionMatrix();
         }
         const sensitivityScale = this.camera.fov / 75;
         const weaponMoveSpeed = this.weapons.getActiveMoveSpeed();
 
-        // 2. Update Player, Respawn Economy Floor, Death Cleanup & Shooting
-        this.player.update(delta, weaponMoveSpeed, sensitivityScale);
+        // 2. Fixed 64 Hz physics & gameplay simulation step
+        this.fixedStepper.advance(rawDelta, (fixedDt) => {
+          this.player.update(fixedDt, weaponMoveSpeed, sensitivityScale);
 
-        if (!this.wasPlayerAlive && this.player.isAlive) {
-          applyRespawnFloor(this.economy);
-        }
-        this.wasPlayerAlive = this.player.isAlive;
-
-        if (!this.player.isAlive) {
-          if (this.weapons.scopeLevel > 0) {
-            this.weapons.resetScope();
+          if (!this.wasPlayerAlive && this.player.isAlive) {
+            applyRespawnFloor(this.economy);
           }
-          this.weapons.burstRemaining = 0;
-          this.flashTimer = 0;
-          this.flashPeakIntensity = 0;
-          this.flashIntensity = 0;
-        }
-        this._handlePlayerShooting();
+          this.wasPlayerAlive = this.player.isAlive;
 
-        // 3. Update Weapons & Burst Follow-Up Shots
-        const isMoving = this.player.velocity.lengthSq() > 0.1;
-        this.weapons.update(
-          delta,
-          this.player.velocity,
-          isMoving,
-          this.player.isCrouching,
-          !this.player.isGrounded,
-          (burstShotInfo) => this._fireShotInfo(burstShotInfo)
-        );
-
-        // 4. Update Grenades (HE, Flashbang, Smoke)
-        this.grenades.update(delta, this.player, this.bots, {
-          onPlayerFlash: (intensity, duration) => {
-            if (intensity > this.flashIntensity || this.flashTimer <= 0) {
-              this.flashPeakIntensity = intensity;
-              this.flashIntensity = intensity;
-              this.flashTimer = duration;
-              this.flashMaxDuration = Math.max(0.2, duration);
+          if (!this.player.isAlive) {
+            if (this.weapons.scopeLevel > 0) {
+              this.weapons.resetScope();
             }
-          },
-          onBotKilledByGrenade: (bot, weaponLabel) => {
-            this._onEnemyBotKilled(bot, { id: 'he', category: 'grenade' }, weaponLabel, false);
+            this.weapons.burstRemaining = 0;
+            this.flashTimer = 0;
+            this.flashPeakIntensity = 0;
+            this.flashIntensity = 0;
           }
+          this._handlePlayerShooting();
+
+          const isMoving = this.player.velocity.lengthSq() > 0.1;
+          this.weapons.update(
+            fixedDt,
+            this.player.velocity,
+            isMoving,
+            this.player.isCrouching,
+            !this.player.isGrounded,
+            (burstShotInfo) => this._fireShotInfo(burstShotInfo)
+          );
+
+          this.grenades.update(fixedDt, this.player, this.bots, {
+            onPlayerFlash: (intensity, duration) => {
+              if (intensity > this.flashIntensity || this.flashTimer <= 0) {
+                this.flashPeakIntensity = intensity;
+                this.flashIntensity = intensity;
+                this.flashTimer = duration;
+                this.flashMaxDuration = Math.max(0.2, duration);
+              }
+            },
+            onBotKilledByGrenade: (bot, weaponLabel) => {
+              this._onEnemyBotKilled(bot, { id: 'he', category: 'grenade' }, weaponLabel, false);
+            }
+          });
+
+          this.droppedWeapons.update(fixedDt, this.player.camera.position);
+          if (this.player.isAlive) {
+            const emptySlots = [1, 2].filter((s) => !this.weapons.slots[s]);
+            if (emptySlots.length > 0) {
+              const autoItem = this.droppedWeapons.findAutoPickup(this.player.camera.position, emptySlots);
+              if (autoItem) {
+                this.weapons.pickupWeapon(autoItem.weaponId, autoItem.currentAmmo, autoItem.reserveAmmo, false);
+                this.droppedWeapons.removeDropped(autoItem);
+                sounds.playPickup();
+              }
+            }
+          }
+
+          this.bots.forEach((bot) => {
+            bot.update(
+              fixedDt,
+              this.player,
+              this.bots,
+              this.particles,
+              (killer, weapon, victim, isHS, killerTeam, victimTeam) => {
+                if (killerTeam === 'CT') {
+                  this.scoreCT++;
+                } else {
+                  this.scoreT++;
+                }
+                this.hud.addKillfeedEntry(killer, weapon, victim, isHS, killerTeam, victimTeam);
+              },
+              this.grenades
+            );
+          });
         });
 
-        // Decay player Flashbang whiteout smoothly with real delta
+        // 3. Smooth visual effects & HUD at real frame rate
         if (this.flashTimer > 0) {
-          this.flashTimer = Math.max(0, this.flashTimer - delta);
+          this.flashTimer = Math.max(0, this.flashTimer - frameDelta);
           const ratio = this.flashTimer / this.flashMaxDuration;
           this.flashIntensity = Math.pow(ratio, 0.75) * this.flashPeakIntensity;
           if (this.flashTimer <= 0) {
@@ -659,46 +693,13 @@ class Game {
           }
         }
 
-        // 5. Update Dropped Weapons, Auto-Pickup & [E] Prompt
-        this.droppedWeapons.update(delta, this.player.camera.position);
-        let pickupTarget = null;
-        if (this.player.isAlive) {
-          const emptySlots = [1, 2].filter((s) => !this.weapons.slots[s]);
-          if (emptySlots.length > 0) {
-            const autoItem = this.droppedWeapons.findAutoPickup(this.player.camera.position, emptySlots);
-            if (autoItem) {
-              this.weapons.pickupWeapon(autoItem.weaponId, autoItem.currentAmmo, autoItem.reserveAmmo, false);
-              this.droppedWeapons.removeDropped(autoItem);
-              sounds.playPickup();
-            }
-          }
-          pickupTarget = this.droppedWeapons.findInteractTarget(this.player.camera.position, this.camera);
-        }
+        this.particles.update(frameDelta);
 
-        // 6. Update Bots (with Smoke & Flashbang support)
-        this.bots.forEach((bot) => {
-          bot.update(
-            delta,
-            this.player,
-            this.bots,
-            this.particles,
-            (killer, weapon, victim, isHS, killerTeam, victimTeam) => {
-              if (killerTeam === 'CT') {
-                this.scoreCT++;
-              } else {
-                this.scoreT++;
-              }
-              this.hud.addKillfeedEntry(killer, weapon, victim, isHS, killerTeam, victimTeam);
-            },
-            this.grenades
-          );
-        });
+        const pickupTarget = this.player.isAlive
+          ? this.droppedWeapons.findInteractTarget(this.player.camera.position, this.camera)
+          : null;
 
-        // 7. Update Particle Systems
-        this.particles.update(delta);
-
-        // 8. Update HUD with economy, flash & pickup prompt
-        this.hud.update(delta, this.player, this.weapons, this.elapsedTime, this.scoreCT, this.scoreT, {
+        this.hud.update(frameDelta, this.player, this.weapons, this.elapsedTime, this.scoreCT, this.scoreT, {
           economy: this.economy,
           flashIntensity: this.flashIntensity,
           pickupTarget

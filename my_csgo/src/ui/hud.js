@@ -47,6 +47,41 @@ export class HUD {
     this.damageOverlayTimer = 0;
     this.lastHealth = 100;
     this.isArsenalOpen = false;
+    this._last = {};
+  }
+
+  _setText(key, el, value) {
+    if (!el) return;
+    const str = String(value);
+    if (this._last[key] !== str) {
+      this._last[key] = str;
+      el.textContent = str;
+    }
+  }
+
+  _setStyle(key, el, prop, value) {
+    if (!el) return;
+    if (this._last[key] !== value) {
+      this._last[key] = value;
+      el.style[prop] = value;
+    }
+  }
+
+  _setClassName(key, el, value) {
+    if (!el) return;
+    if (this._last[key] !== value) {
+      this._last[key] = value;
+      el.className = value;
+    }
+  }
+
+  _setClassToggle(key, el, className, force) {
+    if (!el) return;
+    const flag = Boolean(force);
+    if (this._last[key] !== flag) {
+      this._last[key] = flag;
+      el.classList.toggle(className, flag);
+    }
   }
 
   _formatMoney(val) {
@@ -255,19 +290,29 @@ export class HUD {
   update(delta, player, weaponManager, elapsedTime, scoreCT = 0, scoreT = 0, extras = {}) {
     const { economy = null, flashIntensity = 0, pickupTarget = null } = extras;
 
-    // 1. Money, Health & Armor
+    // 1. Money, Health & Armor (dirty-checked)
     if (this.dom.moneyVal && economy) {
-      this.dom.moneyVal.textContent = economy.sandboxFree
-        ? `${this._formatMoney(economy.money)} ★`
-        : this._formatMoney(economy.money);
+      const moneyKey = `${Math.floor(economy.money)}|${Boolean(economy.sandboxFree)}`;
+      if (this._last.moneyKey !== moneyKey) {
+        this._last.moneyKey = moneyKey;
+        this.dom.moneyVal.textContent = economy.sandboxFree
+          ? `${this._formatMoney(economy.money)} ★`
+          : this._formatMoney(economy.money);
+      }
     }
-    if (this.dom.healthVal) {
-      this.dom.healthVal.textContent = Math.max(0, player.health);
-      this.dom.healthBar.style.width = `${Math.max(0, player.health)}%`;
+
+    const clampedHealth = Math.max(0, player.health);
+    if (this._last.health !== clampedHealth) {
+      this._last.health = clampedHealth;
+      if (this.dom.healthVal) this.dom.healthVal.textContent = String(clampedHealth);
+      if (this.dom.healthBar) this.dom.healthBar.style.width = `${clampedHealth}%`;
     }
-    if (this.dom.armorVal) {
-      this.dom.armorVal.textContent = Math.max(0, player.armor);
-      this.dom.armorBar.style.width = `${Math.max(0, player.armor)}%`;
+
+    const clampedArmor = Math.max(0, player.armor);
+    if (this._last.armor !== clampedArmor) {
+      this._last.armor = clampedArmor;
+      if (this.dom.armorVal) this.dom.armorVal.textContent = String(clampedArmor);
+      if (this.dom.armorBar) this.dom.armorBar.style.width = `${clampedArmor}%`;
     }
 
     if (player.health < this.lastHealth) {
@@ -275,23 +320,27 @@ export class HUD {
     }
     this.lastHealth = player.health;
 
-    // 2. Ammo, Weapon, Slots & Fire Mode Badge
+    // 2. Ammo, Weapon, Slots & Fire Mode Badge (dirty-checked)
     const curW = weaponManager.currentWeapon;
     if (this.dom.ammoVal && this.dom.reserveVal && this.dom.weaponName) {
+      let ammoValText;
+      let reserveValText;
       if (curW.isMelee) {
-        this.dom.ammoVal.textContent = '--';
-        this.dom.reserveVal.textContent = '--';
+        ammoValText = '--';
+        reserveValText = '--';
       } else if (curW.isGrenade) {
-        this.dom.ammoVal.textContent = curW.count;
-        this.dom.reserveVal.textContent = weaponManager.getTotalGrenades();
+        ammoValText = curW.count;
+        reserveValText = weaponManager.getTotalGrenades();
       } else if (weaponManager.isReloading) {
-        this.dom.ammoVal.textContent = 'RELOAD...';
-        this.dom.reserveVal.textContent = curW.reserveAmmo;
+        ammoValText = 'RELOAD...';
+        reserveValText = curW.reserveAmmo;
       } else {
-        this.dom.ammoVal.textContent = curW.currentAmmo;
-        this.dom.reserveVal.textContent = curW.reserveAmmo;
+        ammoValText = curW.currentAmmo;
+        reserveValText = curW.reserveAmmo;
       }
-      this.dom.weaponName.textContent = curW.name;
+      this._setText('ammo', this.dom.ammoVal, ammoValText);
+      this._setText('reserve', this.dom.reserveVal, reserveValText);
+      this._setText('weaponName', this.dom.weaponName, curW.name);
     }
 
     if (this.dom.fireModeBadge) {
@@ -312,8 +361,8 @@ export class HUD {
       } else if (curW.isShotgun) {
         label = 'PUMP';
       }
-      this.dom.fireModeBadge.textContent = label;
-      this.dom.fireModeBadge.className = cls;
+      this._setText('badgeText', this.dom.fireModeBadge, label);
+      this._setClassName('badgeCls', this.dom.fireModeBadge, cls);
     }
 
     // Slot pills 1, 2, 3 (safely handle empty slots)
@@ -326,14 +375,10 @@ export class HUD {
       if (!el) continue;
       const wId = weaponManager.slots[slotNum];
       const wCfg = wId ? weaponManager.weapons[wId] : null;
-      if (wCfg) {
-        el.textContent = `[${slotNum}] ${wCfg.shortName}`;
-        el.classList.remove('empty');
-      } else {
-        el.textContent = `[${slotNum}] VAZIO`;
-        el.classList.add('empty');
-      }
-      el.classList.toggle('active', weaponManager.activeSlot === slotNum);
+      const text = wCfg ? `[${slotNum}] ${wCfg.shortName}` : `[${slotNum}] VAZIO`;
+      this._setText(`slot${slotNum}Text`, el, text);
+      this._setClassToggle(`slot${slotNum}Empty`, el, 'empty', !wCfg);
+      this._setClassToggle(`slot${slotNum}Active`, el, 'active', weaponManager.activeSlot === slotNum);
     }
 
     // Slot 4 pill (Grenades)
@@ -341,14 +386,17 @@ export class HUD {
       const g = weaponManager.grenades;
       const totalG = weaponManager.getTotalGrenades();
       const activeShort = UTILITY_ITEMS[weaponManager.activeGrenadeType]?.shortName || 'GRAN';
-      this.dom.slot4.textContent = `[4] ${activeShort} • ${g.he || 0}/${g.flash || 0}/${g.smoke || 0}`;
-      this.dom.slot4.classList.toggle('empty', totalG === 0);
-      this.dom.slot4.classList.toggle('active', weaponManager.activeSlot === 4);
+      const slot4Text = `[4] ${activeShort} • ${g.he || 0}/${g.flash || 0}/${g.smoke || 0}`;
+      this._setText('slot4Text', this.dom.slot4, slot4Text);
+      this._setClassToggle('slot4Empty', this.dom.slot4, 'empty', totalG === 0);
+      this._setClassToggle('slot4Active', this.dom.slot4, 'active', weaponManager.activeSlot === 4);
     }
 
     // 3. Sniper Scope, Flashbang Overlay & Dynamic Crosshair
     if (this.dom.flashOverlay) {
-      this.dom.flashOverlay.style.opacity = String(Math.max(0, Math.min(1, flashIntensity)));
+      const clampedFlash = Math.max(0, Math.min(1, flashIntensity));
+      const flashStr = clampedFlash === 0 ? '0' : clampedFlash.toFixed(3);
+      this._setStyle('flashOpacity', this.dom.flashOverlay, 'opacity', flashStr);
     }
 
     if (this.dom.pickupPrompt) {
@@ -356,33 +404,41 @@ export class HUD {
         const targetSlot = pickupTarget.weaponSpec.slot;
         const hasExisting = Boolean(weaponManager.slots[targetSlot]);
         const verb = hasExisting ? 'Trocar por' : 'Pegar';
-        this.dom.pickupPrompt.textContent = `[E] ${verb} ${pickupTarget.weaponSpec.name} (${pickupTarget.currentAmmo}/${pickupTarget.reserveAmmo})`;
-        this.dom.pickupPrompt.style.display = 'block';
+        const promptText = `[E] ${verb} ${pickupTarget.weaponSpec.name} (${pickupTarget.currentAmmo}/${pickupTarget.reserveAmmo})`;
+        this._setText('pickupText', this.dom.pickupPrompt, promptText);
+        this._setStyle('pickupDisplay', this.dom.pickupPrompt, 'display', 'block');
       } else {
-        this.dom.pickupPrompt.style.display = 'none';
+        this._setStyle('pickupDisplay', this.dom.pickupPrompt, 'display', 'none');
       }
     }
 
     const isScoped = weaponManager.scopeLevel > 0;
     if (this.dom.sniperScope) {
-      this.dom.sniperScope.classList.toggle('active', isScoped);
+      this._setClassToggle('scopeActive', this.dom.sniperScope, 'active', isScoped);
       if (isScoped && this.dom.scopeZoomBadge) {
-        this.dom.scopeZoomBadge.textContent = weaponManager.scopeLevel === 1 ? '2x' : '4x';
+        this._setText('scopeZoom', this.dom.scopeZoomBadge, weaponManager.scopeLevel === 1 ? '2x' : '4x');
       }
     }
 
     if (this.dom.crosshair) {
       if (isScoped) {
-        this.dom.crosshair.style.display = 'none';
+        this._setStyle('crosshairDisplay', this.dom.crosshair, 'display', 'none');
       } else {
-        this.dom.crosshair.style.display = 'flex';
-        this.dom.crosshair.style.opacity = curW.isSniper ? '0.22' : '1';
+        this._setStyle('crosshairDisplay', this.dom.crosshair, 'display', 'flex');
+        this._setStyle('crosshairOpacity', this.dom.crosshair, 'opacity', curW.isSniper ? '0.22' : '1');
       }
     }
 
     const baseGap = 5;
     const spreadPx = baseGap + Math.round(weaponManager.currentSpread * 450);
-    if (this.dom.crossTop && this.dom.crossBottom && this.dom.crossLeft && this.dom.crossRight) {
+    if (
+      this._last.spreadPx !== spreadPx &&
+      this.dom.crossTop &&
+      this.dom.crossBottom &&
+      this.dom.crossLeft &&
+      this.dom.crossRight
+    ) {
+      this._last.spreadPx = spreadPx;
       this.dom.crossTop.style.transform = `translateY(-${spreadPx}px)`;
       this.dom.crossBottom.style.transform = `translateY(${spreadPx}px)`;
       this.dom.crossLeft.style.transform = `translateX(-${spreadPx}px)`;
@@ -404,32 +460,35 @@ export class HUD {
       }
     }
 
-    // 5. Team Score, Personal K/D & Timer
-    if (this.dom.scoreCT) this.dom.scoreCT.textContent = scoreCT;
-    if (this.dom.scoreT) this.dom.scoreT.textContent = scoreT;
-    if (this.dom.scoreKills) this.dom.scoreKills.textContent = player.kills;
-    if (this.dom.scoreDeaths) this.dom.scoreDeaths.textContent = player.deaths;
+    // 5. Team Score, Personal K/D & Timer (dirty-checked)
+    this._setText('scoreCT', this.dom.scoreCT, scoreCT);
+    this._setText('scoreT', this.dom.scoreT, scoreT);
+    this._setText('scoreKills', this.dom.scoreKills, player.kills);
+    this._setText('scoreDeaths', this.dom.scoreDeaths, player.deaths);
 
     if (this.dom.timer) {
-      const minutes = Math.floor(elapsedTime / 60);
-      const seconds = Math.floor(elapsedTime % 60);
-      this.dom.timer.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+      const totalSeconds = Math.max(0, Math.floor(elapsedTime));
+      if (this._last.timerSec !== totalSeconds) {
+        this._last.timerSec = totalSeconds;
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        this.dom.timer.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+      }
     }
 
     // 6. Death Screen with Auto-Respawn Countdown
     if (this.dom.deathScreen) {
       if (!player.isAlive) {
-        this.dom.deathScreen.style.display = 'flex';
-        const remainingSec = Math.max(0, player.autoRespawnTimer).toFixed(1);
-        if (this.dom.deathTimerVal) {
-          this.dom.deathTimerVal.textContent = `${remainingSec}s`;
-        }
+        this._setStyle('deathDisplay', this.dom.deathScreen, 'display', 'flex');
+        const remainingSec = `${Math.max(0, player.autoRespawnTimer).toFixed(1)}s`;
+        this._setText('deathTimerVal', this.dom.deathTimerVal, remainingSec);
         if (this.dom.deathBarFill) {
           const pct = Math.max(0, Math.min(100, (player.autoRespawnTimer / player.maxRespawnTime) * 100));
-          this.dom.deathBarFill.style.width = `${pct}%`;
+          const pctStr = `${pct.toFixed(1)}%`;
+          this._setStyle('deathBarWidth', this.dom.deathBarFill, 'width', pctStr);
         }
       } else {
-        this.dom.deathScreen.style.display = 'none';
+        this._setStyle('deathDisplay', this.dom.deathScreen, 'display', 'none');
       }
     }
   }
