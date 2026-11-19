@@ -1523,7 +1523,7 @@ export class WeaponManager {
         .addScaledVector(_CAM_RIGHT, 0.24)
         .addScaledVector(_CAM_UP, -0.16)
         .addScaledVector(_CAM_FWD, 0.38);
-      this.particles.createShellEject(ejectWorld, _CAM_RIGHT, _CAM_UP, _CAM_FWD, w.slot === 2);
+      this.particles.createShellEject(ejectWorld, _CAM_RIGHT, _CAM_UP, _CAM_FWD, w.slot === 2, w.casingColor);
     }
 
     return {
