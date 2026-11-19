@@ -38,8 +38,10 @@ function createBoxPart(w, h, d, cx, cy, cz, rx = 0, ry = 0, rz = 0, uvScale = 0.
 }
 
 export class Dust2ClassicMap {
-  constructor(scene) {
+  constructor(scene, graphicsPipeline = null) {
     this.scene = scene;
+    this.graphicsPipeline = graphicsPipeline;
+    this.theme = 'desert';
     this.blueprint = DUST2_BLUEPRINT;
     this.id = this.blueprint.id;
     this.name = this.blueprint.name;
@@ -54,6 +56,7 @@ export class Dust2ClassicMap {
 
     this._sceneObjects = [];
     this._disposables = [];
+    this.sunLight = null;
 
     this._createTextures();
     this._createMaterials();
@@ -211,27 +214,93 @@ export class Dust2ClassicMap {
     };
     this.siteATex = makeSiteTex('A');
     this.siteBTex = makeSiteTex('B');
+
+    // 6. Procedural PBR Tangent Normal Maps & Roughness Maps
+    if (this.graphicsPipeline) {
+      const targetAniso = Math.min(
+        this.graphicsPipeline.getMaxAnisotropy(),
+        this.graphicsPipeline.preset.anisotropy
+      );
+      this.groundTex.anisotropy = targetAniso;
+      this.wallTex.anisotropy = targetAniso;
+      this.crateTex.anisotropy = targetAniso;
+      this.doorTex.anisotropy = targetAniso;
+
+      this.groundNormalTex = this._trackDisposable(
+        this.graphicsPipeline.createNormalTextureFromCanvas(gCanvas, 2.2)
+      );
+      this.groundRoughTex = this._trackDisposable(
+        this.graphicsPipeline.createRoughnessTextureFromCanvas(gCanvas, 0.74, 0.96)
+      );
+      this.wallNormalTex = this._trackDisposable(
+        this.graphicsPipeline.createNormalTextureFromCanvas(wCanvas, 2.6)
+      );
+      this.wallRoughTex = this._trackDisposable(
+        this.graphicsPipeline.createRoughnessTextureFromCanvas(wCanvas, 0.68, 0.94)
+      );
+      this.crateNormalTex = this._trackDisposable(
+        this.graphicsPipeline.createNormalTextureFromCanvas(cCanvas, 2.0)
+      );
+      this.doorNormalTex = this._trackDisposable(
+        this.graphicsPipeline.createNormalTextureFromCanvas(dCanvas, 2.2)
+      );
+    }
   }
 
   _createMaterials() {
+    const hasPipeline = Boolean(this.graphicsPipeline);
+    const envIntensity = this.graphicsPipeline?.preset?.envMapIntensity ?? 0.78;
+
     this.mats = {
       ground: this._trackDisposable(new THREE.MeshStandardMaterial({
-        map: this.groundTex, roughness: 0.88, metalness: 0.02
+        map: this.groundTex,
+        normalMap: this.groundNormalTex || null,
+        normalScale: new THREE.Vector2(0.8, 0.8),
+        roughnessMap: this.groundRoughTex || null,
+        roughness: this.groundRoughTex ? 1.0 : 0.88,
+        metalness: 0.02,
+        vertexColors: hasPipeline,
+        envMapIntensity: envIntensity
       })),
       wall: this._trackDisposable(new THREE.MeshStandardMaterial({
-        map: this.wallTex, roughness: 0.82, metalness: 0.05
+        map: this.wallTex,
+        normalMap: this.wallNormalTex || null,
+        normalScale: new THREE.Vector2(0.9, 0.9),
+        roughnessMap: this.wallRoughTex || null,
+        roughness: this.wallRoughTex ? 1.0 : 0.82,
+        metalness: 0.05,
+        vertexColors: hasPipeline,
+        envMapIntensity: envIntensity
       })),
       trim: this._trackDisposable(new THREE.MeshStandardMaterial({
-        color: 0x7c6044, roughness: 0.84, metalness: 0.05
+        color: 0x7c6044,
+        roughness: 0.84,
+        metalness: 0.05,
+        vertexColors: hasPipeline,
+        envMapIntensity: envIntensity
       })),
       crate: this._trackDisposable(new THREE.MeshStandardMaterial({
-        map: this.crateTex, roughness: 0.65, metalness: 0.25
+        map: this.crateTex,
+        normalMap: this.crateNormalTex || null,
+        normalScale: new THREE.Vector2(0.85, 0.85),
+        roughness: 0.65,
+        metalness: 0.25,
+        envMapIntensity: envIntensity
       })),
       door: this._trackDisposable(new THREE.MeshStandardMaterial({
-        map: this.doorTex, roughness: 0.72, metalness: 0.35
+        map: this.doorTex,
+        normalMap: this.doorNormalTex || null,
+        normalScale: new THREE.Vector2(0.85, 0.85),
+        roughness: 0.72,
+        metalness: 0.35,
+        vertexColors: hasPipeline,
+        envMapIntensity: envIntensity
       })),
       barrel: this._trackDisposable(new THREE.MeshStandardMaterial({
-        color: 0x334155, roughness: 0.4, metalness: 0.7
+        color: 0x334155,
+        roughness: 0.4,
+        metalness: 0.7,
+        envMapIntensity: envIntensity
       })),
       sky: this._trackDisposable(new THREE.MeshBasicMaterial({
         color: 0x7cb8e8, side: THREE.BackSide
@@ -256,18 +325,26 @@ export class Dust2ClassicMap {
     const hemi = new THREE.HemisphereLight(0xfff5e4, 0x8b6f4e, 0.85);
     this._trackObject(hemi);
 
+    const shadowSize = this.graphicsPipeline?.preset?.shadowMapSize ?? 1024;
+    const shadowRadius = this.graphicsPipeline?.preset?.shadowFrustumRadius ?? 28;
+    const sunOffset = { x: 42, y: 68, z: -28 };
+
     const sun = new THREE.DirectionalLight(0xfff1d6, 1.45);
-    sun.position.set(42, 68, -28);
+    sun.position.set(sunOffset.x, sunOffset.y, sunOffset.z);
+    sun.userData.sunOffset = sunOffset;
     sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.mapSize.set(shadowSize, shadowSize);
     sun.shadow.camera.near = 5;
     sun.shadow.camera.far = 175;
-    sun.shadow.camera.left = -62;
-    sun.shadow.camera.right = 62;
-    sun.shadow.camera.top = 62;
-    sun.shadow.camera.bottom = -62;
-    sun.shadow.bias = -0.0006;
+    sun.shadow.camera.left = -shadowRadius;
+    sun.shadow.camera.right = shadowRadius;
+    sun.shadow.camera.top = shadowRadius;
+    sun.shadow.camera.bottom = -shadowRadius;
+    sun.shadow.bias = -0.0005;
+    sun.shadow.normalBias = 0.03;
     this._trackObject(sun);
+    this._trackObject(sun.target);
+    this.sunLight = sun;
 
     // Subtle cool fill light inside Upper/Lower B Tunnels
     const bTunnelLight = new THREE.PointLight(0x93c5fd, 1.2, 26);
@@ -421,11 +498,24 @@ export class Dust2ClassicMap {
     addWall(23.5, 24.5, 0, 5.0, -50, -42);
     addWall(23.5, 24.5, 0, 5.0, -32, -30);
 
+    const roofBoxes = [
+      { minX: -50, maxX: -26, minY: 0, maxY: 4.5, minZ: -12, maxZ: 20 }, // Upper B Tunnels
+      { minX: -26, maxX: -10, minY: 0, maxY: 4.2, minZ: 0, maxZ: 8 },    // Lower B Tunnels
+      { minX: 24, maxX: 34, minY: 0, maxY: 4.6, minZ: 14, maxZ: 22 }     // Long Doors
+    ];
+
     // Merge and add batches to scene
     const addBatch = (geos, mat, surfaceType, castShadow = true) => {
       if (geos.length === 0) return;
       const merged = mergeGeometries(geos, false);
       geos.forEach((g) => g.dispose());
+      if (this.graphicsPipeline) {
+        this.graphicsPipeline.applyBakedAO(merged, {
+          roofBoxes,
+          groundY: 0,
+          bounceTint: [1.0, 0.97, 0.92]
+        });
+      }
       this._trackDisposable(merged);
 
       const mesh = new THREE.Mesh(merged, mat);

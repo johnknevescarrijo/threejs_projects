@@ -51,13 +51,22 @@ export class HUD {
       deathStatusText: document.getElementById('death-status-text'),
       deathTimerVal: document.getElementById('death-timer-val'),
       deathBarContainer: document.getElementById('death-bar-container'),
-      deathBarFill: document.getElementById('death-bar-fill')
+      deathBarFill: document.getElementById('death-bar-fill'),
+      netGraph: document.getElementById('net-graph'),
+      ngFps: document.getElementById('ng-fps'),
+      ngMs: document.getElementById('ng-ms'),
+      ngDc: document.getElementById('ng-dc'),
+      ngTris: document.getElementById('ng-tris'),
+      ngPreset: document.getElementById('ng-preset'),
+      ngBackend: document.getElementById('ng-backend')
     };
 
     this.hitmarkerTimer = 0;
     this.damageOverlayTimer = 0;
     this.lastHealth = 100;
     this.isArsenalOpen = false;
+    this.netGraphVisible = true;
+    this._netGraphTimer = 0.2;
     this._last = {};
   }
 
@@ -623,5 +632,48 @@ export class HUD {
         this._setStyle('deathDisplay', this.dom.deathScreen, 'display', 'none');
       }
     }
+  }
+
+  setNetGraphVisible(visible) {
+    this.netGraphVisible = Boolean(visible);
+    if (this.dom.netGraph) {
+      this._setStyle('ngDisplay', this.dom.netGraph, 'display', this.netGraphVisible ? 'flex' : 'none');
+    }
+  }
+
+  toggleNetGraph() {
+    this.setNetGraphVisible(!this.netGraphVisible);
+    return this.netGraphVisible;
+  }
+
+  updateNetGraph(telemetry, delta = 0) {
+    if (!this.dom.netGraph || !telemetry) return;
+
+    this._setStyle('ngDisplay', this.dom.netGraph, 'display', this.netGraphVisible ? 'flex' : 'none');
+    if (!this.netGraphVisible) return;
+
+    const presetChanged = this._last.ngPreset !== telemetry.presetLabel;
+    this._netGraphTimer += delta;
+    if (!presetChanged && this._netGraphTimer < 0.15) return;
+    this._netGraphTimer = 0;
+
+    this._setText('ngFps', this.dom.ngFps, telemetry.fps);
+    const fpsCls = telemetry.fps < 30 ? 'bad' : (telemetry.fps < 55 ? 'warn' : '');
+    this._setClassName('ngFpsCls', this.dom.ngFps, fpsCls);
+
+    this._setText('ngMs', this.dom.ngMs, telemetry.frameMs.toFixed(1));
+
+    const dcBudget = telemetry.drawCallBudget || 180;
+    this._setText('ngDc', this.dom.ngDc, `${telemetry.drawCalls}/${dcBudget}`);
+    const dcCls = telemetry.drawCalls > dcBudget * 1.25 ? 'bad' : (telemetry.drawCalls > dcBudget ? 'warn' : '');
+    this._setClassName('ngDcCls', this.dom.ngDc, dcCls);
+
+    const trisText = telemetry.triangles >= 1000
+      ? `${(telemetry.triangles / 1000).toFixed(1)}k`
+      : String(telemetry.triangles);
+    this._setText('ngTris', this.dom.ngTris, trisText);
+
+    this._setText('ngPreset', this.dom.ngPreset, telemetry.presetLabel);
+    this._setText('ngBackend', this.dom.ngBackend, telemetry.backendLabel);
   }
 }

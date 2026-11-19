@@ -12,6 +12,102 @@ const MUZZLE_FLASH_MAT = new THREE.MeshBasicMaterial({
   side: THREE.DoubleSide
 });
 
+let _BOT_GEOS = null;
+function getBotGeometries() {
+  if (_BOT_GEOS) return _BOT_GEOS;
+  const legGeo = new THREE.BoxGeometry(0.19, 0.58, 0.21);
+  legGeo.translate(0, -0.29, 0);
+  const bootGeo = new THREE.BoxGeometry(0.2, 0.16, 0.25);
+  bootGeo.translate(0, -0.64, 0.02);
+
+  _BOT_GEOS = {
+    torso: new THREE.BoxGeometry(0.46, 0.64, 0.28),
+    vest: new THREE.BoxGeometry(0.52, 0.46, 0.33),
+    plate: new THREE.BoxGeometry(0.36, 0.34, 0.36),
+    pouch: new THREE.BoxGeometry(0.1, 0.14, 0.07),
+    shoulder: new THREE.BoxGeometry(0.14, 0.14, 0.16),
+    upperArm: new THREE.BoxGeometry(0.13, 0.28, 0.13),
+    foreArm: new THREE.BoxGeometry(0.11, 0.26, 0.11),
+    glove: new THREE.BoxGeometry(0.1, 0.09, 0.11),
+    head: new THREE.BoxGeometry(0.29, 0.31, 0.29),
+    helmetDome: new THREE.BoxGeometry(0.34, 0.17, 0.34),
+    helmetEar: new THREE.BoxGeometry(0.36, 0.1, 0.15),
+    bandana: new THREE.BoxGeometry(0.315, 0.11, 0.315),
+    visor: new THREE.BoxGeometry(0.24, 0.085, 0.06),
+    faceLower: new THREE.BoxGeometry(0.22, 0.11, 0.05),
+    leg: legGeo,
+    boot: bootGeo,
+    gunBody: new THREE.BoxGeometry(0.06, 0.1, 0.48),
+    gunBarrel: new THREE.CylinderGeometry(0.012, 0.012, 0.26, 8),
+    gunMag: new THREE.BoxGeometry(0.04, 0.14, 0.06),
+    akStock: new THREE.BoxGeometry(0.045, 0.085, 0.19)
+  };
+  return _BOT_GEOS;
+}
+
+const _TEAM_MATS = {};
+function getTeamMaterials(isCT) {
+  const key = isCT ? 'CT' : 'T';
+  if (_TEAM_MATS[key]) return _TEAM_MATS[key];
+
+  _TEAM_MATS[key] = {
+    body: new THREE.MeshStandardMaterial({
+      color: isCT ? 0x253549 : 0x2c3428,
+      roughness: 0.74,
+      metalness: 0.06
+    }),
+    pants: new THREE.MeshStandardMaterial({
+      color: isCT ? 0x1e2c3d : 0x5c4b37,
+      roughness: 0.8,
+      metalness: 0.04
+    }),
+    vest: new THREE.MeshStandardMaterial({
+      color: isCT ? 0x151e2b : 0x4c2d1f,
+      roughness: 0.84,
+      metalness: 0.12
+    }),
+    plate: new THREE.MeshStandardMaterial({
+      color: isCT ? 0x0f172a : 0x7f1d1d,
+      roughness: 0.55,
+      metalness: 0.28
+    }),
+    head: new THREE.MeshStandardMaterial({
+      color: isCT ? 0x1b2432 : 0x22262c,
+      roughness: 0.52,
+      metalness: isCT ? 0.42 : 0.1
+    }),
+    accentHead: new THREE.MeshStandardMaterial({
+      color: isCT ? 0x1e293b : 0xb91c1c,
+      roughness: 0.65,
+      metalness: isCT ? 0.35 : 0.05
+    }),
+    skin: new THREE.MeshStandardMaterial({
+      color: isCT ? 0x1f2937 : 0xc68a64,
+      roughness: 0.62
+    }),
+    visor: new THREE.MeshStandardMaterial({
+      color: isCT ? 0x0ea5e9 : 0x090d16,
+      roughness: 0.14,
+      metalness: 0.92
+    }),
+    boot: new THREE.MeshStandardMaterial({
+      color: 0x111418,
+      roughness: 0.88,
+      metalness: 0.1
+    }),
+    gun: new THREE.MeshStandardMaterial({
+      color: 0x18191c,
+      roughness: 0.34,
+      metalness: 0.85
+    }),
+    wood: new THREE.MeshStandardMaterial({
+      color: 0x6e3b1c,
+      roughness: 0.52
+    })
+  };
+  return _TEAM_MATS[key];
+}
+
 export class Bot {
   constructor(id, scene, map, spawnPos, name = 'Bot', team = 'T', options = {}) {
     this.id = id;
@@ -67,6 +163,9 @@ export class Bot {
     this.stuckTimer = 0;
     this.walkCycle = Math.random() * Math.PI * 2;
     this.muzzleFlashTimer = 0;
+    this.deathAnimProgress = 0;
+    this._deathStartY = 0;
+    this._deathGroundY = 0;
     this._colBox = new THREE.Box3();
     this._colMin = new THREE.Vector3();
     this._colMax = new THREE.Vector3();
@@ -140,105 +239,159 @@ export class Bot {
 
   _buildMesh() {
     const isCT = this.team === 'CT';
+    const geos = getBotGeometries();
+    const mats = getTeamMaterials(isCT);
 
-    const bodyMat = new THREE.MeshStandardMaterial({
-      color: isCT ? 0x2b384a : 0x5e4f3c,
-      roughness: 0.75
-    });
-    const vestMat = new THREE.MeshStandardMaterial({
-      color: isCT ? 0x18202c : 0x7c5836,
-      roughness: 0.85
-    });
-    const headMat = new THREE.MeshStandardMaterial({
-      color: isCT ? 0x1f2733 : 0x991b1b,
-      roughness: 0.6,
-      metalness: isCT ? 0.4 : 0.1
-    });
-    const skinMat = new THREE.MeshStandardMaterial({
-      color: isCT ? 0xd49b78 : 0xc68a64,
-      roughness: 0.6
-    });
-    const visorMat = new THREE.MeshStandardMaterial({
-      color: isCT ? 0x0284c7 : 0x111111,
-      roughness: 0.2,
-      metalness: 0.9
-    });
-    const gunMat = new THREE.MeshStandardMaterial({
-      color: 0x18191c,
-      roughness: 0.35,
-      metalness: 0.85
-    });
-    const woodMat = new THREE.MeshStandardMaterial({
-      color: 0x6e3b1c,
-      roughness: 0.5
-    });
-
-    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.65, 0.3), bodyMat);
-    torso.position.y = 1.05;
+    const torso = new THREE.Mesh(geos.torso, mats.body);
+    torso.position.y = 1.04;
     torso.castShadow = true;
     torso.userData = { isBot: true, bot: this, part: 'body' };
     this.group.add(torso);
     this.hitboxes.push(torso);
     this.torsoMesh = torso;
 
-    const vest = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.46, 0.34), vestMat);
-    vest.position.y = 1.1;
+    const vest = new THREE.Mesh(geos.vest, mats.vest);
+    vest.position.y = 1.09;
     vest.castShadow = true;
     vest.userData = { isBot: true, bot: this, part: 'body' };
     this.group.add(vest);
     this.hitboxes.push(vest);
 
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.32, 0.3), headMat);
-    head.position.y = 1.62;
+    const armorPlate = new THREE.Mesh(geos.plate, mats.plate);
+    armorPlate.position.y = 1.11;
+    this.group.add(armorPlate);
+
+    for (const px of [-0.14, 0, 0.14]) {
+      const pouch = new THREE.Mesh(geos.pouch, mats.vest);
+      pouch.position.set(px, 0.94, 0.175);
+      this.group.add(pouch);
+    }
+
+    // Shoulders & Articulated Tactical Arms holding rifle
+    const leftShoulder = new THREE.Mesh(geos.shoulder, mats.body);
+    leftShoulder.position.set(-0.3, 1.29, 0.02);
+    this.group.add(leftShoulder);
+
+    const rightShoulder = new THREE.Mesh(geos.shoulder, mats.body);
+    rightShoulder.position.set(0.3, 1.29, 0.02);
+    this.group.add(rightShoulder);
+
+    const leftArm = new THREE.Group();
+    leftArm.position.set(-0.3, 1.28, 0.04);
+    const lUpper = new THREE.Mesh(geos.upperArm, mats.body);
+    lUpper.position.set(0, -0.1, 0.08);
+    lUpper.rotation.x = -0.65;
+    lUpper.rotation.z = -0.25;
+    leftArm.add(lUpper);
+    const lFore = new THREE.Mesh(geos.foreArm, mats.body);
+    lFore.position.set(0.16, -0.14, 0.28);
+    lFore.rotation.x = -1.25;
+    lFore.rotation.y = 0.55;
+    leftArm.add(lFore);
+    const lGlove = new THREE.Mesh(geos.glove, mats.boot);
+    lGlove.position.set(0.32, -0.14, 0.41);
+    leftArm.add(lGlove);
+    this.group.add(leftArm);
+    this.leftArm = leftArm;
+
+    const rightArm = new THREE.Group();
+    rightArm.position.set(0.3, 1.28, 0.04);
+    const rUpper = new THREE.Mesh(geos.upperArm, mats.body);
+    rUpper.position.set(0, -0.11, 0.07);
+    rUpper.rotation.x = -0.55;
+    rightArm.add(rUpper);
+    const rFore = new THREE.Mesh(geos.foreArm, mats.body);
+    rFore.position.set(-0.08, -0.15, 0.22);
+    rFore.rotation.x = -1.35;
+    rFore.rotation.y = -0.3;
+    rightArm.add(rFore);
+    const rGlove = new THREE.Mesh(geos.glove, mats.boot);
+    rGlove.position.set(-0.12, -0.15, 0.31);
+    rightArm.add(rGlove);
+    this.group.add(rightArm);
+    this.rightArm = rightArm;
+
+    // Head + Team Headgear (CT Kevlar Helmet + Visor vs T Balaclava + Crimson Bandana + Dark Goggles)
+    const head = new THREE.Mesh(geos.head, mats.head);
+    head.position.y = 1.6;
     head.castShadow = true;
     head.userData = { isBot: true, bot: this, part: 'head' };
     this.group.add(head);
     this.hitboxes.push(head);
     this.headMesh = head;
 
-    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.09, 0.06), visorMat);
-    visor.position.set(0, 1.62, 0.155);
+    if (isCT) {
+      const helmetDome = new THREE.Mesh(geos.helmetDome, mats.accentHead);
+      helmetDome.position.set(0, 1.69, -0.01);
+      helmetDome.castShadow = true;
+      this.group.add(helmetDome);
+
+      const helmetEar = new THREE.Mesh(geos.helmetEar, mats.accentHead);
+      helmetEar.position.set(0, 1.6, -0.02);
+      this.group.add(helmetEar);
+    } else {
+      const bandana = new THREE.Mesh(geos.bandana, mats.accentHead);
+      bandana.position.set(0, 1.68, 0);
+      this.group.add(bandana);
+    }
+
+    const visor = new THREE.Mesh(geos.visor, mats.visor);
+    visor.position.set(0, 1.61, 0.148);
     this.group.add(visor);
 
-    const faceLower = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.1, 0.05), skinMat);
-    faceLower.position.set(0, 1.52, 0.15);
+    const faceLower = new THREE.Mesh(geos.faceLower, mats.skin);
+    faceLower.position.set(0, 1.51, 0.142);
     this.group.add(faceLower);
 
-    const legGeo = new THREE.BoxGeometry(0.2, 0.72, 0.22);
-    legGeo.translate(0, -0.36, 0);
-
-    const leftLeg = new THREE.Mesh(legGeo, bodyMat);
+    // Legs + Tactical Boots
+    const leftLeg = new THREE.Group();
     leftLeg.position.set(-0.14, 0.72, 0);
-    leftLeg.castShadow = true;
-    leftLeg.userData = { isBot: true, bot: this, part: 'body' };
+    const lThigh = new THREE.Mesh(geos.leg, mats.pants);
+    lThigh.castShadow = true;
+    lThigh.userData = { isBot: true, bot: this, part: 'body' };
+    leftLeg.add(lThigh);
+    const lBoot = new THREE.Mesh(geos.boot, mats.boot);
+    lBoot.castShadow = true;
+    leftLeg.add(lBoot);
     this.group.add(leftLeg);
-    this.hitboxes.push(leftLeg);
+    this.hitboxes.push(lThigh);
     this.leftLeg = leftLeg;
 
-    const rightLeg = new THREE.Mesh(legGeo, bodyMat);
+    const rightLeg = new THREE.Group();
     rightLeg.position.set(0.14, 0.72, 0);
-    rightLeg.castShadow = true;
-    rightLeg.userData = { isBot: true, bot: this, part: 'body' };
+    const rThigh = new THREE.Mesh(geos.leg, mats.pants);
+    rThigh.castShadow = true;
+    rThigh.userData = { isBot: true, bot: this, part: 'body' };
+    rightLeg.add(rThigh);
+    const rBoot = new THREE.Mesh(geos.boot, mats.boot);
+    rBoot.castShadow = true;
+    rightLeg.add(rBoot);
     this.group.add(rightLeg);
-    this.hitboxes.push(rightLeg);
+    this.hitboxes.push(rThigh);
     this.rightLeg = rightLeg;
 
+    // Rifle Group
     const gunGroup = new THREE.Group();
-    const gunBody = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.1, 0.46), gunMat);
+    const gunBody = new THREE.Mesh(geos.gunBody, mats.gun);
     gunGroup.add(gunBody);
 
-    const gunBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.25, 8), gunMat);
+    const gunBarrel = new THREE.Mesh(geos.gunBarrel, mats.gun);
     gunBarrel.rotation.x = Math.PI / 2;
-    gunBarrel.position.set(0, 0.02, 0.3);
+    gunBarrel.position.set(0, 0.02, 0.31);
     gunGroup.add(gunBarrel);
 
+    const gunMag = new THREE.Mesh(geos.gunMag, mats.gun);
+    gunMag.position.set(0, -0.09, 0.08);
+    gunMag.rotation.x = 0.22;
+    gunGroup.add(gunMag);
+
     if (!isCT) {
-      const akStock = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.08, 0.18), woodMat);
+      const akStock = new THREE.Mesh(geos.akStock, mats.wood);
       akStock.position.set(0, -0.02, -0.22);
       gunGroup.add(akStock);
     }
 
-    gunGroup.position.set(0.22, 1.15, 0.32);
+    gunGroup.position.set(0.17, 1.14, 0.35);
     this.group.add(gunGroup);
     this.gunMesh = gunGroup;
 
@@ -247,7 +400,7 @@ export class Bot {
     const flashPlaneB = new THREE.Mesh(MUZZLE_FLASH_GEO, MUZZLE_FLASH_MAT);
     flashPlaneB.rotation.y = Math.PI / 2;
     flashGroup.add(flashPlaneA, flashPlaneB);
-    flashGroup.position.set(0.22, 1.17, 0.72);
+    flashGroup.position.set(0.17, 1.16, 0.76);
     flashGroup.visible = false;
     this.group.add(flashGroup);
     this.muzzleFlashMesh = flashGroup;
@@ -288,13 +441,13 @@ export class Bot {
     this.plantProgress = 0;
     this.defuseProgress = 0;
     this.path = [];
+    this.deathAnimProgress = 0;
 
     if (this.leftLeg) this.leftLeg.rotation.x = 0;
     if (this.rightLeg) this.rightLeg.rotation.x = 0;
 
-    const currentGround = this._getGroundHeight(this.group.position.x, this.group.position.z, this.group.position.y);
-    this.group.rotation.set(-Math.PI / 2, 0, 0);
-    this.group.position.y = currentGround + 0.2;
+    this._deathStartY = this.group.position.y;
+    this._deathGroundY = this._getGroundHeight(this.group.position.x, this.group.position.z, this.group.position.y);
     this.muzzleFlashTimer = 0;
     if (this.muzzleFlashMesh) this.muzzleFlashMesh.visible = false;
 
@@ -315,6 +468,7 @@ export class Bot {
     this.blindTimer = 0;
     this.plantProgress = 0;
     this.defuseProgress = 0;
+    this.deathAnimProgress = 0;
     this.path = [];
     this.pathIndex = 0;
     this.repathTimer = 0;
@@ -545,6 +699,13 @@ export class Bot {
     }
 
     if (!this.isAlive) {
+      if (this.deathAnimProgress < 1) {
+        this.deathAnimProgress = Math.min(1, this.deathAnimProgress + delta / 0.35);
+        const ease = 1 - Math.pow(1 - this.deathAnimProgress, 2);
+        this.group.rotation.x = THREE.MathUtils.lerp(0, -Math.PI / 2, ease);
+        this.group.position.y = THREE.MathUtils.lerp(this._deathStartY, this._deathGroundY + 0.2, ease);
+      }
+
       if (roundContext.mode === 'deathmatch' || !roundContext.mode) {
         this.respawnTimer -= delta;
         if (this.respawnTimer <= 0) {

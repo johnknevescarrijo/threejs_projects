@@ -140,6 +140,16 @@
     </div>
   </div>
 
+  <!-- CS:GO net_graph Telemetry Bar (Toggle F3, Cycle Preset F4) -->
+  <div id="net-graph" class="net-graph" style="display: none;">
+    <span>fps: <strong id="ng-fps">0</strong></span>
+    <span>ms: <strong id="ng-ms">0.0</strong></span>
+    <span>dc: <strong id="ng-dc">0</strong></span>
+    <span>tris: <strong id="ng-tris">0k</strong></span>
+    <span id="ng-preset" class="ng-tag">1080p Low (CS:GO)</span>
+    <span id="ng-backend" class="ng-tag">WebGL2</span>
+  </div>
+
   <!-- Tactical Arsenal / Buy Menu (Key B) -->
   <div id="arsenal-menu" class="overlay-screen arsenal-overlay" style="display: none;">
     <div class="arsenal-modal">
@@ -191,6 +201,24 @@
         </div>
       </div>
 
+      <div class="setup-section">
+        <div class="setup-label">QUALIDADE GRÁFICA</div>
+        <div class="setup-options setup-options-3" id="quality-selector">
+          <button type="button" class="setup-option-btn active" data-quality="low">
+            <strong>1080p Low (CS:GO)</strong>
+            <span>60–144 FPS • Sombra Focada 1024px</span>
+          </button>
+          <button type="button" class="setup-option-btn" data-quality="medium">
+            <strong>1080p Medium</strong>
+            <span>90 FPS • Sombra 1536px & Aniso 8x</span>
+          </button>
+          <button type="button" class="setup-option-btn" data-quality="high">
+            <strong>1080p High</strong>
+            <span>60 FPS • Sombra 2048px & Aniso 16x</span>
+          </button>
+        </div>
+      </div>
+
       <div class="controls-grid">
         <div class="control-item"><span class="control-key">W A S D</span> Movimento</div>
         <div class="control-item"><span class="control-key">MOUSE</span> Olhar / Mirar</div>
@@ -202,6 +230,7 @@
         <div class="control-item"><span class="control-key">G / B</span> Dropar / Buy Menu</div>
         <div class="control-item"><span class="control-key">Q / R</span> Quick-Switch / Recarregar</div>
         <div class="control-item"><span class="control-key">ESPAÇO / CTRL</span> Pular / Agachar</div>
+        <div class="control-item"><span class="control-key">F3 / F4</span> net_graph / Qualidade</div>
       </div>
 
       <button id="btn-start" class="btn-primary">JOGAR AGORA</button>

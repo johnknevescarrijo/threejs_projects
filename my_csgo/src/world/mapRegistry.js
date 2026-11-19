@@ -27,7 +27,7 @@ export function getMapList() {
   }));
 }
 
-export function createMap(mapId, scene) {
+export function createMap(mapId, scene, graphicsPipeline = null) {
   const entry = MAP_REGISTRY[mapId] || MAP_REGISTRY.dust2;
-  return new entry.MapClass(scene);
+  return new entry.MapClass(scene, graphicsPipeline);
 }

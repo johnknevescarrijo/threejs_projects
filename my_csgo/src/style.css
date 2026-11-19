@@ -1157,3 +1157,49 @@ canvas {
   width: 0%;
   background: linear-gradient(90deg, #f59e0b, #ef4444);
 }
+
+/* Phase 4: Quality Selector Grid & CS:GO net_graph Telemetry Bar */
+.setup-options-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.net-graph {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 12px;
+  border-radius: 5px;
+  background: rgba(8, 12, 20, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  color: #94a3b8;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  pointer-events: none;
+  z-index: 22;
+  white-space: nowrap;
+}
+
+.net-graph strong {
+  color: #4ade80;
+  font-weight: 700;
+}
+
+.net-graph strong.warn {
+  color: #fbbf24;
+}
+
+.net-graph strong.bad {
+  color: #f87171;
+}
+
+.net-graph .ng-tag {
+  color: #7dd3fc;
+  font-weight: 700;
+  padding-left: 8px;
+  border-left: 1px solid rgba(148, 163, 184, 0.25);
+}
