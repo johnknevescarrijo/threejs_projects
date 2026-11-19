@@ -12,6 +12,16 @@
   <!-- Damage Blood Vignette -->
   <div id="damage-overlay"></div>
 
+  <!-- Sniper Scope Overlay -->
+  <div id="sniper-scope">
+    <div class="scope-lens">
+      <div class="scope-line-h"></div>
+      <div class="scope-line-v"></div>
+      <div class="scope-center-dot"></div>
+    </div>
+    <div id="scope-zoom-badge">2x</div>
+  </div>
+
   <!-- Dynamic Crosshair -->
   <div id="crosshair-container">
     <div id="ch-top" class="crosshair-line"></div>
@@ -74,15 +84,20 @@
     </div>
   </div>
 
-  <!-- Bottom Right HUD (Weapons & Ammo) -->
+  <!-- Bottom Right HUD (Weapons, Slots & Ammo) -->
   <div id="bottom-right-hud">
     <div class="weapon-selector">
       <div id="weapon-slot-1" class="weapon-slot-pill active">[1] AK-47</div>
       <div id="weapon-slot-2" class="weapon-slot-pill">[2] DEAGLE</div>
+      <div id="weapon-slot-3" class="weapon-slot-pill">[3] FACA</div>
+      <div id="arsenal-hint-pill" class="arsenal-hint-pill">[B] ARSENAL</div>
     </div>
 
     <div class="ammo-card">
-      <div id="weapon-name">AK-47</div>
+      <div class="ammo-weapon-row">
+        <span id="fire-mode-badge" class="fire-mode-badge">AUTO</span>
+        <span id="weapon-name">AK-47</span>
+      </div>
       <div class="ammo-numbers">
         <span id="ammo-val">30</span>
         <span class="ammo-divider">/</span>
@@ -91,19 +106,35 @@
     </div>
   </div>
 
+  <!-- Tactical Arsenal Menu (Key B) -->
+  <div id="arsenal-menu" class="overlay-screen arsenal-overlay" style="display: none;">
+    <div class="arsenal-modal">
+      <div class="arsenal-header">
+        <div>
+          <h2 class="arsenal-title">ARSENAL TÁTICO</h2>
+          <p class="arsenal-subtitle">Clique em qualquer arma para equipar imediatamente no Slot 1 ou Slot 2</p>
+        </div>
+        <button id="btn-close-arsenal" class="btn-arsenal-close">FECHAR [B]</button>
+      </div>
+      <div id="arsenal-categories" class="arsenal-categories"></div>
+    </div>
+  </div>
+
   <!-- Start Screen Overlay -->
   <div id="start-screen" class="overlay-screen">
     <div class="modal-box">
       <h1 class="modal-title">CS:GO Web Clone</h1>
-      <p class="modal-subtitle">Dust II Mini • CT vs T Team Battle (Bots Aliados & Inimigos) • Gráficos Procedurais HD</p>
+      <p class="modal-subtitle">Dust II Mini • 14 Armas & Balística CS • CT vs T (Bots Aliados & Inimigos)</p>
 
       <div class="controls-grid">
         <div class="control-item"><span class="control-key">W A S D</span> Movimento</div>
         <div class="control-item"><span class="control-key">MOUSE</span> Olhar / Mirar</div>
-        <div class="control-item"><span class="control-key">CLICK ESQ</span> Atirar</div>
+        <div class="control-item"><span class="control-key">CLICK ESQ</span> Atirar / Corte</div>
+        <div class="control-item"><span class="control-key">CLICK DIR</span> Scope / Burst / Facada</div>
+        <div class="control-item"><span class="control-key">1 / 2 / 3</span> Primária / Pistola / Faca</div>
+        <div class="control-item"><span class="control-key">Q</span> Quick-Switch</div>
+        <div class="control-item"><span class="control-key">B</span> Menu de Arsenal</div>
         <div class="control-item"><span class="control-key">R</span> Recarregar</div>
-        <div class="control-item"><span class="control-key">1</span> AK-47</div>
-        <div class="control-item"><span class="control-key">2</span> Desert Eagle</div>
         <div class="control-item"><span class="control-key">ESPAÇO</span> Pular</div>
         <div class="control-item"><span class="control-key">CTRL / C</span> Agachar</div>
         <div class="control-item"><span class="control-key">SHIFT</span> Andar (Silencioso)</div>
