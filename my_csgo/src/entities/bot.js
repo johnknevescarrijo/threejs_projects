@@ -162,6 +162,7 @@ export class Bot {
     this.respawnTimer = 0;
     this.stuckTimer = 0;
     this.walkCycle = Math.random() * Math.PI * 2;
+    this.footstepDist = Math.random() * 1.2;
     this.muzzleFlashTimer = 0;
     this.deathAnimProgress = 0;
     this._deathStartY = 0;
@@ -836,12 +837,18 @@ export class Bot {
       }
     }
 
-    // --- Walking Leg Stride Animations ---
+    // --- Walking Leg Stride Animations & Spatial Footsteps ---
     if (isMoving) {
       this.walkCycle += delta * this.speed * 3.5;
       if (this.leftLeg) this.leftLeg.rotation.x = Math.sin(this.walkCycle) * 0.45;
       if (this.rightLeg) this.rightLeg.rotation.x = -Math.sin(this.walkCycle) * 0.45;
       if (this.torsoMesh) this.torsoMesh.position.y = 1.05 + Math.abs(Math.sin(this.walkCycle * 2)) * 0.02;
+
+      this.footstepDist += this.speed * delta;
+      if (this.footstepDist >= 1.75) {
+        this.footstepDist = 0;
+        sounds.playFootstepAt(this.group.position);
+      }
     } else {
       if (this.leftLeg) this.leftLeg.rotation.x = THREE.MathUtils.lerp(this.leftLeg.rotation.x, 0, delta * 8);
       if (this.rightLeg) this.rightLeg.rotation.x = THREE.MathUtils.lerp(this.rightLeg.rotation.x, 0, delta * 8);
@@ -870,7 +877,7 @@ export class Bot {
       return;
     }
 
-    sounds.playBotShot();
+    sounds.playBotShot(this.group.position);
 
     if (this.muzzleFlashMesh) {
       this.muzzleFlashMesh.visible = true;

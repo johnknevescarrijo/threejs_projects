@@ -1,11 +1,31 @@
 // Web Audio API procedural sound synthesizer for CS:GO / CS 1.6 weapons & tactical SFX
 
+import { createSpatialPanner, syncAudioListener } from './spatialAudio.js';
+
+function rotateVecByQuat(vx, vy, vz, q, out) {
+  const qx = q.x;
+  const qy = q.y;
+  const qz = q.z;
+  const qw = q.w;
+  const ix = qw * vx + qy * vz - qz * vy;
+  const iy = qw * vy + qz * vx - qx * vz;
+  const iz = qw * vz + qx * vy - qy * vx;
+  const iw = -qx * vx - qy * vy - qz * vz;
+
+  out.x = ix * qw + iw * -qx + iy * -qz - iz * -qy;
+  out.y = iy * qw + iw * -qy + iz * -qx - ix * -qz;
+  out.z = iz * qw + iw * -qz + ix * -qy - iy * -qx;
+  return out;
+}
+
 class SoundManager {
   constructor() {
     this.ctx = null;
     this.masterGain = null;
     this.noiseBuffer = null;
     this.initialized = false;
+    this._tmpForward = { x: 0, y: 0, z: -1 };
+    this._tmpUp = { x: 0, y: 1, z: 0 };
   }
 
   init() {
@@ -37,7 +57,33 @@ class SoundManager {
     }
   }
 
-  _playNoiseBurst(startTime, duration, filterType, freq, q, gainPeak, endGain = 0.001) {
+  updateListener(camera) {
+    if (!this.initialized || !this.ctx || !camera) return;
+    const pos = camera.position;
+    if (camera.quaternion) {
+      rotateVecByQuat(0, 0, -1, camera.quaternion, this._tmpForward);
+      rotateVecByQuat(0, 1, 0, camera.quaternion, this._tmpUp);
+    } else {
+      this._tmpForward.x = 0; this._tmpForward.y = 0; this._tmpForward.z = -1;
+      this._tmpUp.x = 0; this._tmpUp.y = 1; this._tmpUp.z = 0;
+    }
+    syncAudioListener(this.ctx, pos, this._tmpForward, this._tmpUp);
+  }
+
+  _resolveDestination(worldPos = null, opts = {}) {
+    if (!worldPos || !this.ctx || typeof this.ctx.createPanner !== 'function') {
+      return this.masterGain;
+    }
+    try {
+      const panner = createSpatialPanner(this.ctx, worldPos, opts);
+      panner.connect(this.masterGain);
+      return panner;
+    } catch {
+      return this.masterGain;
+    }
+  }
+
+  _playNoiseBurst(startTime, duration, filterType, freq, q, gainPeak, endGain = 0.001, destination = this.masterGain) {
     if (!this.noiseBuffer) return;
     const src = this.ctx.createBufferSource();
     src.buffer = this.noiseBuffer;
@@ -56,12 +102,12 @@ class SoundManager {
 
     src.connect(filter);
     filter.connect(gain);
-    gain.connect(this.masterGain);
+    gain.connect(destination || this.masterGain);
 
     src.start(startTime, offset, duration);
   }
 
-  _playOsc(startTime, duration, type, startFreq, endFreq, gainPeak) {
+  _playOsc(startTime, duration, type, startFreq, endFreq, gainPeak, destination = this.masterGain) {
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
 
@@ -73,7 +119,7 @@ class SoundManager {
     gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
 
     osc.connect(gain);
-    gain.connect(this.masterGain);
+    gain.connect(destination || this.masterGain);
 
     osc.start(startTime);
     osc.stop(startTime + duration);
@@ -207,12 +253,14 @@ class SoundManager {
     this._playClick(t + 0.04, 1300, 0.15);
   }
 
-  // Bot gunshot (slightly lower volume/distant)
-  playBotShot() {
+  // Bot gunshot (spatialized 3D HRTF when worldPos is provided)
+  playBotShot(worldPos = null) {
     if (!this.initialized) return;
     this.resume();
     const t = this.ctx.currentTime;
-    this._playOsc(t, 0.11, 'sawtooth', 300, 70, 0.35);
+    const dest = this._resolveDestination(worldPos, { refDistance: 4, maxDistance: 65, rolloffFactor: 1.15 });
+    this._playNoiseBurst(t, 0.085, 'bandpass', 1750, 1.4, 0.42, 0.001, dest);
+    this._playOsc(t, 0.11, 'sawtooth', 300, 70, 0.38, dest);
   }
 
   // Classic Headshot "Dink" / Metallic helmet ring
@@ -284,12 +332,22 @@ class SoundManager {
     osc.stop(time + 0.06);
   }
 
-  // Footstep
+  // Footstep (player local)
   playFootstep() {
     if (!this.initialized) return;
     this.resume();
     const t = this.ctx.currentTime;
     this._playOsc(t, 0.08, 'sine', 90 + Math.random() * 30, 30, 0.18);
+  }
+
+  // Spatialized 3D footstep at world position (bots)
+  playFootstepAt(worldPos = null) {
+    if (!this.initialized) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+    const dest = this._resolveDestination(worldPos, { refDistance: 2.0, maxDistance: 28, rolloffFactor: 1.5 });
+    this._playOsc(t, 0.08, 'sine', 90 + Math.random() * 30, 30, 0.22, dest);
+    this._playNoiseBurst(t, 0.05, 'bandpass', 650 + Math.random() * 200, 1.5, 0.12, 0.001, dest);
   }
 
   // Switch weapon click
@@ -324,21 +382,23 @@ class SoundManager {
     this._playNoiseBurst(t, 0.14, 'bandpass', 750, 1.4, 0.35);
   }
 
-  playGrenadeBounce() {
+  playGrenadeBounce(worldPos = null) {
     if (!this.initialized) return;
     this.resume();
     const t = this.ctx.currentTime;
-    this._playOsc(t, 0.05, 'triangle', 950, 420, 0.22);
-    this._playNoiseBurst(t, 0.03, 'highpass', 1500, 1.0, 0.14);
+    const dest = this._resolveDestination(worldPos, { refDistance: 2.5, maxDistance: 35, rolloffFactor: 1.4 });
+    this._playOsc(t, 0.05, 'triangle', 950, 420, 0.24, dest);
+    this._playNoiseBurst(t, 0.03, 'highpass', 1500, 1.0, 0.16, 0.001, dest);
   }
 
-  playExplosion() {
+  playExplosion(worldPos = null) {
     if (!this.initialized) return;
     this.resume();
     const t = this.ctx.currentTime;
-    this._playNoiseBurst(t, 0.72, 'lowpass', 900, 0.6, 1.35);
-    this._playNoiseBurst(t, 0.35, 'bandpass', 1400, 0.8, 0.75);
-    this._playOsc(t, 0.65, 'sawtooth', 110, 22, 1.1);
+    const dest = this._resolveDestination(worldPos, { refDistance: 5, maxDistance: 80, rolloffFactor: 0.9 });
+    this._playNoiseBurst(t, 0.72, 'lowpass', 900, 0.6, 1.35, 0.001, dest);
+    this._playNoiseBurst(t, 0.35, 'bandpass', 1400, 0.8, 0.75, 0.001, dest);
+    this._playOsc(t, 0.65, 'sawtooth', 110, 22, 1.1, dest);
   }
 
   playFlashbang(intensity = 1) {
@@ -363,12 +423,13 @@ class SoundManager {
     }
   }
 
-  playSmokeBloom() {
+  playSmokeBloom(worldPos = null) {
     if (!this.initialized) return;
     this.resume();
     const t = this.ctx.currentTime;
-    this._playNoiseBurst(t, 0.95, 'bandpass', 1150, 0.9, 0.45);
-    this._playOsc(t, 0.15, 'sine', 420, 180, 0.2);
+    const dest = this._resolveDestination(worldPos, { refDistance: 3.5, maxDistance: 48, rolloffFactor: 1.2 });
+    this._playNoiseBurst(t, 0.95, 'bandpass', 1150, 0.9, 0.45, 0.001, dest);
+    this._playOsc(t, 0.15, 'sine', 420, 180, 0.2, dest);
   }
 
   playBuy() {
@@ -394,14 +455,15 @@ class SoundManager {
     this._playClick(t + 0.04, 1450, 0.18);
   }
 
-  playC4Beep(urgency = 0) {
+  playC4Beep(urgency = 0, worldPos = null) {
     if (!this.initialized) return;
     this.resume();
     const t = this.ctx.currentTime;
     const u = Math.max(0, Math.min(1, urgency));
     const freq = 2450 + u * 650;
     const gain = 0.22 + u * 0.16;
-    this._playOsc(t, 0.065, 'sine', freq, freq * 0.98, gain);
+    const dest = this._resolveDestination(worldPos, { refDistance: 3, maxDistance: 45, rolloffFactor: 1.25 });
+    this._playOsc(t, 0.065, 'sine', freq, freq * 0.98, gain, dest);
   }
 
   playC4Plant() {
