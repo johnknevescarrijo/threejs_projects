@@ -579,3 +579,272 @@ canvas {
   width: 100%;
   transition: width 0.08s linear;
 }
+
+/* Sniper Scope Overlay */
+#sniper-scope {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 18;
+  background: radial-gradient(circle at center, transparent 32%, rgba(0, 0, 0, 0.96) 44%, #000000 100%);
+}
+
+#sniper-scope.active {
+  display: flex;
+}
+
+.scope-lens {
+  position: relative;
+  width: min(68vh, 68vw);
+  height: min(68vh, 68vw);
+  border-radius: 50%;
+  border: 3px solid #050505;
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.75);
+}
+
+.scope-line-h {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 100%;
+  height: 1.5px;
+  background: rgba(0, 0, 0, 0.9);
+  transform: translateY(-50%);
+}
+
+.scope-line-v {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 1.5px;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.9);
+  transform: translateX(-50%);
+}
+
+.scope-center-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #ef4444;
+  transform: translate(-50%, -50%);
+}
+
+#scope-zoom-badge {
+  position: absolute;
+  bottom: 14%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(251, 191, 36, 0.5);
+  color: #fbbf24;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 4px 12px;
+  border-radius: 999px;
+  letter-spacing: 1px;
+}
+
+/* Weapon Fire Mode Badge & Arsenal Hint */
+.ammo-weapon-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.fire-mode-badge {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+}
+
+.fire-mode-badge.burst {
+  background: rgba(245, 158, 11, 0.25);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.5);
+}
+
+.fire-mode-badge.silenced {
+  background: rgba(56, 189, 248, 0.2);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.45);
+}
+
+.arsenal-hint-pill {
+  background: rgba(30, 41, 59, 0.85);
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+}
+
+/* Tactical Arsenal Menu (Key B) */
+.arsenal-overlay {
+  z-index: 120;
+  padding: 24px;
+}
+
+.arsenal-modal {
+  background: linear-gradient(155deg, rgba(20, 27, 40, 0.97), rgba(10, 14, 22, 0.98));
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.85);
+  border-radius: 12px;
+  padding: 24px 28px;
+  max-width: 1120px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.arsenal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 14px;
+  margin-bottom: 18px;
+}
+
+.arsenal-title {
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: #f59e0b;
+}
+
+.arsenal-subtitle {
+  font-size: 13px;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+.btn-arsenal-close {
+  background: rgba(239, 68, 68, 0.16);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-weight: 800;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.btn-arsenal-close:hover {
+  background: rgba(239, 68, 68, 0.3);
+}
+
+.arsenal-categories {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 16px;
+}
+
+.arsenal-category-col {
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.arsenal-cat-title {
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #fbbf24;
+  border-bottom: 1px solid rgba(251, 191, 36, 0.25);
+  padding-bottom: 6px;
+}
+
+.arsenal-card {
+  background: rgba(24, 33, 51, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 10px 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.12s, border-color 0.15s, background 0.15s;
+  color: #e2e8f0;
+}
+
+.arsenal-card:hover {
+  transform: translateY(-2px);
+  border-color: #f59e0b;
+  background: rgba(36, 48, 72, 0.95);
+}
+
+.arsenal-card.equipped {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.14);
+}
+
+.arsenal-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.arsenal-card-name {
+  font-size: 14px;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.arsenal-card-tag {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(148, 163, 184, 0.2);
+  color: #cbd5e1;
+}
+
+.arsenal-card-tag.ct {
+  background: rgba(59, 130, 246, 0.25);
+  color: #60a5fa;
+}
+
+.arsenal-card-tag.t {
+  background: rgba(245, 158, 11, 0.25);
+  color: #fbbf24;
+}
+
+.arsenal-stat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 3px;
+}
+
+.stat-mini-track {
+  flex: 1;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.stat-mini-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #f59e0b, #fbbf24);
+}

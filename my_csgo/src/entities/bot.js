@@ -12,10 +12,17 @@ export class Bot {
 
     this.health = 100;
     this.maxHealth = 100;
+    this.armor = 100;
+    this.hasHelmet = true;
     this.isAlive = true;
     this.speed = (team === 'CT') ? 3.8 : 3.6;
     this.velocityY = 0;
     this.radius = 0.42;
+
+    const ctWeapons = ['M4A4', 'M4A1-S', 'MP5'];
+    const tWeapons = ['AK-47', 'FAMAS', 'AWP'];
+    const pool = (team === 'CT') ? ctWeapons : tWeapons;
+    this.weaponName = pool[(id - 1) % pool.length];
 
     // AI States: 'PATROL', 'ENGAGE', 'DEAD'
     this.state = 'PATROL';
@@ -220,9 +227,16 @@ export class Bot {
     this.group.add(this.muzzleLight);
   }
 
-  takeDamage(amount, isHeadshot = false) {
+  getForwardVector() {
+    return new THREE.Vector3(0, 0, 1).applyQuaternion(this.group.quaternion).normalize();
+  }
+
+  takeDamage(amount, isHeadshot = false, armorDamage = 0) {
     if (!this.isAlive) return false;
 
+    if (armorDamage > 0) {
+      this.armor = Math.max(0, this.armor - armorDamage);
+    }
     this.health -= amount;
 
     if (this.health <= 0) {
@@ -257,6 +271,8 @@ export class Bot {
 
   respawn(spawnPos) {
     this.health = this.maxHealth;
+    this.armor = 100;
+    this.hasHelmet = true;
     this.isAlive = true;
     this.state = 'PATROL';
     this.currentTarget = null;
@@ -540,8 +556,7 @@ export class Bot {
         particleSystem.createBlood(targetPos, new THREE.Vector3(0, 1, 0));
         const wasKilled = victimBot.takeDamage(finalDamage, isHeadshot);
         if (wasKilled && onKillCallback) {
-          const weaponName = (this.team === 'CT') ? 'M4A1' : 'AK-47';
-          onKillCallback(this.name, weaponName, victimBot.name, isHeadshot, this.team, victimBot.team);
+          onKillCallback(this.name, this.weaponName, victimBot.name, isHeadshot, this.team, victimBot.team);
         }
       }
     }

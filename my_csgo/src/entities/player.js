@@ -55,8 +55,11 @@ export class Player {
     // Pointer Lock & Mouse Look
     this.isLocked = false;
     this.mouseSensitivity = 0.0022;
+    this.sensitivityScale = 1.0;
     this.pitch = 0;
     this.yaw = 0;
+    this.viewpunchPitch = 0;
+    this.viewpunchYaw = 0;
 
     // Footstep timer
     this.footstepDist = 0;
@@ -76,13 +79,15 @@ export class Player {
     document.addEventListener('mousemove', (e) => {
       if (!this.isLocked || !this.isAlive) return;
 
-      this.yaw -= e.movementX * this.mouseSensitivity;
-      this.pitch -= e.movementY * this.mouseSensitivity;
+      const sens = this.mouseSensitivity * this.sensitivityScale;
+      this.yaw -= e.movementX * sens;
+      this.pitch -= e.movementY * sens;
 
       // Clamp pitch to avoid neck snap (-89 to +89 deg)
       this.pitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, this.pitch));
 
-      this.camera.rotation.set(this.pitch, this.yaw, 0);
+      const totalPitch = THREE.MathUtils.clamp(this.pitch + this.viewpunchPitch, -Math.PI / 2 + 0.01, Math.PI / 2 - 0.01);
+      this.camera.rotation.set(totalPitch, this.yaw + this.viewpunchYaw, 0);
     });
 
     // Keyboard controls
@@ -151,19 +156,29 @@ export class Player {
     return this.health;
   }
 
+  addViewpunch(pitch = 0, yaw = 0) {
+    this.viewpunchPitch = THREE.MathUtils.clamp(this.viewpunchPitch + pitch, -0.35, 0.35);
+    this.viewpunchYaw = THREE.MathUtils.clamp(this.viewpunchYaw + yaw, -0.25, 0.25);
+  }
+
   respawn() {
     this.health = 100;
     this.armor = 100;
     this.isAlive = true;
+    this.isShooting = false;
     this.autoRespawnTimer = 0;
     this.velocity.set(0, 0, 0);
     this.camera.position.set(0, 1.7, -20);
     this.pitch = 0;
     this.yaw = 0;
+    this.viewpunchPitch = 0;
+    this.viewpunchYaw = 0;
     this.camera.rotation.set(0, 0, 0);
   }
 
-  update(delta) {
+  update(delta, weaponMoveSpeed = null, sensitivityScale = 1.0) {
+    this.sensitivityScale = sensitivityScale;
+
     if (!this.isAlive) {
       // Auto-respawn countdown
       this.autoRespawnTimer -= delta;
@@ -173,6 +188,12 @@ export class Player {
       return;
     }
 
+    // Smooth exponential decay of recoil viewpunch
+    this.viewpunchPitch = THREE.MathUtils.lerp(this.viewpunchPitch, 0, Math.min(1, delta * 11));
+    this.viewpunchYaw = THREE.MathUtils.lerp(this.viewpunchYaw, 0, Math.min(1, delta * 11));
+    const totalPitch = THREE.MathUtils.clamp(this.pitch + this.viewpunchPitch, -Math.PI / 2 + 0.01, Math.PI / 2 - 0.01);
+    this.camera.rotation.set(totalPitch, this.yaw + this.viewpunchYaw, 0);
+
     // 1. Crouch interpolation
     this.isCrouching = this.keys.crouch;
     this.isWalking = this.keys.walk;
@@ -180,10 +201,12 @@ export class Player {
     const targetHeight = this.isCrouching ? this.crouchHeight : this.standingHeight;
     this.currentHeight = THREE.MathUtils.lerp(this.currentHeight, targetHeight, delta * 12);
 
-    // 2. Determine target speed
-    let targetSpeed = this.runSpeed;
-    if (this.isCrouching) targetSpeed = this.crouchSpeed;
-    else if (this.isWalking) targetSpeed = this.walkSpeed;
+    // 2. Determine target speed (scaled by active weapon weight / scope)
+    const activeRunSpeed = weaponMoveSpeed !== null ? weaponMoveSpeed : this.runSpeed;
+    const speedRatio = activeRunSpeed / this.runSpeed;
+    let targetSpeed = activeRunSpeed;
+    if (this.isCrouching) targetSpeed = this.crouchSpeed * speedRatio;
+    else if (this.isWalking) targetSpeed = this.walkSpeed * speedRatio;
 
     // 3. Movement input vector relative to camera yaw
     const forward = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
