@@ -848,3 +848,97 @@ canvas {
   height: 100%;
   background: linear-gradient(90deg, #f59e0b, #fbbf24);
 }
+
+/* Flashbang Whiteout Overlay */
+#flash-overlay {
+  position: absolute;
+  inset: 0;
+  background: #ffffff;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 45;
+}
+
+/* Weapon Pickup Prompt */
+#pickup-prompt {
+  position: absolute;
+  bottom: 130px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(10, 15, 25, 0.9);
+  border: 1px solid rgba(251, 191, 36, 0.65);
+  color: #fde68a;
+  font-size: 14px;
+  font-weight: 800;
+  padding: 8px 18px;
+  border-radius: 6px;
+  letter-spacing: 0.6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+  z-index: 25;
+}
+
+/* Cash Stat Card */
+.stat-card.money {
+  border-left-color: #22c55e;
+  min-width: 140px;
+}
+
+.stat-card.money .stat-val {
+  color: #4ade80;
+  font-size: 28px;
+}
+
+/* Empty / Disabled Slot Pill */
+.weapon-slot-pill.empty {
+  opacity: 0.4;
+}
+
+/* Buy Menu Economy Styles */
+.arsenal-money-highlight {
+  color: #4ade80;
+  font-size: 15px;
+}
+
+.arsenal-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-sandbox-toggle {
+  background: rgba(56, 189, 248, 0.14);
+  color: #7dd3fc;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-weight: 800;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.btn-sandbox-toggle.active {
+  background: rgba(34, 197, 94, 0.25);
+  color: #4ade80;
+  border-color: #22c55e;
+}
+
+.arsenal-card-price {
+  font-size: 11px;
+  font-weight: 800;
+  color: #4ade80;
+}
+
+.arsenal-card.unaffordable {
+  opacity: 0.46;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.arsenal-card.unaffordable .arsenal-card-price {
+  color: #f87171;
+}
+
+.arsenal-card.maxed {
+  border-color: rgba(56, 189, 248, 0.45);
+  background: rgba(56, 189, 248, 0.1);
+}

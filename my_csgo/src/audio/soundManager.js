@@ -308,6 +308,91 @@ class SoundManager {
     const t = this.ctx.currentTime;
     this._playClick(t, 2200, 0.2);
   }
+
+  playGrenadePin() {
+    if (!this.initialized) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+    this._playClick(t, 2400, 0.18);
+    this._playClick(t + 0.045, 3100, 0.14);
+  }
+
+  playGrenadeThrow() {
+    if (!this.initialized) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+    this._playNoiseBurst(t, 0.14, 'bandpass', 750, 1.4, 0.35);
+  }
+
+  playGrenadeBounce() {
+    if (!this.initialized) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+    this._playOsc(t, 0.05, 'triangle', 950, 420, 0.22);
+    this._playNoiseBurst(t, 0.03, 'highpass', 1500, 1.0, 0.14);
+  }
+
+  playExplosion() {
+    if (!this.initialized) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+    this._playNoiseBurst(t, 0.72, 'lowpass', 900, 0.6, 1.35);
+    this._playNoiseBurst(t, 0.35, 'bandpass', 1400, 0.8, 0.75);
+    this._playOsc(t, 0.65, 'sawtooth', 110, 22, 1.1);
+  }
+
+  playFlashbang(intensity = 1) {
+    if (!this.initialized) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+    this._playNoiseBurst(t, 0.28, 'highpass', 1200, 0.8, 0.95);
+    this._playOsc(t, 0.18, 'square', 220, 40, 0.6);
+
+    if (intensity > 0.15) {
+      const ringDur = 0.6 + intensity * 2.2;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(3600, t);
+      gain.gain.setValueAtTime(0.28 * intensity, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + ringDur);
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+      osc.start(t);
+      osc.stop(t + ringDur);
+    }
+  }
+
+  playSmokeBloom() {
+    if (!this.initialized) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+    this._playNoiseBurst(t, 0.95, 'bandpass', 1150, 0.9, 0.45);
+    this._playOsc(t, 0.15, 'sine', 420, 180, 0.2);
+  }
+
+  playBuy() {
+    if (!this.initialized) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+    this._playOsc(t, 0.06, 'triangle', 1100, 1250, 0.22);
+    this._playOsc(t + 0.06, 0.09, 'triangle', 1550, 1750, 0.25);
+  }
+
+  playBuyError() {
+    if (!this.initialized) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+    this._playOsc(t, 0.10, 'sawtooth', 220, 160, 0.24);
+  }
+
+  playPickup() {
+    if (!this.initialized) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+    this._playClick(t, 920, 0.18);
+    this._playClick(t + 0.04, 1450, 0.18);
+  }
 }
 
 export const sounds = new SoundManager();

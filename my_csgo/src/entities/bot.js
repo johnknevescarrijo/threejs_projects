@@ -19,10 +19,21 @@ export class Bot {
     this.velocityY = 0;
     this.radius = 0.42;
 
-    const ctWeapons = ['M4A4', 'M4A1-S', 'MP5'];
-    const tWeapons = ['AK-47', 'FAMAS', 'AWP'];
+    const ctWeapons = [
+      { id: 'm4a4', name: 'M4A4' },
+      { id: 'm4a1s', name: 'M4A1-S' },
+      { id: 'mp5', name: 'MP5' }
+    ];
+    const tWeapons = [
+      { id: 'ak47', name: 'AK-47' },
+      { id: 'famas', name: 'FAMAS' },
+      { id: 'awp', name: 'AWP' }
+    ];
     const pool = (team === 'CT') ? ctWeapons : tWeapons;
-    this.weaponName = pool[(id - 1) % pool.length];
+    const assigned = pool[(id - 1) % pool.length];
+    this.weaponId = assigned.id;
+    this.weaponName = assigned.name;
+    this.blindTimer = 0;
 
     // AI States: 'PATROL', 'ENGAGE', 'DEAD'
     this.state = 'PATROL';
@@ -231,6 +242,11 @@ export class Bot {
     return new THREE.Vector3(0, 0, 1).applyQuaternion(this.group.quaternion).normalize();
   }
 
+  applyFlash(duration) {
+    if (!this.isAlive || duration <= 0) return;
+    this.blindTimer = Math.max(this.blindTimer, duration);
+  }
+
   takeDamage(amount, isHeadshot = false, armorDamage = 0) {
     if (!this.isAlive) return false;
 
@@ -253,6 +269,7 @@ export class Bot {
     this.currentTarget = null;
     this.respawnTimer = 4.0;
     this.velocityY = 0;
+    this.blindTimer = 0;
 
     // Reset legs
     if (this.leftLeg) this.leftLeg.rotation.x = 0;
@@ -278,6 +295,7 @@ export class Bot {
     this.currentTarget = null;
     this.velocityY = 0;
     this.stuckTimer = 0;
+    this.blindTimer = 0;
     this.group.rotation.set(0, 0, 0);
 
     if (this.leftLeg) this.leftLeg.rotation.x = 0;
@@ -293,12 +311,17 @@ export class Bot {
     }
   }
 
-  _canSeeTarget(targetPos) {
+  _canSeeTarget(targetPos, grenadeManager = null) {
     const botEyePos = this.group.position.clone().add(new THREE.Vector3(0, 1.5, 0));
     const toTarget = targetPos.clone().sub(botEyePos);
     const dist = toTarget.length();
 
     if (dist > 35) return false;
+
+    // Smoke cloud blocks line of sight
+    if (grenadeManager?.isLineBlockedBySmoke(botEyePos, targetPos)) {
+      return false;
+    }
 
     // Strict raycast against world walls
     toTarget.normalize();
@@ -313,7 +336,7 @@ export class Bot {
     return true;
   }
 
-  _findBestTarget(player, allBots) {
+  _findBestTarget(player, allBots, grenadeManager = null) {
     let bestTarget = null;
     let closestDist = 999;
     const botPos = this.group.position;
@@ -323,7 +346,7 @@ export class Bot {
         if (other.team === 'T' && other.isAlive) {
           const tPos = other.group.position.clone().add(new THREE.Vector3(0, 1.4, 0));
           const dist = botPos.distanceTo(other.group.position);
-          if (dist < 32 && dist < closestDist && this._canSeeTarget(tPos)) {
+          if (dist < 32 && dist < closestDist && this._canSeeTarget(tPos, grenadeManager)) {
             closestDist = dist;
             bestTarget = { type: 'bot', entity: other, pos: tPos };
           }
@@ -334,7 +357,7 @@ export class Bot {
       if (player.isAlive) {
         const pPos = player.camera.position;
         const dist = botPos.distanceTo(new THREE.Vector3(pPos.x, botPos.y, pPos.z));
-        if (dist < 32 && this._canSeeTarget(pPos)) {
+        if (dist < 32 && this._canSeeTarget(pPos, grenadeManager)) {
           closestDist = dist;
           bestTarget = { type: 'player', entity: player, pos: pPos };
         }
@@ -344,7 +367,7 @@ export class Bot {
         if (other.team === 'CT' && other.isAlive) {
           const ctPos = other.group.position.clone().add(new THREE.Vector3(0, 1.4, 0));
           const dist = botPos.distanceTo(other.group.position);
-          if (dist < 30 && dist < closestDist && this._canSeeTarget(ctPos)) {
+          if (dist < 30 && dist < closestDist && this._canSeeTarget(ctPos, grenadeManager)) {
             closestDist = dist;
             bestTarget = { type: 'bot', entity: other, pos: ctPos };
           }
@@ -409,7 +432,7 @@ export class Bot {
     }
   }
 
-  update(delta, player, allBots, particleSystem, onKillCallback) {
+  update(delta, player, allBots, particleSystem, onKillCallback, grenadeManager = null) {
     if (!this.isAlive) {
       this.respawnTimer -= delta;
       if (this.respawnTimer <= 0) {
@@ -419,57 +442,76 @@ export class Bot {
       return;
     }
 
-    // Look for enemy targets
-    const targetObj = this._findBestTarget(player, allBots);
     let isMoving = false;
 
-    if (targetObj) {
-      this.state = 'ENGAGE';
-      this.currentTarget = targetObj;
-      this.reactionTimer += delta;
-
-      // Look smoothly at enemy target horizontally
-      const lookTarget = new THREE.Vector3(targetObj.pos.x, this.group.position.y, targetObj.pos.z);
-      this.group.lookAt(lookTarget);
-
-      // AI Shooting logic (after 0.32s reaction time)
-      if (this.reactionTimer > 0.32) {
-        this.burstTimer += delta;
-
-        if (this.burstTimer > 0.14 && this.shotsInBurst < 3) {
-          this.burstTimer = 0;
-          this.shotsInBurst++;
-          this._botShoot(targetObj, particleSystem, onKillCallback);
-        } else if (this.burstTimer > 0.8) {
-          this.burstTimer = 0;
-          this.shotsInBurst = 0;
-        }
-      }
-    } else {
-      this.state = 'PATROL';
+    if (this.blindTimer > 0) {
+      // Blinded by Flashbang: do not fire, wander/stumble away slowly
+      this.blindTimer = Math.max(0, this.blindTimer - delta);
+      this.state = 'BLIND';
       this.currentTarget = null;
       this.reactionTimer = 0;
       this.shotsInBurst = 0;
       this.muzzleLight.intensity = 0;
 
-      // Patrol between waypoints with solid physics
-      const targetWaypoint = this.map.waypoints[this.currentWaypointIndex];
-      const moveVec = targetWaypoint.clone().sub(this.group.position);
-      moveVec.y = 0;
-
-      if (moveVec.length() < 1.6) {
-        this.currentWaypointIndex = (this.currentWaypointIndex + 1) % this.map.waypoints.length;
-      } else {
-        moveVec.normalize();
-        this._moveWithCollisions(delta, moveVec);
+      const stumbleDir = this.getForwardVector().negate();
+      stumbleDir.y = 0;
+      if (stumbleDir.lengthSq() > 0.001) {
+        stumbleDir.normalize();
+        this._moveWithCollisions(delta * 0.45, stumbleDir);
         isMoving = true;
+      }
+    } else {
+      // Look for enemy targets
+      const targetObj = this._findBestTarget(player, allBots, grenadeManager);
 
-        const lookTarget = new THREE.Vector3(
-          targetWaypoint.x,
-          this.group.position.y,
-          targetWaypoint.z
-        );
+      if (targetObj) {
+        this.state = 'ENGAGE';
+        this.currentTarget = targetObj;
+        this.reactionTimer += delta;
+
+        // Look smoothly at enemy target horizontally
+        const lookTarget = new THREE.Vector3(targetObj.pos.x, this.group.position.y, targetObj.pos.z);
         this.group.lookAt(lookTarget);
+
+        // AI Shooting logic (after 0.32s reaction time)
+        if (this.reactionTimer > 0.32) {
+          this.burstTimer += delta;
+
+          if (this.burstTimer > 0.14 && this.shotsInBurst < 3) {
+            this.burstTimer = 0;
+            this.shotsInBurst++;
+            this._botShoot(targetObj, particleSystem, onKillCallback, grenadeManager);
+          } else if (this.burstTimer > 0.8) {
+            this.burstTimer = 0;
+            this.shotsInBurst = 0;
+          }
+        }
+      } else {
+        this.state = 'PATROL';
+        this.currentTarget = null;
+        this.reactionTimer = 0;
+        this.shotsInBurst = 0;
+        this.muzzleLight.intensity = 0;
+
+        // Patrol between waypoints with solid physics
+        const targetWaypoint = this.map.waypoints[this.currentWaypointIndex];
+        const moveVec = targetWaypoint.clone().sub(this.group.position);
+        moveVec.y = 0;
+
+        if (moveVec.length() < 1.6) {
+          this.currentWaypointIndex = (this.currentWaypointIndex + 1) % this.map.waypoints.length;
+        } else {
+          moveVec.normalize();
+          this._moveWithCollisions(delta, moveVec);
+          isMoving = true;
+
+          const lookTarget = new THREE.Vector3(
+            targetWaypoint.x,
+            this.group.position.y,
+            targetWaypoint.z
+          );
+          this.group.lookAt(lookTarget);
+        }
       }
     }
 
@@ -500,7 +542,13 @@ export class Bot {
     }
   }
 
-  _botShoot(targetObj, particleSystem, onKillCallback) {
+  _botShoot(targetObj, particleSystem, onKillCallback, grenadeManager = null) {
+    const gunMuzzle = new THREE.Vector3();
+    this.gunMesh.getWorldPosition(gunMuzzle);
+    if (grenadeManager?.isLineBlockedBySmoke(gunMuzzle, targetObj.pos)) {
+      return;
+    }
+
     sounds.playBotShot();
 
     // Muzzle flash
@@ -508,9 +556,6 @@ export class Bot {
     setTimeout(() => {
       if (this.muzzleLight) this.muzzleLight.intensity = 0;
     }, 45);
-
-    const gunMuzzle = new THREE.Vector3();
-    this.gunMesh.getWorldPosition(gunMuzzle);
 
     // Bot accuracy deviation
     const spread = (Math.random() - 0.5) * 0.6;

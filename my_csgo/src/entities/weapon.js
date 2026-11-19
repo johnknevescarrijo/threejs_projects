@@ -2,8 +2,10 @@ import * as THREE from 'three';
 import { sounds } from '../audio/soundManager.js';
 import { WEAPONS, DEFAULT_LOADOUT } from '../config/weapons.js';
 import { getSprayVector } from '../combat/ballistics.js';
+import { UTILITY_ITEMS } from '../combat/tactical.js';
 
 const _ZERO_VEC = new THREE.Vector3(0, 0, 0);
+const _GRENADE_REST_POS = new THREE.Vector3(0.20, -0.22, -0.38);
 const _CAM_RIGHT = new THREE.Vector3();
 const _CAM_UP = new THREE.Vector3();
 const _CAM_FWD = new THREE.Vector3();
@@ -44,10 +46,14 @@ export class WeaponManager {
       };
     }
 
-    // Slot inventory
+    // Slot inventory & Slot 4 grenades
     this.slots = { ...DEFAULT_LOADOUT };
     this.activeSlot = 1;
     this.previousSlot = 2;
+    this.grenades = { he: 1, flash: 1, smoke: 1 };
+    this.activeGrenadeType = 'he';
+    this.grenadeMeshes = {};
+    this.grenadeThrowAnimTimer = 0;
 
     // Firing, reload, spray & scope state
     this.isReloading = false;
@@ -75,19 +81,62 @@ export class WeaponManager {
     this.meleeAnimTimer = 0;
     this.meleeIsAlt = false;
 
-    // Build all 14 procedural HD viewmodels
+    // Build all 14 procedural HD viewmodels + 3 grenade viewmodels
     this._buildAllWeaponMeshes();
+    this._buildGrenadeMeshes();
 
     // Hide everything except active slot weapon
     this._applyWeaponVisibility(this.currentWeaponKey);
   }
 
+  getTotalGrenades() {
+    return (this.grenades.he || 0) + (this.grenades.flash || 0) + (this.grenades.smoke || 0);
+  }
+
   get currentWeaponKey() {
+    if (this.activeSlot === 4) {
+      return `grenade_${this.activeGrenadeType}`;
+    }
     return this.slots[this.activeSlot];
   }
 
   get currentWeapon() {
-    return this.weapons[this.currentWeaponKey];
+    if (this.activeSlot === 4) {
+      const gCfg = UTILITY_ITEMS[this.activeGrenadeType] || UTILITY_ITEMS.he;
+      return {
+        id: `grenade_${this.activeGrenadeType}`,
+        name: gCfg.name,
+        shortName: gCfg.shortName,
+        slot: 4,
+        category: 'grenade',
+        isGrenade: true,
+        grenadeType: this.activeGrenadeType,
+        count: this.grenades[this.activeGrenadeType] || 0,
+        moveSpeed: 6.3,
+        isAutomatic: false,
+        isMelee: false,
+        isSniper: false,
+        isShotgun: false,
+        baseSpread: 0.002,
+        restY: -0.22,
+        restPos: _GRENADE_REST_POS,
+        mesh: this.grenadeMeshes[this.activeGrenadeType] || null
+      };
+    }
+
+    const key = this.slots[this.activeSlot];
+    if (key && this.weapons[key]) {
+      return this.weapons[key];
+    }
+
+    // Fallback safely to first available slot if current slot became empty
+    for (const s of [1, 2, 3]) {
+      if (this.slots[s] && this.weapons[this.slots[s]]) {
+        this.activeSlot = s;
+        return this.weapons[this.slots[s]];
+      }
+    }
+    return this.weapons.knife;
   }
 
   _generateWeaponTextures() {
@@ -975,11 +1024,84 @@ export class WeaponManager {
     this._finalizeWeaponMesh('knife', group, [-0.65, 0.35, 0.35]);
   }
 
+  _buildGrenadeMeshes() {
+    const types = ['he', 'flash', 'smoke'];
+    for (const type of types) {
+      const group = new THREE.Group();
+      group.name = `grenade_${type}`;
+
+      if (type === 'he') {
+        const body = new THREE.Mesh(
+          new THREE.SphereGeometry(0.044, 12, 10),
+          new THREE.MeshStandardMaterial({ color: 0x3b4d2b, roughness: 0.6, metalness: 0.3 })
+        );
+        body.scale.set(1, 1.2, 1);
+        group.add(body);
+        const band = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.045, 0.045, 0.015, 12),
+          new THREE.MeshStandardMaterial({ color: 0xeab308, roughness: 0.4, metalness: 0.2 })
+        );
+        group.add(band);
+      } else if (type === 'flash') {
+        const body = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.032, 0.032, 0.115, 12),
+          new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.35, metalness: 0.72 })
+        );
+        group.add(body);
+        const band = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.034, 0.034, 0.022, 12),
+          new THREE.MeshStandardMaterial({ color: 0x2563eb, roughness: 0.4, metalness: 0.2 })
+        );
+        band.position.y = 0.02;
+        group.add(band);
+      } else {
+        const body = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.034, 0.034, 0.125, 12),
+          new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.55, metalness: 0.35 })
+        );
+        group.add(body);
+        const band = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.036, 0.036, 0.024, 12),
+          new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.4, metalness: 0.1 })
+        );
+        band.position.y = 0.025;
+        group.add(band);
+      }
+
+      // Fuse cap, spoon & pull-ring
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.018, 0.024, 10), this.mats.darkMetal);
+      cap.position.y = 0.068;
+      group.add(cap);
+
+      const pinRing = new THREE.Mesh(new THREE.TorusGeometry(0.014, 0.0025, 6, 12), this.mats.chromeBolt);
+      pinRing.position.set(-0.018, 0.068, 0);
+      group.add(pinRing);
+
+      // Right forearm & gloved hand cradling the grenade
+      const rForearm = new THREE.Mesh(new THREE.CylinderGeometry(0.040, 0.046, 0.26, 10), this.mats.sleeve);
+      rForearm.rotation.set(-Math.PI / 3.2, 0, -0.2);
+      rForearm.position.set(0.05, -0.13, -0.13);
+      group.add(rForearm);
+
+      const rGlove = new THREE.Mesh(new THREE.BoxGeometry(0.052, 0.065, 0.056), this.mats.glove);
+      rGlove.position.set(0.01, -0.02, -0.01);
+      group.add(rGlove);
+
+      group.position.copy(_GRENADE_REST_POS);
+      group.rotation.set(0.15, -0.25, 0.1);
+      this.grenadeMeshes[type] = group;
+      this.weaponRoot.add(group);
+    }
+  }
+
   _applyWeaponVisibility(activeKey) {
     for (const [k, w] of Object.entries(this.weapons)) {
       if (w.mesh) {
         w.mesh.visible = (k === activeKey);
       }
+    }
+    for (const [type, mesh] of Object.entries(this.grenadeMeshes)) {
+      mesh.visible = (`grenade_${type}` === activeKey);
     }
   }
 
@@ -1012,7 +1134,58 @@ export class WeaponManager {
     return true;
   }
 
+  _getAvailableSlots() {
+    const available = [];
+    for (const s of [1, 2, 3]) {
+      if (this.slots[s] && this.weapons[this.slots[s]]) {
+        available.push(s);
+      }
+    }
+    if (this.getTotalGrenades() > 0) {
+      available.push(4);
+    }
+    return available;
+  }
+
+  _firstAvailableGrenadeType() {
+    for (const type of ['he', 'flash', 'smoke']) {
+      if ((this.grenades[type] || 0) > 0) return type;
+    }
+    return null;
+  }
+
   switchSlot(slotNumber) {
+    if (slotNumber === 4) {
+      if (this.getTotalGrenades() <= 0) return false;
+      const order = ['he', 'flash', 'smoke'].filter((t) => (this.grenades[t] || 0) > 0);
+      if (this.activeSlot === 4) {
+        if (order.length <= 1) return false;
+        const idx = order.indexOf(this.activeGrenadeType);
+        this.activeGrenadeType = order[(idx + 1) % order.length];
+      } else {
+        this.previousSlot = this.activeSlot;
+        this.activeSlot = 4;
+        if (!this.grenades[this.activeGrenadeType]) {
+          this.activeGrenadeType = order[0];
+        }
+      }
+
+      this.isReloading = false;
+      this.reloadProgress = 0;
+      this.autoReloadDelay = 0;
+      this.burstRemaining = 0;
+      this.shotCount = 0;
+      this.resetScope();
+
+      this._applyWeaponVisibility(this.currentWeaponKey);
+      sounds.playGrenadePin();
+      this.currentSpread = 0.002;
+      this.targetRecoilRot.set(0, 0, 0);
+      this.slideKick = 0;
+      this.drawAnimationY = -0.22;
+      return true;
+    }
+
     const key = this.slots[slotNumber];
     if (!key || !this.weapons[key]) return false;
     if (this.activeSlot === slotNumber && this.weapons[key].mesh?.visible) return false;
@@ -1037,6 +1210,114 @@ export class WeaponManager {
     return true;
   }
 
+  selectGrenade(type) {
+    if (!this.grenades[type] || this.grenades[type] <= 0) return false;
+    this.activeGrenadeType = type;
+    if (this.activeSlot !== 4) {
+      this.previousSlot = this.activeSlot;
+      this.activeSlot = 4;
+    }
+    this.isReloading = false;
+    this.burstRemaining = 0;
+    this.resetScope();
+    this._applyWeaponVisibility(this.currentWeaponKey);
+    sounds.playGrenadePin();
+    this.drawAnimationY = -0.22;
+    return true;
+  }
+
+  consumeActiveGrenade() {
+    if (this.activeSlot !== 4) return null;
+    const type = this.activeGrenadeType;
+    if (!this.grenades[type] || this.grenades[type] <= 0) return null;
+
+    this.grenades[type]--;
+    sounds.playGrenadeThrow();
+    this.grenadeThrowAnimTimer = 0.22;
+
+    if (this.grenades[type] <= 0) {
+      const nextG = this._firstAvailableGrenadeType();
+      if (nextG) {
+        this.activeGrenadeType = nextG;
+        this._applyWeaponVisibility(this.currentWeaponKey);
+        this.drawAnimationY = -0.18;
+      } else {
+        const available = this._getAvailableSlots();
+        const fallback = available.includes(this.previousSlot)
+          ? this.previousSlot
+          : (available[0] || 3);
+        this.switchSlot(fallback);
+      }
+    } else {
+      this.drawAnimationY = -0.18;
+    }
+
+    return type;
+  }
+
+  addGrenade(type, maxCarry = 1) {
+    if (!(type in this.grenades)) return false;
+    if (this.grenades[type] >= maxCarry) return false;
+    this.grenades[type]++;
+    return true;
+  }
+
+  dropActiveWeapon() {
+    if (this.activeSlot !== 1 && this.activeSlot !== 2) return null;
+    const weaponId = this.slots[this.activeSlot];
+    if (!weaponId || !this.weapons[weaponId]) return null;
+
+    const w = this.weapons[weaponId];
+    const dropped = {
+      weaponId,
+      spec: WEAPONS[weaponId],
+      currentAmmo: w.currentAmmo,
+      reserveAmmo: w.reserveAmmo
+    };
+
+    this.slots[this.activeSlot] = null;
+    this.isReloading = false;
+    this.reloadProgress = 0;
+    this.autoReloadDelay = 0;
+    this.burstRemaining = 0;
+    this.shotCount = 0;
+    this.resetScope();
+
+    const available = this._getAvailableSlots();
+    const nextSlot = available[0] || 3;
+    this.activeSlot = nextSlot;
+    this._applyWeaponVisibility(this.currentWeaponKey);
+    this.drawAnimationY = -0.22;
+
+    return dropped;
+  }
+
+  pickupWeapon(weaponId, currentAmmo, reserveAmmo, switchToIt = true) {
+    const w = this.weapons[weaponId];
+    if (!w || (w.slot !== 1 && w.slot !== 2)) return false;
+
+    w.currentAmmo = Math.max(0, Math.min(w.magSize, currentAmmo));
+    w.reserveAmmo = Math.max(0, reserveAmmo);
+    w.fireMode = w.isAutomatic ? 'auto' : 'semi';
+    this.slots[w.slot] = weaponId;
+
+    if (switchToIt) {
+      if (this.activeSlot !== w.slot) {
+        this.previousSlot = this.activeSlot;
+      }
+      this.activeSlot = w.slot;
+      this.isReloading = false;
+      this.reloadProgress = 0;
+      this.burstRemaining = 0;
+      this.shotCount = 0;
+      this.resetScope();
+      this._applyWeaponVisibility(weaponId);
+      this.currentSpread = w.baseSpread || 0.004;
+      this.drawAnimationY = -0.22;
+    }
+    return true;
+  }
+
   switchWeapon(weaponId) {
     const w = this.weapons[weaponId];
     if (!w) return false;
@@ -1047,18 +1328,28 @@ export class WeaponManager {
   }
 
   quickSwitch() {
-    if (this.previousSlot && this.previousSlot !== this.activeSlot && this.slots[this.previousSlot]) {
+    const available = this._getAvailableSlots();
+    if (available.length <= 1) return false;
+
+    if (
+      this.previousSlot &&
+      this.previousSlot !== this.activeSlot &&
+      available.includes(this.previousSlot)
+    ) {
       return this.switchSlot(this.previousSlot);
     }
-    const next = this.activeSlot === 1 ? 2 : 1;
-    return this.switchSlot(next);
+    const other = available.find((s) => s !== this.activeSlot);
+    return other ? this.switchSlot(other) : false;
   }
 
   cycleSlot(delta) {
-    const order = [1, 2, 3];
+    const order = this._getAvailableSlots();
+    if (order.length === 0) return false;
     const curIdx = order.indexOf(this.activeSlot);
+    const baseIdx = curIdx === -1 ? 0 : curIdx;
     const dir = delta >= 0 ? 1 : -1;
-    const nextIdx = (curIdx + dir + order.length) % order.length;
+    const nextIdx = (baseIdx + dir + order.length) % order.length;
+    if (order[nextIdx] === this.activeSlot) return false;
     return this.switchSlot(order[nextIdx]);
   }
 
@@ -1130,7 +1421,7 @@ export class WeaponManager {
 
   canShoot() {
     const w = this.currentWeapon;
-    if (w.isMelee) return false;
+    if (w.isMelee || w.isGrenade) return false;
     return (
       !this.isReloading &&
       this.burstCooldownTimer <= 0 &&
@@ -1140,7 +1431,7 @@ export class WeaponManager {
 
   shoot(playerMovementSpeed = 0, isCrouching = false, inAir = false, isBurstFollowup = false) {
     const w = this.currentWeapon;
-    if (w.isMelee || this.isReloading) return null;
+    if (w.isMelee || w.isGrenade || this.isReloading) return null;
 
     if (w.currentAmmo <= 0) {
       if (w.reserveAmmo > 0) {
@@ -1257,7 +1548,7 @@ export class WeaponManager {
 
   reload() {
     const w = this.currentWeapon;
-    if (w.isMelee || this.isReloading || w.currentAmmo === w.magSize || w.reserveAmmo <= 0) return;
+    if (w.isMelee || w.isGrenade || this.isReloading || w.currentAmmo === w.magSize || w.reserveAmmo <= 0) return;
 
     this.resetScope();
     this.burstRemaining = 0;
@@ -1300,8 +1591,12 @@ export class WeaponManager {
     const mesh = w.mesh;
     if (!mesh) return;
 
+    if (this.grenadeThrowAnimTimer > 0) {
+      this.grenadeThrowAnimTimer = Math.max(0, this.grenadeThrowAnimTimer - delta);
+    }
+
     // Auto-reload check
-    if (this.autoReloadDelay > 0) {
+    if (!w.isMelee && !w.isGrenade && this.autoReloadDelay > 0) {
       this.autoReloadDelay -= delta;
       if (this.autoReloadDelay <= 0 && !this.isReloading && w.currentAmmo === 0 && w.reserveAmmo > 0) {
         this.reload();
@@ -1401,7 +1696,7 @@ export class WeaponManager {
         this.isReloading = false;
         this.reloadProgress = 0;
       }
-    } else if (!w.isMelee) {
+    } else if (!w.isMelee && !w.isGrenade) {
       const targetY = w.restY + this.drawAnimationY;
       mesh.position.y = THREE.MathUtils.lerp(mesh.position.y, targetY, delta * 12);
       mesh.rotation.z = THREE.MathUtils.lerp(mesh.rotation.z, 0, delta * 12);
