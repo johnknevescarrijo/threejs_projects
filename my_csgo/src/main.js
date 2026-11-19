@@ -6,13 +6,23 @@ import { DecalManager } from './world/decals.js';
 import { WeaponManager } from './entities/weapon.js';
 import { Player } from './entities/player.js';
 import { Bot } from './entities/bot.js';
+import { GrenadeManager } from './entities/grenades.js';
+import { DroppedWeaponManager } from './entities/droppedWeapons.js';
 import { HUD } from './ui/hud.js';
+import { WEAPONS } from './config/weapons.js';
 import {
   computeBulletDamage,
   generatePelletOffsets,
   classifySurfacePenetration,
   isBackstab
 } from './combat/ballistics.js';
+import {
+  UTILITY_ITEMS,
+  createEconomyState,
+  awardKill,
+  applyRespawnFloor,
+  purchaseItem
+} from './combat/tactical.js';
 
 class Game {
   constructor() {
@@ -50,15 +60,25 @@ class Game {
     this.decals = new DecalManager(this.scene);
     this.weapons = new WeaponManager(this.camera, this.viewmodelCamera, this.particles, this.decals);
     this.player = new Player(this.camera, this.renderer.domElement, this.map);
+    this.grenades = new GrenadeManager(this.scene, this.map);
+    this.droppedWeapons = new DroppedWeaponManager(this.scene, this.map);
     this.hud = new HUD();
 
-    // 3. Bots & Teams
+    // 3. Economy, Flash & Match State
+    this.economy = createEconomyState(false);
+    this.flashIntensity = 0;
+    this.flashPeakIntensity = 0;
+    this.flashTimer = 0;
+    this.flashMaxDuration = 1;
+    this.wasPlayerAlive = true;
+
+    // 4. Bots & Teams
     this.bots = [];
     this.scoreCT = 0;
     this.scoreT = 0;
     this._spawnBots();
 
-    // 4. Timing & State
+    // 5. Timing & State
     this.clock = new THREE.Clock();
     this.elapsedTime = 0;
     this.isGameRunning = false;
@@ -84,6 +104,85 @@ class Game {
     });
   }
 
+  _refreshArsenalMenu() {
+    this.hud.renderArsenalMenu(this.weapons, this.economy, this.player.armor, {
+      onSelectWeapon: (weaponId) => this._handleBuyWeapon(weaponId),
+      onBuyUtility: (utilityId) => this._handleBuyUtility(utilityId),
+      onToggleSandbox: () => {
+        this.economy.sandboxFree = !this.economy.sandboxFree;
+        sounds.playWeaponSwitch();
+        this._refreshArsenalMenu();
+      }
+    });
+  }
+
+  _handleBuyWeapon(weaponId) {
+    const w = WEAPONS[weaponId];
+    if (!w) return;
+
+    // If already equipped in that slot, just switch to it without charging again
+    if (this.weapons.slots[w.slot] === weaponId) {
+      this.weapons.switchSlot(w.slot);
+      this._toggleArsenal(false);
+      return;
+    }
+
+    const res = purchaseItem(this.economy, w.price);
+    if (!res.ok) {
+      sounds.playBuyError();
+      return;
+    }
+
+    // Drop previously held weapon from that slot on the floor
+    const oldId = this.weapons.slots[w.slot];
+    if (oldId && this.weapons.weapons[oldId]) {
+      const oldState = this.weapons.weapons[oldId];
+      const forward = new THREE.Vector3();
+      this.camera.getWorldDirection(forward);
+      const dropOrigin = this.camera.position.clone().addScaledVector(forward, 0.5).add(new THREE.Vector3(0, -0.35, 0));
+      this.droppedWeapons.dropWeapon(WEAPONS[oldId], oldState.currentAmmo, oldState.reserveAmmo, dropOrigin, forward);
+    }
+
+    this.weapons.equipWeapon(weaponId);
+    sounds.playBuy();
+    this._toggleArsenal(false);
+  }
+
+  _handleBuyUtility(utilityId) {
+    const item = UTILITY_ITEMS[utilityId];
+    if (!item) return;
+
+    if (item.type === 'armor') {
+      if (this.player.armor >= 100) {
+        sounds.playBuyError();
+        return;
+      }
+      const price = this.player.armor > 0 ? item.repairPrice : item.price;
+      const res = purchaseItem(this.economy, price);
+      if (!res.ok) {
+        sounds.playBuyError();
+        return;
+      }
+      this.player.armor = 100;
+      sounds.playBuy();
+    } else {
+      const currentCount = this.weapons.grenades[item.id] || 0;
+      if (currentCount >= item.maxCarry) {
+        sounds.playBuyError();
+        return;
+      }
+      const res = purchaseItem(this.economy, item.price);
+      if (!res.ok) {
+        sounds.playBuyError();
+        return;
+      }
+      this.weapons.addGrenade(item.id, item.maxCarry);
+      sounds.playBuy();
+    }
+
+    this._refreshArsenalMenu();
+  }
+
   _toggleArsenal(forceState = null) {
     if (!this.isGameRunning) return;
     const nextOpen = forceState !== null ? forceState : !this.hud.isArsenalOpen;
@@ -91,10 +190,7 @@ class Game {
     if (nextOpen) {
       this.player.isShooting = false;
       this.weapons.resetScope();
-      this.hud.renderArsenalMenu(this.weapons, (weaponId) => {
-        this.weapons.equipWeapon(weaponId);
-        this._toggleArsenal(false);
-      });
+      this._refreshArsenalMenu();
       this.hud.setArsenalOpen(true);
       if (document.pointerLockElement === this.renderer.domElement) {
         document.exitPointerLock();
@@ -103,6 +199,74 @@ class Game {
       this.hud.setArsenalOpen(false);
       this.renderer.domElement.requestPointerLock();
     }
+  }
+
+  _throwActiveGrenade(isUnderhand = false) {
+    const curW = this.weapons.currentWeapon;
+    if (!curW.isGrenade) return;
+
+    const dir = new THREE.Vector3();
+    this.camera.getWorldDirection(dir);
+    const origin = this.camera.position.clone()
+      .addScaledVector(dir, 0.55)
+      .add(new THREE.Vector3(0, -0.1, 0));
+
+    const type = this.weapons.consumeActiveGrenade();
+    if (!type) return;
+
+    this.grenades.throwGrenade(type, origin, dir, this.player.velocity, isUnderhand);
+  }
+
+  _handleDropWeapon() {
+    if (!this.player.isAlive || this.hud.isArsenalOpen) return;
+    const dropped = this.weapons.dropActiveWeapon();
+    if (!dropped) return;
+
+    const forward = new THREE.Vector3();
+    this.camera.getWorldDirection(forward);
+    const origin = this.camera.position.clone()
+      .addScaledVector(forward, 0.6)
+      .add(new THREE.Vector3(0, -0.35, 0));
+
+    this.droppedWeapons.dropWeapon(
+      dropped.spec,
+      dropped.currentAmmo,
+      dropped.reserveAmmo,
+      origin,
+      forward
+    );
+    sounds.playWeaponSwitch();
+  }
+
+  _handlePickupInteract() {
+    if (!this.player.isAlive || this.hud.isArsenalOpen) return;
+    const target = this.droppedWeapons.findInteractTarget(this.player.camera.position, this.camera);
+    if (!target) return;
+
+    const slot = target.weaponSpec.slot;
+    const existingId = this.weapons.slots[slot];
+
+    // If holding a weapon in that slot, drop it on the ground first
+    if (existingId && this.weapons.weapons[existingId]) {
+      const existingState = this.weapons.weapons[existingId];
+      const forward = new THREE.Vector3();
+      this.camera.getWorldDirection(forward);
+      const origin = this.camera.position.clone()
+        .addScaledVector(forward, 0.5)
+        .add(new THREE.Vector3(0, -0.35, 0));
+
+      this.droppedWeapons.dropWeapon(
+        WEAPONS[existingId],
+        existingState.currentAmmo,
+        existingState.reserveAmmo,
+        origin,
+        forward
+      );
+    }
+
+    this.weapons.pickupWeapon(target.weaponId, target.currentAmmo, target.reserveAmmo, true);
+    this.droppedWeapons.removeDropped(target);
+    sounds.playPickup();
   }
 
   _setupEvents() {
@@ -116,7 +280,7 @@ class Game {
       this.renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
-    // Prevent browser context menu on right-click (scope / burst / knife stab)
+    // Prevent browser context menu on right-click (scope / burst / knife stab / underhand throw)
     window.addEventListener('contextmenu', (e) => {
       e.preventDefault();
     });
@@ -127,7 +291,9 @@ class Game {
         return;
       }
       const curW = this.weapons.currentWeapon;
-      if (curW.isMelee) {
+      if (curW.isGrenade) {
+        this._throwActiveGrenade(true);
+      } else if (curW.isMelee) {
         this._handleMeleeAttack(true);
       } else if (curW.isSniper) {
         this.weapons.cycleScope();
@@ -136,7 +302,7 @@ class Game {
       }
     });
 
-    // Weapon hotkeys, quick-switch, reload & Arsenal menu
+    // Weapon hotkeys, grenades, drop, pickup, quick-switch, reload & Buy Menu
     window.addEventListener('keydown', (e) => {
       if (!this.isGameRunning) return;
 
@@ -156,14 +322,20 @@ class Game {
         this.weapons.switchSlot(2);
       } else if (e.code === 'Digit3') {
         this.weapons.switchSlot(3);
+      } else if (e.code === 'Digit4') {
+        this.weapons.switchSlot(4);
       } else if (e.code === 'KeyQ') {
         this.weapons.quickSwitch();
       } else if (e.code === 'KeyR') {
         this.weapons.reload();
+      } else if (e.code === 'KeyG') {
+        this._handleDropWeapon();
+      } else if (e.code === 'KeyE') {
+        this._handlePickupInteract();
       }
     });
 
-    // Mouse scroll cycles slots 1 -> 2 -> 3
+    // Mouse scroll cycles available slots
     window.addEventListener('wheel', (e) => {
       if (!this.isGameRunning || this.hud.isArsenalOpen) return;
       this.weapons.cycleSlot(e.deltaY > 0 ? 1 : -1);
@@ -195,6 +367,22 @@ class Game {
         this.renderer.domElement.requestPointerLock();
       }
     });
+  }
+
+  _onEnemyBotKilled(bot, weaponSpec, weaponLabel, isHeadshot) {
+    this.player.kills++;
+    this.scoreCT++;
+    this.hud.addKillfeedEntry('Player', weaponLabel, bot.name, isHeadshot, 'CT', 'T');
+    awardKill(this.economy, weaponSpec, isHeadshot);
+
+    // Drop dead bot's weapon on the ground
+    const botWeapon = WEAPONS[bot.weaponId];
+    if (botWeapon) {
+      const dropOrigin = bot.group.position.clone().add(new THREE.Vector3(0, 0.9, 0));
+      const dropDir = bot.getForwardVector();
+      const magAmmo = Math.max(1, Math.floor(botWeapon.magSize * 0.7));
+      this.droppedWeapons.dropWeapon(botWeapon, magAmmo, botWeapon.maxReserve, dropOrigin, dropDir);
+    }
   }
 
   _handleMeleeAttack(isAlt) {
@@ -234,9 +422,7 @@ class Game {
 
       const wasKilled = bot.takeDamage(finalDamage, backstab, 0);
       if (wasKilled) {
-        this.player.kills++;
-        this.scoreCT++;
-        this.hud.addKillfeedEntry('Player', melee.weaponName, bot.name, backstab, 'CT', 'T');
+        this._onEnemyBotKilled(bot, WEAPONS.knife, melee.weaponName, backstab);
       }
     } else if (closestWorld) {
       sounds.playKnifeHit(isAlt, false);
@@ -260,7 +446,6 @@ class Game {
     const botIntersects = raycaster.intersectObjects(allBotHitboxes, false);
     const worldIntersects = raycaster.intersectObjects(this.map.raycastMeshes, false);
 
-    // Merge and sort all ray hits by distance for wallbang traversal
     const hits = [];
     for (const h of botIntersects) {
       hits.push({ kind: 'bot', hit: h, distance: h.distance });
@@ -303,7 +488,6 @@ class Game {
         finalHitPoint = hit.point;
 
         if (bot.team === 'CT') {
-          // Friendly fire protection
           sounds.playHitmarker();
           break;
         }
@@ -334,12 +518,9 @@ class Game {
 
         const wasKilled = bot.takeDamage(healthDamage, isHeadshot, armorDamage);
         if (wasKilled) {
-          this.player.kills++;
-          this.scoreCT++;
-          this.hud.addKillfeedEntry('Player', shotInfo.weaponName, bot.name, isHeadshot, 'CT', 'T');
+          this._onEnemyBotKilled(bot, shotInfo.weapon, shotInfo.weaponName, isHeadshot);
         }
 
-        // High-caliber rounds can collateral through a target with reduced damage
         penetrationScale *= 0.55 * (shotInfo.wallbang || 0.4);
         if (penetrationScale < 0.15) {
           break;
@@ -380,6 +561,13 @@ class Game {
 
     const curW = this.weapons.currentWeapon;
 
+    // Throw grenade on LMB without firing previous gun
+    if (curW.isGrenade) {
+      this.player.isShooting = false;
+      this._throwActiveGrenade(false);
+      return;
+    }
+
     // Melee primary slash
     if (curW.isMelee) {
       this._handleMeleeAttack(false);
@@ -415,13 +603,22 @@ class Game {
         const sensitivityScale = this.camera.fov / 75;
         const weaponMoveSpeed = this.weapons.getActiveMoveSpeed();
 
-        // 2. Update Player & Shooting (clear sniper scope & pending burst if dead)
+        // 2. Update Player, Respawn Economy Floor, Death Cleanup & Shooting
         this.player.update(delta, weaponMoveSpeed, sensitivityScale);
+
+        if (!this.wasPlayerAlive && this.player.isAlive) {
+          applyRespawnFloor(this.economy);
+        }
+        this.wasPlayerAlive = this.player.isAlive;
+
         if (!this.player.isAlive) {
           if (this.weapons.scopeLevel > 0) {
             this.weapons.resetScope();
           }
           this.weapons.burstRemaining = 0;
+          this.flashTimer = 0;
+          this.flashPeakIntensity = 0;
+          this.flashIntensity = 0;
         }
         this._handlePlayerShooting();
 
@@ -436,23 +633,76 @@ class Game {
           (burstShotInfo) => this._fireShotInfo(burstShotInfo)
         );
 
-        // 4. Update Bots (CT allies and T enemies)
-        this.bots.forEach((bot) => {
-          bot.update(delta, this.player, this.bots, this.particles, (killer, weapon, victim, isHS, killerTeam, victimTeam) => {
-            if (killerTeam === 'CT') {
-              this.scoreCT++;
-            } else {
-              this.scoreT++;
+        // 4. Update Grenades (HE, Flashbang, Smoke)
+        this.grenades.update(delta, this.player, this.bots, {
+          onPlayerFlash: (intensity, duration) => {
+            if (intensity > this.flashIntensity || this.flashTimer <= 0) {
+              this.flashPeakIntensity = intensity;
+              this.flashIntensity = intensity;
+              this.flashTimer = duration;
+              this.flashMaxDuration = Math.max(0.2, duration);
             }
-            this.hud.addKillfeedEntry(killer, weapon, victim, isHS, killerTeam, victimTeam);
-          });
+          },
+          onBotKilledByGrenade: (bot, weaponLabel) => {
+            this._onEnemyBotKilled(bot, { id: 'he', category: 'grenade' }, weaponLabel, false);
+          }
         });
 
-        // 5. Update Particle Systems
+        // Decay player Flashbang whiteout smoothly with real delta
+        if (this.flashTimer > 0) {
+          this.flashTimer = Math.max(0, this.flashTimer - delta);
+          const ratio = this.flashTimer / this.flashMaxDuration;
+          this.flashIntensity = Math.pow(ratio, 0.75) * this.flashPeakIntensity;
+          if (this.flashTimer <= 0) {
+            this.flashIntensity = 0;
+            this.flashPeakIntensity = 0;
+          }
+        }
+
+        // 5. Update Dropped Weapons, Auto-Pickup & [E] Prompt
+        this.droppedWeapons.update(delta, this.player.camera.position);
+        let pickupTarget = null;
+        if (this.player.isAlive) {
+          const emptySlots = [1, 2].filter((s) => !this.weapons.slots[s]);
+          if (emptySlots.length > 0) {
+            const autoItem = this.droppedWeapons.findAutoPickup(this.player.camera.position, emptySlots);
+            if (autoItem) {
+              this.weapons.pickupWeapon(autoItem.weaponId, autoItem.currentAmmo, autoItem.reserveAmmo, false);
+              this.droppedWeapons.removeDropped(autoItem);
+              sounds.playPickup();
+            }
+          }
+          pickupTarget = this.droppedWeapons.findInteractTarget(this.player.camera.position, this.camera);
+        }
+
+        // 6. Update Bots (with Smoke & Flashbang support)
+        this.bots.forEach((bot) => {
+          bot.update(
+            delta,
+            this.player,
+            this.bots,
+            this.particles,
+            (killer, weapon, victim, isHS, killerTeam, victimTeam) => {
+              if (killerTeam === 'CT') {
+                this.scoreCT++;
+              } else {
+                this.scoreT++;
+              }
+              this.hud.addKillfeedEntry(killer, weapon, victim, isHS, killerTeam, victimTeam);
+            },
+            this.grenades
+          );
+        });
+
+        // 7. Update Particle Systems
         this.particles.update(delta);
 
-        // 6. Update HUD with real delta
-        this.hud.update(delta, this.player, this.weapons, this.elapsedTime, this.scoreCT, this.scoreT);
+        // 8. Update HUD with economy, flash & pickup prompt
+        this.hud.update(delta, this.player, this.weapons, this.elapsedTime, this.scoreCT, this.scoreT, {
+          economy: this.economy,
+          flashIntensity: this.flashIntensity,
+          pickupTarget
+        });
       }
 
       // 2-Pass Anti-Clipping Render: World first, clear depth, Viewmodel on top

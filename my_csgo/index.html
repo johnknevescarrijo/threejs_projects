@@ -12,6 +12,12 @@
   <!-- Damage Blood Vignette -->
   <div id="damage-overlay"></div>
 
+  <!-- Flashbang Whiteout Overlay -->
+  <div id="flash-overlay"></div>
+
+  <!-- Pickup Weapon Prompt -->
+  <div id="pickup-prompt" style="display: none;"></div>
+
   <!-- Sniper Scope Overlay -->
   <div id="sniper-scope">
     <div class="scope-lens">
@@ -59,8 +65,16 @@
   <!-- Killfeed -->
   <div id="killfeed"></div>
 
-  <!-- Bottom Left HUD (Health & Armor) -->
+  <!-- Bottom Left HUD (Money, Health & Armor) -->
   <div id="bottom-left-hud">
+    <div class="stat-card money">
+      <div class="stat-header">
+        <span class="stat-icon">💵</span>
+        <span class="score-label">CASH</span>
+      </div>
+      <div id="money-val" class="stat-val">$5,000</div>
+    </div>
+
     <div class="stat-card">
       <div class="stat-header">
         <span class="stat-icon">➕</span>
@@ -90,7 +104,8 @@
       <div id="weapon-slot-1" class="weapon-slot-pill active">[1] AK-47</div>
       <div id="weapon-slot-2" class="weapon-slot-pill">[2] DEAGLE</div>
       <div id="weapon-slot-3" class="weapon-slot-pill">[3] FACA</div>
-      <div id="arsenal-hint-pill" class="arsenal-hint-pill">[B] ARSENAL</div>
+      <div id="weapon-slot-4" class="weapon-slot-pill">[4] HE • 1/1/1</div>
+      <div id="arsenal-hint-pill" class="arsenal-hint-pill">[B] BUY MENU</div>
     </div>
 
     <div class="ammo-card">
@@ -106,15 +121,18 @@
     </div>
   </div>
 
-  <!-- Tactical Arsenal Menu (Key B) -->
+  <!-- Tactical Arsenal / Buy Menu (Key B) -->
   <div id="arsenal-menu" class="overlay-screen arsenal-overlay" style="display: none;">
     <div class="arsenal-modal">
       <div class="arsenal-header">
         <div>
-          <h2 class="arsenal-title">ARSENAL TÁTICO</h2>
-          <p class="arsenal-subtitle">Clique em qualquer arma para equipar imediatamente no Slot 1 ou Slot 2</p>
+          <h2 class="arsenal-title">BUY MENU / ARSENAL TÁTICO</h2>
+          <p class="arsenal-subtitle">Saldo disponível: <strong id="arsenal-money-val" class="arsenal-money-highlight">$5,000</strong> • Clique para comprar e equipar</p>
         </div>
-        <button id="btn-close-arsenal" class="btn-arsenal-close">FECHAR [B]</button>
+        <div class="arsenal-header-actions">
+          <button id="btn-sandbox-toggle" type="button" class="btn-sandbox-toggle">Modo Treino (Grátis: OFF)</button>
+          <button id="btn-close-arsenal" type="button" class="btn-arsenal-close">FECHAR [B]</button>
+        </div>
       </div>
       <div id="arsenal-categories" class="arsenal-categories"></div>
     </div>
@@ -124,21 +142,21 @@
   <div id="start-screen" class="overlay-screen">
     <div class="modal-box">
       <h1 class="modal-title">CS:GO Web Clone</h1>
-      <p class="modal-subtitle">Dust II Mini • 14 Armas & Balística CS • CT vs T (Bots Aliados & Inimigos)</p>
+      <p class="modal-subtitle">Dust II Mini • 14 Armas, Granadas Táticas & Economia • CT vs T</p>
 
       <div class="controls-grid">
         <div class="control-item"><span class="control-key">W A S D</span> Movimento</div>
         <div class="control-item"><span class="control-key">MOUSE</span> Olhar / Mirar</div>
-        <div class="control-item"><span class="control-key">CLICK ESQ</span> Atirar / Corte</div>
-        <div class="control-item"><span class="control-key">CLICK DIR</span> Scope / Burst / Facada</div>
+        <div class="control-item"><span class="control-key">CLICK ESQ</span> Atirar / Arremesso Forte</div>
+        <div class="control-item"><span class="control-key">CLICK DIR</span> Scope / Burst / Arremesso Curto</div>
         <div class="control-item"><span class="control-key">1 / 2 / 3</span> Primária / Pistola / Faca</div>
-        <div class="control-item"><span class="control-key">Q</span> Quick-Switch</div>
-        <div class="control-item"><span class="control-key">B</span> Menu de Arsenal</div>
-        <div class="control-item"><span class="control-key">R</span> Recarregar</div>
+        <div class="control-item"><span class="control-key">4</span> Granadas (HE / Flash / Smoke)</div>
+        <div class="control-item"><span class="control-key">G / E</span> Dropar / Pegar Arma</div>
+        <div class="control-item"><span class="control-key">B</span> Buy Menu (Economia)</div>
+        <div class="control-item"><span class="control-key">Q / R</span> Quick-Switch / Recarregar</div>
         <div class="control-item"><span class="control-key">ESPAÇO</span> Pular</div>
         <div class="control-item"><span class="control-key">CTRL / C</span> Agachar</div>
         <div class="control-item"><span class="control-key">SHIFT</span> Andar (Silencioso)</div>
-        <div class="control-item"><span class="control-key">ESC</span> Pausar Cursor</div>
       </div>
 
       <button id="btn-start" class="btn-primary">JOGAR AGORA</button>

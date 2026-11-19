@@ -1,8 +1,10 @@
 import { WEAPONS, WEAPON_ORDER_BY_CATEGORY, CATEGORY_LABELS } from '../config/weapons.js';
+import { UTILITY_ITEMS } from '../combat/tactical.js';
 
 export class HUD {
   constructor() {
     this.dom = {
+      moneyVal: document.getElementById('money-val'),
       healthVal: document.getElementById('health-val'),
       healthBar: document.getElementById('health-bar-fill'),
       armorVal: document.getElementById('armor-val'),
@@ -14,9 +16,12 @@ export class HUD {
       slot1: document.getElementById('weapon-slot-1'),
       slot2: document.getElementById('weapon-slot-2'),
       slot3: document.getElementById('weapon-slot-3'),
+      slot4: document.getElementById('weapon-slot-4'),
       killfeed: document.getElementById('killfeed'),
       hitmarker: document.getElementById('hitmarker'),
       damageOverlay: document.getElementById('damage-overlay'),
+      flashOverlay: document.getElementById('flash-overlay'),
+      pickupPrompt: document.getElementById('pickup-prompt'),
       crosshair: document.getElementById('crosshair-container'),
       crossTop: document.getElementById('ch-top'),
       crossBottom: document.getElementById('ch-bottom'),
@@ -25,6 +30,8 @@ export class HUD {
       sniperScope: document.getElementById('sniper-scope'),
       scopeZoomBadge: document.getElementById('scope-zoom-badge'),
       arsenalMenu: document.getElementById('arsenal-menu'),
+      arsenalMoneyVal: document.getElementById('arsenal-money-val'),
+      btnSandboxToggle: document.getElementById('btn-sandbox-toggle'),
       arsenalCategories: document.getElementById('arsenal-categories'),
       scoreCT: document.getElementById('score-ct'),
       scoreT: document.getElementById('score-t'),
@@ -40,6 +47,10 @@ export class HUD {
     this.damageOverlayTimer = 0;
     this.lastHealth = 100;
     this.isArsenalOpen = false;
+  }
+
+  _formatMoney(val) {
+    return `$${Math.max(0, Math.floor(val)).toLocaleString('en-US')}`;
   }
 
   showHitmarker(isHeadshot = false) {
@@ -86,12 +97,30 @@ export class HUD {
     }, 4500);
   }
 
-  renderArsenalMenu(weaponManager, onSelectWeapon) {
+  renderArsenalMenu(weaponManager, economy, playerArmor, callbacks = {}) {
     if (!this.dom.arsenalCategories) return;
     this.dom.arsenalCategories.innerHTML = '';
 
+    const { onSelectWeapon, onBuyUtility, onToggleSandbox } = callbacks;
+
+    if (this.dom.arsenalMoneyVal) {
+      this.dom.arsenalMoneyVal.textContent = economy?.sandboxFree
+        ? `${this._formatMoney(economy.money)} (GRÁTIS)`
+        : this._formatMoney(economy?.money ?? 0);
+    }
+
+    if (this.dom.btnSandboxToggle) {
+      const isFree = Boolean(economy?.sandboxFree);
+      this.dom.btnSandboxToggle.textContent = `Modo Treino (Grátis: ${isFree ? 'ON' : 'OFF'})`;
+      this.dom.btnSandboxToggle.classList.toggle('active', isFree);
+      this.dom.btnSandboxToggle.onclick = () => {
+        if (onToggleSandbox) onToggleSandbox();
+      };
+    }
+
     const buyCategories = ['pistols', 'smgs', 'shotguns', 'rifles', 'snipers'];
-    const equippedIds = new Set(Object.values(weaponManager.slots));
+    const equippedIds = new Set(Object.values(weaponManager.slots).filter(Boolean));
+    const canAfford = (price) => Boolean(economy?.sandboxFree) || (economy?.money ?? 0) >= price;
 
     for (const catKey of buyCategories) {
       const ids = WEAPON_ORDER_BY_CATEGORY[catKey] || [];
@@ -107,9 +136,12 @@ export class HUD {
         const w = WEAPONS[id];
         if (!w) continue;
 
+        const isEquipped = equippedIds.has(id);
+        const affordable = canAfford(w.price);
+
         const card = document.createElement('button');
         card.type = 'button';
-        card.className = `arsenal-card${equippedIds.has(id) ? ' equipped' : ''}`;
+        card.className = `arsenal-card${isEquipped ? ' equipped' : ''}${!affordable && !isEquipped ? ' unaffordable' : ''}`;
 
         const teamLabel = w.team === 'BOTH' ? 'CT/T' : w.team;
         const teamClass = w.team === 'CT' ? 'ct' : (w.team === 'T' ? 't' : '');
@@ -117,11 +149,16 @@ export class HUD {
         const dmgPct = Math.min(100, Math.round(((w.isShotgun ? w.damage * 4 : w.damage) / 115) * 100));
         const rpmPct = Math.min(100, Math.round((w.rpm / 900) * 100));
         const mobPct = Math.min(100, Math.round((w.moveSpeed / 6.5) * 100));
+        const priceText = economy?.sandboxFree ? 'GRÁTIS' : this._formatMoney(w.price);
 
         card.innerHTML = `
           <div class="arsenal-card-top">
             <span class="arsenal-card-name">${w.name}</span>
+            <span class="arsenal-card-price">${priceText}</span>
+          </div>
+          <div class="arsenal-stat-row">
             <span class="arsenal-card-tag ${teamClass}">${teamLabel} • Slot ${w.slot}</span>
+            <span>Pente ${w.magSize}/${w.maxReserve}</span>
           </div>
           <div class="arsenal-stat-row">
             <span>Dano ${w.isShotgun ? `${w.pellets}×${w.damage}` : w.damage}</span>
@@ -132,17 +169,13 @@ export class HUD {
             <div class="stat-mini-track"><div class="stat-mini-fill" style="width:${rpmPct}%"></div></div>
           </div>
           <div class="arsenal-stat-row">
-            <span>Pente ${w.magSize}/${w.maxReserve}</span>
             <span>Mob ${w.moveSpeed.toFixed(1)}</span>
-          </div>
-          <div class="arsenal-stat-row">
-            <span>Mobilidade</span>
             <div class="stat-mini-track"><div class="stat-mini-fill" style="width:${mobPct}%"></div></div>
           </div>
         `;
 
         card.addEventListener('click', () => {
-          onSelectWeapon(id);
+          if (onSelectWeapon) onSelectWeapon(id);
         });
 
         col.appendChild(card);
@@ -150,6 +183,66 @@ export class HUD {
 
       this.dom.arsenalCategories.appendChild(col);
     }
+
+    // Equipamento & Granadas Column
+    const utilCol = document.createElement('div');
+    utilCol.className = 'arsenal-category-col';
+    const utilTitle = document.createElement('div');
+    utilTitle.className = 'arsenal-cat-title';
+    utilTitle.textContent = 'Equipamento & Granadas';
+    utilCol.appendChild(utilTitle);
+
+    const utilityOrder = ['he', 'flash', 'smoke', 'kevlar'];
+    for (const uId of utilityOrder) {
+      const item = UTILITY_ITEMS[uId];
+      if (!item) continue;
+
+      let price = item.price;
+      let isMaxed = false;
+      let ownedText = '';
+
+      if (item.type === 'armor') {
+        if (playerArmor >= 100) {
+          isMaxed = true;
+          ownedText = '100 / 100';
+        } else if (playerArmor > 0) {
+          price = item.repairPrice;
+          ownedText = `Reparar (${playerArmor} → 100)`;
+        } else {
+          ownedText = 'Colete + Capacete';
+        }
+      } else {
+        const count = weaponManager.grenades[item.id] || 0;
+        isMaxed = count >= item.maxCarry;
+        ownedText = `${count} / ${item.maxCarry}`;
+      }
+
+      const affordable = canAfford(price);
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = `arsenal-card${isMaxed ? ' maxed' : ''}${!affordable && !isMaxed ? ' unaffordable' : ''}`;
+
+      const priceText = isMaxed ? 'MÁX' : (economy?.sandboxFree ? 'GRÁTIS' : this._formatMoney(price));
+
+      card.innerHTML = `
+        <div class="arsenal-card-top">
+          <span class="arsenal-card-name">${item.name}</span>
+          <span class="arsenal-card-price">${priceText}</span>
+        </div>
+        <div class="arsenal-stat-row">
+          <span class="arsenal-card-tag">${item.type === 'armor' ? 'PROTEÇÃO' : 'SLOT 4'}</span>
+          <span>${ownedText}</span>
+        </div>
+      `;
+
+      card.addEventListener('click', () => {
+        if (onBuyUtility) onBuyUtility(item.id);
+      });
+
+      utilCol.appendChild(card);
+    }
+
+    this.dom.arsenalCategories.appendChild(utilCol);
   }
 
   setArsenalOpen(isOpen) {
@@ -159,8 +252,15 @@ export class HUD {
     }
   }
 
-  update(delta, player, weaponManager, elapsedTime, scoreCT = 0, scoreT = 0) {
-    // 1. Health & Armor
+  update(delta, player, weaponManager, elapsedTime, scoreCT = 0, scoreT = 0, extras = {}) {
+    const { economy = null, flashIntensity = 0, pickupTarget = null } = extras;
+
+    // 1. Money, Health & Armor
+    if (this.dom.moneyVal && economy) {
+      this.dom.moneyVal.textContent = economy.sandboxFree
+        ? `${this._formatMoney(economy.money)} ★`
+        : this._formatMoney(economy.money);
+    }
     if (this.dom.healthVal) {
       this.dom.healthVal.textContent = Math.max(0, player.health);
       this.dom.healthBar.style.width = `${Math.max(0, player.health)}%`;
@@ -181,6 +281,9 @@ export class HUD {
       if (curW.isMelee) {
         this.dom.ammoVal.textContent = '--';
         this.dom.reserveVal.textContent = '--';
+      } else if (curW.isGrenade) {
+        this.dom.ammoVal.textContent = curW.count;
+        this.dom.reserveVal.textContent = weaponManager.getTotalGrenades();
       } else if (weaponManager.isReloading) {
         this.dom.ammoVal.textContent = 'RELOAD...';
         this.dom.reserveVal.textContent = curW.reserveAmmo;
@@ -196,6 +299,8 @@ export class HUD {
       let cls = 'fire-mode-badge';
       if (curW.isMelee) {
         label = 'MELEE';
+      } else if (curW.isGrenade) {
+        label = 'GRANADA';
       } else if (curW.fireMode === 'burst') {
         label = 'BURST 3x';
         cls += ' burst';
@@ -211,7 +316,7 @@ export class HUD {
       this.dom.fireModeBadge.className = cls;
     }
 
-    // Slot pills
+    // Slot pills 1, 2, 3 (safely handle empty slots)
     const slotEls = [
       [1, this.dom.slot1],
       [2, this.dom.slot2],
@@ -220,14 +325,44 @@ export class HUD {
     for (const [slotNum, el] of slotEls) {
       if (!el) continue;
       const wId = weaponManager.slots[slotNum];
-      const wCfg = weaponManager.weapons[wId];
+      const wCfg = wId ? weaponManager.weapons[wId] : null;
       if (wCfg) {
         el.textContent = `[${slotNum}] ${wCfg.shortName}`;
+        el.classList.remove('empty');
+      } else {
+        el.textContent = `[${slotNum}] VAZIO`;
+        el.classList.add('empty');
       }
       el.classList.toggle('active', weaponManager.activeSlot === slotNum);
     }
 
-    // 3. Sniper Scope & Dynamic Crosshair
+    // Slot 4 pill (Grenades)
+    if (this.dom.slot4) {
+      const g = weaponManager.grenades;
+      const totalG = weaponManager.getTotalGrenades();
+      const activeShort = UTILITY_ITEMS[weaponManager.activeGrenadeType]?.shortName || 'GRAN';
+      this.dom.slot4.textContent = `[4] ${activeShort} • ${g.he || 0}/${g.flash || 0}/${g.smoke || 0}`;
+      this.dom.slot4.classList.toggle('empty', totalG === 0);
+      this.dom.slot4.classList.toggle('active', weaponManager.activeSlot === 4);
+    }
+
+    // 3. Sniper Scope, Flashbang Overlay & Dynamic Crosshair
+    if (this.dom.flashOverlay) {
+      this.dom.flashOverlay.style.opacity = String(Math.max(0, Math.min(1, flashIntensity)));
+    }
+
+    if (this.dom.pickupPrompt) {
+      if (pickupTarget && player.isAlive && !this.isArsenalOpen) {
+        const targetSlot = pickupTarget.weaponSpec.slot;
+        const hasExisting = Boolean(weaponManager.slots[targetSlot]);
+        const verb = hasExisting ? 'Trocar por' : 'Pegar';
+        this.dom.pickupPrompt.textContent = `[E] ${verb} ${pickupTarget.weaponSpec.name} (${pickupTarget.currentAmmo}/${pickupTarget.reserveAmmo})`;
+        this.dom.pickupPrompt.style.display = 'block';
+      } else {
+        this.dom.pickupPrompt.style.display = 'none';
+      }
+    }
+
     const isScoped = weaponManager.scopeLevel > 0;
     if (this.dom.sniperScope) {
       this.dom.sniperScope.classList.toggle('active', isScoped);
