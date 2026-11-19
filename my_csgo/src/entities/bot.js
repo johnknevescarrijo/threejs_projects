@@ -13,10 +13,11 @@ const MUZZLE_FLASH_MAT = new THREE.MeshBasicMaterial({
 });
 
 export class Bot {
-  constructor(id, scene, map, spawnPos, name = 'Bot', team = 'T') {
+  constructor(id, scene, map, spawnPos, name = 'Bot', team = 'T', options = {}) {
     this.id = id;
     this.name = name;
-    this.team = team; // 'CT' (Friendly) or 'T' (Enemy)
+    this.team = team; // 'CT' or 'T'
+    this.playerTeam = options.playerTeam || 'CT';
     this.scene = scene;
     this.map = map;
     this.spawnPos = spawnPos.clone();
@@ -26,9 +27,15 @@ export class Bot {
     this.armor = 100;
     this.hasHelmet = true;
     this.isAlive = true;
-    this.speed = (team === 'CT') ? 3.8 : 3.6;
+    this.speed = (team === 'CT') ? 3.85 : 3.7;
     this.velocityY = 0;
     this.radius = 0.42;
+
+    this.hasC4 = Boolean(options.hasC4);
+    this.hasDefuseKit = (team === 'CT') ? (options.hasDefuseKit ?? (id % 2 === 1)) : false;
+    this.targetBombsite = Math.random() < 0.55 ? 'A' : 'B';
+    this.plantProgress = 0;
+    this.defuseProgress = 0;
 
     const ctWeapons = [
       { id: 'm4a4', name: 'M4A4' },
@@ -46,10 +53,13 @@ export class Bot {
     this.weaponName = assigned.name;
     this.blindTimer = 0;
 
-    // AI States: 'PATROL', 'ENGAGE', 'DEAD'
+    // AI States: 'PATROL', 'ENGAGE', 'PLANTING', 'DEFUSING', 'BLIND', 'DEAD'
     this.state = 'PATROL';
     this.currentTarget = null;
-    this.currentWaypointIndex = Math.floor(Math.random() * map.waypoints.length);
+    this.currentWaypointIndex = Math.floor(Math.random() * Math.max(1, map.waypoints?.length || 1));
+    this.path = [];
+    this.pathIndex = 0;
+    this.repathTimer = 0;
     this.reactionTimer = 0;
     this.burstTimer = 0;
     this.shotsInBurst = 0;
@@ -72,8 +82,23 @@ export class Bot {
     this._buildMesh();
 
     // Friendly 3D Overhead Ally Marker
-    if (this.team === 'CT') {
+    this.allyMarker = null;
+    this._syncAllyMarker();
+  }
+
+  setPlayerTeam(playerTeam) {
+    if (this.playerTeam === playerTeam) return;
+    this.playerTeam = playerTeam;
+    this._syncAllyMarker();
+  }
+
+  _syncAllyMarker() {
+    const isAlly = this.team === this.playerTeam;
+    if (isAlly && !this.allyMarker) {
       this._buildAllyMarker();
+    }
+    if (this.allyMarker) {
+      this.allyMarker.visible = isAlly && this.isAlive;
     }
   }
 
@@ -83,16 +108,15 @@ export class Bot {
     canvas.height = 80;
     const ctx = canvas.getContext('2d');
 
-    // Friendly blue background pill
+    const accent = this.team === 'CT' ? '#38bdf8' : '#fbbf24';
     ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
     ctx.roundRect(10, 10, 236, 60, 12);
     ctx.fill();
-    ctx.strokeStyle = '#38bdf8';
+    ctx.strokeStyle = accent;
     ctx.lineWidth = 3;
     ctx.stroke();
 
-    // Friendly ally text
-    ctx.fillStyle = '#38bdf8';
+    ctx.fillStyle = accent;
     ctx.font = 'bold 24px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -117,7 +141,6 @@ export class Bot {
   _buildMesh() {
     const isCT = this.team === 'CT';
 
-    // Materials tailored for CT vs Terrorists
     const bodyMat = new THREE.MeshStandardMaterial({
       color: isCT ? 0x2b384a : 0x5e4f3c,
       roughness: 0.75
@@ -150,7 +173,6 @@ export class Bot {
       roughness: 0.5
     });
 
-    // 1. Torso
     const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.65, 0.3), bodyMat);
     torso.position.y = 1.05;
     torso.castShadow = true;
@@ -159,7 +181,6 @@ export class Bot {
     this.hitboxes.push(torso);
     this.torsoMesh = torso;
 
-    // Tactical Vest & Pouches
     const vest = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.46, 0.34), vestMat);
     vest.position.y = 1.1;
     vest.castShadow = true;
@@ -167,7 +188,6 @@ export class Bot {
     this.group.add(vest);
     this.hitboxes.push(vest);
 
-    // 2. Head with Helmet/Bandana
     const head = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.32, 0.3), headMat);
     head.position.y = 1.62;
     head.castShadow = true;
@@ -176,7 +196,6 @@ export class Bot {
     this.hitboxes.push(head);
     this.headMesh = head;
 
-    // Face / Tactical Visor / Sunglasses
     const visor = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.09, 0.06), visorMat);
     visor.position.set(0, 1.62, 0.155);
     this.group.add(visor);
@@ -185,9 +204,7 @@ export class Bot {
     faceLower.position.set(0, 1.52, 0.15);
     this.group.add(faceLower);
 
-    // 3. Legs (Animated walking cycle)
     const legGeo = new THREE.BoxGeometry(0.2, 0.72, 0.22);
-    // Offset pivot to hip joint
     legGeo.translate(0, -0.36, 0);
 
     const leftLeg = new THREE.Mesh(legGeo, bodyMat);
@@ -206,7 +223,6 @@ export class Bot {
     this.hitboxes.push(rightLeg);
     this.rightLeg = rightLeg;
 
-    // 4. Arms & Weapon
     const gunGroup = new THREE.Group();
     const gunBody = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.1, 0.46), gunMat);
     gunGroup.add(gunBody);
@@ -226,7 +242,6 @@ export class Bot {
     this.group.add(gunGroup);
     this.gunMesh = gunGroup;
 
-    // Lightweight additive muzzle flash mesh (zero PointLight fragment cost)
     const flashGroup = new THREE.Group();
     const flashPlaneA = new THREE.Mesh(MUZZLE_FLASH_GEO, MUZZLE_FLASH_MAT);
     const flashPlaneB = new THREE.Mesh(MUZZLE_FLASH_GEO, MUZZLE_FLASH_MAT);
@@ -270,12 +285,13 @@ export class Bot {
     this.respawnTimer = 4.0;
     this.velocityY = 0;
     this.blindTimer = 0;
+    this.plantProgress = 0;
+    this.defuseProgress = 0;
+    this.path = [];
 
-    // Reset legs
     if (this.leftLeg) this.leftLeg.rotation.x = 0;
     if (this.rightLeg) this.rightLeg.rotation.x = 0;
 
-    // Death collapse animation firmly on ground
     const currentGround = this._getGroundHeight(this.group.position.x, this.group.position.z, this.group.position.y);
     this.group.rotation.set(-Math.PI / 2, 0, 0);
     this.group.position.y = currentGround + 0.2;
@@ -297,6 +313,11 @@ export class Bot {
     this.velocityY = 0;
     this.stuckTimer = 0;
     this.blindTimer = 0;
+    this.plantProgress = 0;
+    this.defuseProgress = 0;
+    this.path = [];
+    this.pathIndex = 0;
+    this.repathTimer = 0;
     this.muzzleFlashTimer = 0;
     if (this.muzzleFlashMesh) this.muzzleFlashMesh.visible = false;
     this.group.rotation.set(0, 0, 0);
@@ -307,11 +328,23 @@ export class Bot {
     const targetPos = spawnPos || this.spawnPos;
     const groundY = this._getGroundHeight(targetPos.x, targetPos.z);
     this.group.position.set(targetPos.x, groundY, targetPos.z);
-    this.currentWaypointIndex = Math.floor(Math.random() * this.map.waypoints.length);
+    this.currentWaypointIndex = Math.floor(Math.random() * Math.max(1, this.map.waypoints?.length || 1));
 
-    if (this.allyMarker) {
-      this.allyMarker.visible = true;
+    this._syncAllyMarker();
+  }
+
+  resetForRound(spawnPos, hasC4 = false) {
+    if (spawnPos) {
+      this.spawnPos.copy(spawnPos);
     }
+    this.hasC4 = Boolean(hasC4);
+    this.targetBombsite = Math.random() < 0.55 ? 'A' : 'B';
+    this.respawn(this.spawnPos);
+  }
+
+  dispose() {
+    this.scene.remove(this.group);
+    this.hitboxes.length = 0;
   }
 
   _canSeeTarget(targetPos, grenadeManager = null) {
@@ -319,19 +352,16 @@ export class Bot {
     const toTarget = targetPos.clone().sub(botEyePos);
     const dist = toTarget.length();
 
-    if (dist > 35) return false;
+    if (dist > 36) return false;
 
-    // Smoke cloud blocks line of sight
     if (grenadeManager?.isLineBlockedBySmoke(botEyePos, targetPos)) {
       return false;
     }
 
-    // Strict raycast against world walls
     toTarget.normalize();
     const raycaster = new THREE.Raycaster(botEyePos, toTarget, 0.1, dist);
     const hits = raycaster.intersectObjects(this.map.raycastMeshes, false);
 
-    // If any wall is closer than the target, vision is completely blocked
     if (hits.length > 0 && hits[0].distance < dist - 0.15) {
       return false;
     }
@@ -344,41 +374,66 @@ export class Bot {
     let closestDist = 999;
     const botPos = this.group.position;
 
-    if (this.team === 'CT') {
-      for (const other of allBots) {
-        if (other.team === 'T' && other.isAlive) {
-          const tPos = other.group.position.clone().add(new THREE.Vector3(0, 1.4, 0));
-          const dist = botPos.distanceTo(other.group.position);
-          if (dist < 32 && dist < closestDist && this._canSeeTarget(tPos, grenadeManager)) {
-            closestDist = dist;
-            bestTarget = { type: 'bot', entity: other, pos: tPos };
-          }
-        }
-      }
-    } else {
-      // Enemy Terrorist (T) bots target Player AND CT bots
-      if (player.isAlive) {
-        const pPos = player.camera.position;
-        const dist = botPos.distanceTo(new THREE.Vector3(pPos.x, botPos.y, pPos.z));
-        if (dist < 32 && this._canSeeTarget(pPos, grenadeManager)) {
+    // Target opposing bots
+    for (const other of allBots) {
+      if (other.team !== this.team && other.isAlive) {
+        const oPos = other.group.position.clone().add(new THREE.Vector3(0, 1.4, 0));
+        const dist = botPos.distanceTo(other.group.position);
+        if (dist < 34 && dist < closestDist && this._canSeeTarget(oPos, grenadeManager)) {
           closestDist = dist;
-          bestTarget = { type: 'player', entity: player, pos: pPos };
-        }
-      }
-
-      for (const other of allBots) {
-        if (other.team === 'CT' && other.isAlive) {
-          const ctPos = other.group.position.clone().add(new THREE.Vector3(0, 1.4, 0));
-          const dist = botPos.distanceTo(other.group.position);
-          if (dist < 30 && dist < closestDist && this._canSeeTarget(ctPos, grenadeManager)) {
-            closestDist = dist;
-            bestTarget = { type: 'bot', entity: other, pos: ctPos };
-          }
+          bestTarget = { type: 'bot', entity: other, pos: oPos };
         }
       }
     }
 
+    // Target player if on opposing team
+    if (player && player.isAlive && this.team !== this.playerTeam) {
+      const pPos = player.camera.position;
+      const dist = botPos.distanceTo(new THREE.Vector3(pPos.x, botPos.y, pPos.z));
+      if (dist < 34 && dist < closestDist && this._canSeeTarget(pPos, grenadeManager)) {
+        bestTarget = { type: 'player', entity: player, pos: pPos };
+      }
+    }
+
     return bestTarget;
+  }
+
+  _choosePath(roundContext = {}) {
+    const nav = this.map.navGraph;
+    if (!nav || nav.nodes.length === 0) {
+      this.path = [];
+      return;
+    }
+
+    const pos = this.group.position;
+    const avoidExposed = Math.random() < 0.45;
+    let newPath = [];
+
+    if (roundContext.mode === 'bomb_defusal') {
+      if (roundContext.bombPlanted && roundContext.bombSite) {
+        if (this.team === 'CT' && roundContext.bombPosition) {
+          newPath = nav.findPath(pos, roundContext.bombPosition, { avoidExposed: false });
+        } else {
+          newPath = nav.findPathToZone(pos, `BOMBSITE ${roundContext.bombSite}`, { avoidExposed });
+        }
+      } else if (this.team === 'T') {
+        const site = this.hasC4 ? this.targetBombsite : (Math.random() < 0.65 ? this.targetBombsite : (Math.random() < 0.5 ? 'A' : 'B'));
+        newPath = nav.findPathToZone(pos, `BOMBSITE ${site}`, { avoidExposed });
+      } else {
+        const ctZones = ['BOMBSITE A', 'BOMBSITE B', 'MID', 'CT MID', 'CATWALK'];
+        const chosen = ctZones[Math.floor(Math.random() * ctZones.length)];
+        newPath = nav.findPathToZone(pos, chosen, { avoidExposed });
+      }
+    }
+
+    if (newPath.length === 0) {
+      const randNode = nav.nodes[Math.floor(Math.random() * nav.nodes.length)];
+      newPath = nav.findPath(pos, randNode.id, { avoidExposed });
+    }
+
+    this.path = newPath;
+    this.pathIndex = 0;
+    this.repathTimer = 4.5 + Math.random() * 2.5;
   }
 
   _moveWithCollisions(delta, moveDir) {
@@ -389,7 +444,6 @@ export class Bot {
     const nextX = curX + moveDir.x * this.speed * delta;
     const nextZ = curZ + moveDir.z * this.speed * delta;
 
-    // Check collision along X (raise bottom +0.38m for ramp/step-up traversal)
     this._colMin.set(nextX - this.radius, curY + 0.38, curZ - this.radius);
     this._colMax.set(nextX + this.radius, curY + 1.8, curZ + this.radius);
     this._colBox.set(this._colMin, this._colMax);
@@ -405,7 +459,6 @@ export class Bot {
       this.group.position.x = nextX;
     }
 
-    // Check collision along Z
     this._colMin.set(this.group.position.x - this.radius, curY + 0.38, nextZ - this.radius);
     this._colMax.set(this.group.position.x + this.radius, curY + 1.8, nextZ + this.radius);
     this._colBox.set(this._colMin, this._colMax);
@@ -421,11 +474,12 @@ export class Bot {
       this.group.position.z = nextZ;
     }
 
-    // If blocked in both directions, handle stuck timer
     if (collideX && collideZ) {
       this.stuckTimer += delta;
-      if (this.stuckTimer > 0.8) {
-        this.currentWaypointIndex = (this.currentWaypointIndex + 1) % this.map.waypoints.length;
+      if (this.stuckTimer > 0.7) {
+        this.path = [];
+        this.pathIndex = 0;
+        this.currentWaypointIndex = (this.currentWaypointIndex + 1) % Math.max(1, this.map.waypoints?.length || 1);
         this.stuckTimer = 0;
       }
     } else {
@@ -433,12 +487,76 @@ export class Bot {
     }
   }
 
-  update(delta, player, allBots, particleSystem, onKillCallback, grenadeManager = null) {
+  _followNavigation(delta, roundContext = {}) {
+    this.repathTimer -= delta;
+
+    if (this.map.navGraph && this.map.navGraph.nodes.length > 0) {
+      // If bomb just got planted and CT is still heading elsewhere, repath immediately
+      if (roundContext.bombPlanted && this.repathTimer > 1.2 && this.team === 'CT') {
+        this.repathTimer = Math.min(this.repathTimer, 0.5);
+      }
+
+      if (this.path.length === 0 || this.pathIndex >= this.path.length || this.repathTimer <= 0) {
+        this._choosePath(roundContext);
+      }
+
+      if (this.pathIndex < this.path.length) {
+        const wp = this.path[this.pathIndex];
+        const dx = wp.x - this.group.position.x;
+        const dz = wp.z - this.group.position.z;
+        const dist = Math.hypot(dx, dz);
+
+        if (dist < 1.35) {
+          this.pathIndex++;
+          if (this.pathIndex >= this.path.length) {
+            this.path = [];
+            return false;
+          }
+        } else {
+          const moveVec = new THREE.Vector3(dx / dist, 0, dz / dist);
+          this._moveWithCollisions(delta, moveVec);
+          this.group.lookAt(new THREE.Vector3(wp.x, this.group.position.y, wp.z));
+          return true;
+        }
+      }
+      return false;
+    }
+
+    // Fallback legacy waypoints
+    if (!this.map.waypoints || this.map.waypoints.length === 0) return false;
+    const targetWaypoint = this.map.waypoints[this.currentWaypointIndex];
+    const moveVec = targetWaypoint.clone().sub(this.group.position);
+    moveVec.y = 0;
+
+    if (moveVec.length() < 1.6) {
+      this.currentWaypointIndex = (this.currentWaypointIndex + 1) % this.map.waypoints.length;
+      return false;
+    }
+
+    moveVec.normalize();
+    this._moveWithCollisions(delta, moveVec);
+    this.group.lookAt(new THREE.Vector3(targetWaypoint.x, this.group.position.y, targetWaypoint.z));
+    return true;
+  }
+
+  update(delta, player, allBots, particleSystem, onKillCallback, grenadeManager = null, roundContext = {}) {
+    if (roundContext.playerTeam && roundContext.playerTeam !== this.playerTeam) {
+      this.setPlayerTeam(roundContext.playerTeam);
+    }
+
     if (!this.isAlive) {
-      this.respawnTimer -= delta;
-      if (this.respawnTimer <= 0) {
-        const randomWaypoint = this.map.waypoints[Math.floor(Math.random() * this.map.waypoints.length)];
-        this.respawn(randomWaypoint);
+      if (roundContext.mode === 'deathmatch' || !roundContext.mode) {
+        this.respawnTimer -= delta;
+        if (this.respawnTimer <= 0) {
+          const spawns = this.map.spawns?.[this.team];
+          if (spawns && spawns.length > 0) {
+            const sp = spawns[Math.floor(Math.random() * spawns.length)];
+            this.respawn(new THREE.Vector3(sp.x, sp.y ?? 0, sp.z));
+          } else {
+            const randomWaypoint = this.map.waypoints[Math.floor(Math.random() * this.map.waypoints.length)];
+            this.respawn(randomWaypoint);
+          }
+        }
       }
       return;
     }
@@ -452,13 +570,19 @@ export class Bot {
 
     let isMoving = false;
 
-    if (this.blindTimer > 0) {
-      // Blinded by Flashbang: do not fire, wander/stumble away slowly
+    if (roundContext.phase === 'FREEZETIME') {
+      this.state = 'FREEZE';
+      this.reactionTimer = 0;
+      this.shotsInBurst = 0;
+      if (this.muzzleFlashMesh) this.muzzleFlashMesh.visible = false;
+    } else if (this.blindTimer > 0) {
       this.blindTimer = Math.max(0, this.blindTimer - delta);
       this.state = 'BLIND';
       this.currentTarget = null;
       this.reactionTimer = 0;
       this.shotsInBurst = 0;
+      this.plantProgress = 0;
+      this.defuseProgress = 0;
       this.muzzleFlashTimer = 0;
       if (this.muzzleFlashMesh) this.muzzleFlashMesh.visible = false;
 
@@ -470,19 +594,18 @@ export class Bot {
         isMoving = true;
       }
     } else {
-      // Look for enemy targets
       const targetObj = this._findBestTarget(player, allBots, grenadeManager);
 
       if (targetObj) {
         this.state = 'ENGAGE';
         this.currentTarget = targetObj;
+        this.plantProgress = 0;
+        this.defuseProgress = 0;
         this.reactionTimer += delta;
 
-        // Look smoothly at enemy target horizontally
         const lookTarget = new THREE.Vector3(targetObj.pos.x, this.group.position.y, targetObj.pos.z);
         this.group.lookAt(lookTarget);
 
-        // AI Shooting logic (after 0.32s reaction time)
         if (this.reactionTimer > 0.32) {
           this.burstTimer += delta;
 
@@ -496,31 +619,58 @@ export class Bot {
           }
         }
       } else {
-        this.state = 'PATROL';
         this.currentTarget = null;
         this.reactionTimer = 0;
         this.shotsInBurst = 0;
         this.muzzleFlashTimer = 0;
         if (this.muzzleFlashMesh) this.muzzleFlashMesh.visible = false;
 
-        // Patrol between waypoints with solid physics
-        const targetWaypoint = this.map.waypoints[this.currentWaypointIndex];
-        const moveVec = targetWaypoint.clone().sub(this.group.position);
-        moveVec.y = 0;
+        // Check C4 Plant (T carrier) or C4 Defuse (closest CT)
+        const pos = this.group.position;
+        const siteHere = typeof this.map.getBombsiteAt === 'function'
+          ? this.map.getBombsiteAt(pos.x, pos.z)
+          : null;
 
-        if (moveVec.length() < 1.6) {
-          this.currentWaypointIndex = (this.currentWaypointIndex + 1) % this.map.waypoints.length;
+        if (
+          roundContext.mode === 'bomb_defusal' &&
+          roundContext.phase === 'LIVE' &&
+          this.team === 'T' &&
+          this.hasC4 &&
+          !roundContext.bombPlanted &&
+          siteHere
+        ) {
+          this.state = 'PLANTING';
+          this.plantProgress += delta;
+          if (this.plantProgress >= 3.2) {
+            this.hasC4 = false;
+            this.plantProgress = 0;
+            if (typeof roundContext.onBotPlantBomb === 'function') {
+              roundContext.onBotPlantBomb(siteHere, { x: pos.x, y: pos.y, z: pos.z }, this);
+            }
+          }
+        } else if (
+          roundContext.mode === 'bomb_defusal' &&
+          roundContext.phase === 'BOMB_PLANTED' &&
+          this.team === 'CT' &&
+          roundContext.isDefuser &&
+          roundContext.bombPosition &&
+          Math.hypot(pos.x - roundContext.bombPosition.x, pos.z - roundContext.bombPosition.z) < 2.35
+        ) {
+          this.state = 'DEFUSING';
+          this.group.lookAt(new THREE.Vector3(roundContext.bombPosition.x, pos.y, roundContext.bombPosition.z));
+          this.defuseProgress += delta;
+          const needed = this.hasDefuseKit ? 5.0 : 10.0;
+          if (this.defuseProgress >= needed) {
+            this.defuseProgress = 0;
+            if (typeof roundContext.onBotDefuseBomb === 'function') {
+              roundContext.onBotDefuseBomb(this);
+            }
+          }
         } else {
-          moveVec.normalize();
-          this._moveWithCollisions(delta, moveVec);
-          isMoving = true;
-
-          const lookTarget = new THREE.Vector3(
-            targetWaypoint.x,
-            this.group.position.y,
-            targetWaypoint.z
-          );
-          this.group.lookAt(lookTarget);
+          this.state = 'PATROL';
+          this.plantProgress = 0;
+          this.defuseProgress = 0;
+          isMoving = this._followNavigation(delta, roundContext);
         }
       }
     }
@@ -561,7 +711,6 @@ export class Bot {
 
     sounds.playBotShot();
 
-    // Muzzle flash (frame-updated mesh timer, zero setTimeout/PointLight)
     if (this.muzzleFlashMesh) {
       this.muzzleFlashMesh.visible = true;
       this.muzzleFlashMesh.rotation.z = Math.random() * Math.PI * 2;
@@ -569,11 +718,9 @@ export class Bot {
       this.muzzleFlashTimer = 0.05;
     }
 
-    // Bot accuracy deviation
     const spread = (Math.random() - 0.5) * 0.6;
     const targetPos = targetObj.pos.clone().add(new THREE.Vector3(spread, spread * 0.5, spread));
 
-    // Check if line of fire is obstructed by world geometry at this moment
     const shootDir = targetPos.clone().sub(gunMuzzle);
     const targetDist = shootDir.length();
     shootDir.normalize();
@@ -581,25 +728,21 @@ export class Bot {
     const raycaster = new THREE.Raycaster(gunMuzzle, shootDir, 0.1, targetDist);
     const wallHits = raycaster.intersectObjects(this.map.raycastMeshes, false);
 
-    // Shell Ejection for bot
     const rightDir = new THREE.Vector3(1, 0, 0).applyQuaternion(this.group.quaternion);
     const upDir = new THREE.Vector3(0, 1, 0);
     const fwdDir = new THREE.Vector3(0, 0, 1).applyQuaternion(this.group.quaternion);
     particleSystem.createShellEject(gunMuzzle, rightDir, upDir, fwdDir, false);
 
     if (wallHits.length > 0 && wallHits[0].distance < targetDist - 0.2) {
-      // Bullet hit the wall/box blocking the path!
       const hitPoint = wallHits[0].point;
       const normal = wallHits[0].face ? wallHits[0].face.normal : new THREE.Vector3(0, 1, 0);
       particleSystem.createSparks(hitPoint, normal);
       particleSystem.createTracer(gunMuzzle, hitPoint);
-      return; // Bullet stopped by wall!
+      return;
     }
 
-    // Line of fire is clear: tracer to target
     particleSystem.createTracer(gunMuzzle, targetPos);
 
-    // Hit calculation (65% hit rate)
     if (Math.random() < 0.65) {
       const damage = 14 + Math.floor(Math.random() * 9);
       const isHeadshot = Math.random() < 0.25;
@@ -619,4 +762,3 @@ export class Bot {
     }
   }
 }
-

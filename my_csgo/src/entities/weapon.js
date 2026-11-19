@@ -6,6 +6,7 @@ import { UTILITY_ITEMS } from '../combat/tactical.js';
 
 const _ZERO_VEC = new THREE.Vector3(0, 0, 0);
 const _GRENADE_REST_POS = new THREE.Vector3(0.20, -0.22, -0.38);
+const _C4_REST_POS = new THREE.Vector3(0.14, -0.22, -0.38);
 const _CAM_RIGHT = new THREE.Vector3();
 const _CAM_UP = new THREE.Vector3();
 const _CAM_FWD = new THREE.Vector3();
@@ -46,7 +47,7 @@ export class WeaponManager {
       };
     }
 
-    // Slot inventory & Slot 4 grenades
+    // Slot inventory & Slot 4 grenades & Slot 5 C4
     this.slots = { ...DEFAULT_LOADOUT };
     this.activeSlot = 1;
     this.previousSlot = 2;
@@ -54,6 +55,10 @@ export class WeaponManager {
     this.activeGrenadeType = 'he';
     this.grenadeMeshes = {};
     this.grenadeThrowAnimTimer = 0;
+    this.hasC4 = false;
+    this.c4Mesh = null;
+    this.c4LedMat = null;
+    this.c4BlinkTimer = 0;
 
     // Firing, reload, spray & scope state
     this.isReloading = false;
@@ -81,12 +86,24 @@ export class WeaponManager {
     this.meleeAnimTimer = 0;
     this.meleeIsAlt = false;
 
-    // Build all 14 procedural HD viewmodels + 3 grenade viewmodels
+    // Build all 14 procedural HD viewmodels + 3 grenade viewmodels + C4 viewmodel
     this._buildAllWeaponMeshes();
     this._buildGrenadeMeshes();
+    this._buildC4Mesh();
 
     // Hide everything except active slot weapon
     this._applyWeaponVisibility(this.currentWeaponKey);
+  }
+
+  setHasC4(hasC4) {
+    this.hasC4 = Boolean(hasC4);
+    if (!this.hasC4 && this.activeSlot === 5) {
+      const available = this._getAvailableSlots();
+      const fallback = available.includes(this.previousSlot)
+        ? this.previousSlot
+        : (available[0] || 3);
+      this.switchSlot(fallback);
+    }
   }
 
   getTotalGrenades() {
@@ -97,10 +114,34 @@ export class WeaponManager {
     if (this.activeSlot === 4) {
       return `grenade_${this.activeGrenadeType}`;
     }
+    if (this.activeSlot === 5 && this.hasC4) {
+      return 'c4';
+    }
     return this.slots[this.activeSlot];
   }
 
   get currentWeapon() {
+    if (this.activeSlot === 5 && this.hasC4) {
+      return {
+        id: 'c4',
+        name: 'C4 Explosive',
+        shortName: 'C4',
+        slot: 5,
+        category: 'c4',
+        isC4: true,
+        isGrenade: false,
+        moveSpeed: 6.3,
+        isAutomatic: false,
+        isMelee: false,
+        isSniper: false,
+        isShotgun: false,
+        baseSpread: 0.002,
+        restY: -0.22,
+        restPos: _C4_REST_POS,
+        mesh: this.c4Mesh
+      };
+    }
+
     if (this.activeSlot === 4) {
       const gCfg = UTILITY_ITEMS[this.activeGrenadeType] || UTILITY_ITEMS.he;
       return {
@@ -1094,6 +1135,85 @@ export class WeaponManager {
     }
   }
 
+  _buildC4Mesh() {
+    const group = new THREE.Group();
+
+    // Olive/tan C4 explosive block + straps
+    const brickMat = new THREE.MeshStandardMaterial({ color: 0x8b7355, roughness: 0.78, metalness: 0.1 });
+    const strapMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.85, metalness: 0.1 });
+    const screenMat = new THREE.MeshStandardMaterial({
+      color: 0x0f172a,
+      emissive: 0x10b981,
+      emissiveIntensity: 0.45,
+      roughness: 0.3
+    });
+    const keypadMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.45, metalness: 0.4 });
+    this.c4LedMat = new THREE.MeshStandardMaterial({
+      color: 0xef4444,
+      emissive: 0xef4444,
+      emissiveIntensity: 1.5,
+      roughness: 0.2
+    });
+
+    const brick = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.065, 0.18), brickMat);
+    group.add(brick);
+
+    const strapA = new THREE.Mesh(new THREE.BoxGeometry(0.134, 0.068, 0.022), strapMat);
+    strapA.position.z = -0.055;
+    group.add(strapA);
+    const strapB = new THREE.Mesh(new THREE.BoxGeometry(0.134, 0.068, 0.022), strapMat);
+    strapB.position.z = 0.055;
+    group.add(strapB);
+
+    // Keypad module + LCD display + blinking LED
+    const moduleBox = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.018, 0.09), this.mats.darkMetal);
+    moduleBox.position.set(0, 0.038, 0);
+    group.add(moduleBox);
+
+    const lcd = new THREE.Mesh(new THREE.BoxGeometry(0.065, 0.006, 0.024), screenMat);
+    lcd.position.set(0, 0.048, -0.022);
+    group.add(lcd);
+
+    const keypad = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.006, 0.04), keypadMat);
+    keypad.position.set(0, 0.048, 0.016);
+    group.add(keypad);
+
+    const led = new THREE.Mesh(new THREE.SphereGeometry(0.006, 8, 8), this.c4LedMat);
+    led.position.set(0.032, 0.05, -0.022);
+    group.add(led);
+
+    // Wires
+    const wire = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.004, 0.004, 0.09, 6),
+      new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.5 })
+    );
+    wire.rotation.z = Math.PI / 2;
+    wire.position.set(0.04, 0.035, 0.05);
+    group.add(wire);
+
+    // Tactical hands holding C4
+    const rForearm = new THREE.Mesh(new THREE.CylinderGeometry(0.040, 0.046, 0.25, 10), this.mats.sleeve);
+    rForearm.rotation.set(-Math.PI / 3.2, 0, -0.2);
+    rForearm.position.set(0.08, -0.14, -0.14);
+    group.add(rForearm);
+    const rGlove = new THREE.Mesh(new THREE.BoxGeometry(0.048, 0.055, 0.075), this.mats.glove);
+    rGlove.position.set(0.065, -0.015, -0.02);
+    group.add(rGlove);
+
+    const lForearm = new THREE.Mesh(new THREE.CylinderGeometry(0.040, 0.046, 0.25, 10), this.mats.sleeve);
+    lForearm.rotation.set(-Math.PI / 3.2, 0, 0.25);
+    lForearm.position.set(-0.09, -0.14, -0.14);
+    group.add(lForearm);
+    const lGlove = new THREE.Mesh(new THREE.BoxGeometry(0.048, 0.055, 0.075), this.mats.glove);
+    lGlove.position.set(-0.065, -0.015, -0.02);
+    group.add(lGlove);
+
+    group.position.set(0.14, -0.22, -0.38);
+    group.rotation.set(0.32, -0.18, 0);
+    this.c4Mesh = group;
+    this.weaponRoot.add(group);
+  }
+
   _applyWeaponVisibility(activeKey) {
     for (const [k, w] of Object.entries(this.weapons)) {
       if (w.mesh) {
@@ -1102,6 +1222,9 @@ export class WeaponManager {
     }
     for (const [type, mesh] of Object.entries(this.grenadeMeshes)) {
       mesh.visible = (`grenade_${type}` === activeKey);
+    }
+    if (this.c4Mesh) {
+      this.c4Mesh.visible = (activeKey === 'c4');
     }
   }
 
@@ -1144,6 +1267,9 @@ export class WeaponManager {
     if (this.getTotalGrenades() > 0) {
       available.push(4);
     }
+    if (this.hasC4) {
+      available.push(5);
+    }
     return available;
   }
 
@@ -1155,6 +1281,28 @@ export class WeaponManager {
   }
 
   switchSlot(slotNumber) {
+    if (slotNumber === 5) {
+      if (!this.hasC4) return false;
+      if (this.activeSlot === 5 && this.c4Mesh?.visible) return false;
+
+      this.previousSlot = this.activeSlot;
+      this.activeSlot = 5;
+      this.isReloading = false;
+      this.reloadProgress = 0;
+      this.autoReloadDelay = 0;
+      this.burstRemaining = 0;
+      this.shotCount = 0;
+      this.resetScope();
+
+      this._applyWeaponVisibility('c4');
+      sounds.playWeaponSwitch();
+      this.currentSpread = 0.002;
+      this.targetRecoilRot.set(0, 0, 0);
+      this.slideKick = 0;
+      this.drawAnimationY = -0.22;
+      return true;
+    }
+
     if (slotNumber === 4) {
       if (this.getTotalGrenades() <= 0) return false;
       const order = ['he', 'flash', 'smoke'].filter((t) => (this.grenades[t] || 0) > 0);
@@ -1421,7 +1569,7 @@ export class WeaponManager {
 
   canShoot() {
     const w = this.currentWeapon;
-    if (w.isMelee || w.isGrenade) return false;
+    if (w.isMelee || w.isGrenade || w.isC4) return false;
     return (
       !this.isReloading &&
       this.burstCooldownTimer <= 0 &&
@@ -1431,7 +1579,7 @@ export class WeaponManager {
 
   shoot(playerMovementSpeed = 0, isCrouching = false, inAir = false, isBurstFollowup = false) {
     const w = this.currentWeapon;
-    if (w.isMelee || w.isGrenade || this.isReloading) return null;
+    if (w.isMelee || w.isGrenade || w.isC4 || this.isReloading) return null;
 
     if (w.currentAmmo <= 0) {
       if (w.reserveAmmo > 0) {
@@ -1548,7 +1696,7 @@ export class WeaponManager {
 
   reload() {
     const w = this.currentWeapon;
-    if (w.isMelee || w.isGrenade || this.isReloading || w.currentAmmo === w.magSize || w.reserveAmmo <= 0) return;
+    if (w.isMelee || w.isGrenade || w.isC4 || this.isReloading || w.currentAmmo === w.magSize || w.reserveAmmo <= 0) return;
 
     this.resetScope();
     this.burstRemaining = 0;
@@ -1596,11 +1744,16 @@ export class WeaponManager {
     }
 
     // Auto-reload check
-    if (!w.isMelee && !w.isGrenade && this.autoReloadDelay > 0) {
+    if (!w.isMelee && !w.isGrenade && !w.isC4 && this.autoReloadDelay > 0) {
       this.autoReloadDelay -= delta;
       if (this.autoReloadDelay <= 0 && !this.isReloading && w.currentAmmo === 0 && w.reserveAmmo > 0) {
         this.reload();
       }
+    }
+
+    if (w.isC4 && this.c4LedMat) {
+      this.c4BlinkTimer += delta;
+      this.c4LedMat.emissiveIntensity = Math.sin(this.c4BlinkTimer * 8) > 0 ? 2.0 : 0.2;
     }
 
     // 1. Muzzle flash decay

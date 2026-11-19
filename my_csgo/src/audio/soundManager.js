@@ -393,6 +393,58 @@ class SoundManager {
     this._playClick(t, 920, 0.18);
     this._playClick(t + 0.04, 1450, 0.18);
   }
+
+  playC4Beep(urgency = 0) {
+    if (!this.initialized) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+    const u = Math.max(0, Math.min(1, urgency));
+    const freq = 2450 + u * 650;
+    const gain = 0.22 + u * 0.16;
+    this._playOsc(t, 0.065, 'sine', freq, freq * 0.98, gain);
+  }
+
+  playC4Plant() {
+    if (!this.initialized) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+    const tones = [1400, 1750, 1550, 2100];
+    tones.forEach((f, idx) => {
+      this._playOsc(t + idx * 0.06, 0.045, 'square', f, f, 0.16);
+    });
+    this._playOsc(t + 0.28, 0.18, 'sine', 2400, 2400, 0.28);
+  }
+
+  playC4DefuseStart() {
+    if (!this.initialized) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+    this._playClick(t, 1200, 0.22);
+    this._playClick(t + 0.07, 1650, 0.2);
+    this._playOsc(t + 0.12, 0.1, 'triangle', 750, 920, 0.18);
+  }
+
+  playC4Defused() {
+    if (!this.initialized) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+    this._playOsc(t, 0.12, 'triangle', 980, 1020, 0.26);
+    this._playOsc(t + 0.12, 0.18, 'triangle', 1320, 1480, 0.3);
+  }
+
+  playRoundEnd(isVictory = true) {
+    if (!this.initialized) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+    if (isVictory) {
+      this._playOsc(t, 0.16, 'triangle', 523.25, 523.25, 0.25);
+      this._playOsc(t + 0.14, 0.16, 'triangle', 659.25, 659.25, 0.25);
+      this._playOsc(t + 0.28, 0.32, 'triangle', 783.99, 783.99, 0.3);
+    } else {
+      this._playOsc(t, 0.22, 'sawtooth', 261.63, 246.94, 0.22);
+      this._playOsc(t + 0.2, 0.35, 'sawtooth', 196.0, 174.61, 0.24);
+    }
+  }
 }
 
 export const sounds = new SoundManager();
