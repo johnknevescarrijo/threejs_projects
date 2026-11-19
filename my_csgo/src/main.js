@@ -27,6 +27,19 @@ import {
   applyRespawnFloor,
   purchaseItem
 } from './combat/tactical.js';
+import {
+  PACKET_TYPE,
+  encodeInputPacket,
+  decodeInputPacket,
+  encodeSnapshotPacket,
+  decodeSnapshotPacket
+} from './net/snapshotCodec.js';
+import {
+  ClientPredictionBuffer,
+  SnapshotInterpolator,
+  LagCompensator,
+  LoopbackNetTransport
+} from './net/netcode.js';
 
 const _TMP_NORMAL_MAT = new THREE.Matrix3();
 const _TMP_INST_MAT = new THREE.Matrix4();
@@ -103,11 +116,23 @@ class Game {
     this.scoreT = 0;
     this._initializeMatch(this.selectedMapId, this.playerTeam);
 
-    // 5. Timing & State
+    // 5. Timing, Netcode Simulation & State
     this.clock = new THREE.Clock();
     this.fixedStepper = createFixedStepper({ stepHz: FIXED_HZ, maxFrameDelta: 0.1, maxSubsteps: 5 });
     this.elapsedTime = 0;
     this.isGameRunning = false;
+
+    this.netSimEnabled = false;
+    this.netTransport = new LoopbackNetTransport({ latencyMs: 0, jitterMs: 0, lossRate: 0 });
+    this.predictionBuffer = new ClientPredictionBuffer({ maxPending: 128 });
+    this.snapshotInterpolator = new SnapshotInterpolator({ maxSnapshots: 32 });
+    this.lagCompensator = new LagCompensator({ maxHistoryMs: 1000 });
+    this._netSeq = 0;
+    this._netTick = 0;
+    this._netAckSeq = 0;
+    this._netSimTimeMs = 0;
+    this._netEntitiesScratch = [];
+    this.netTransport.onPacket((buf) => this._onNetPacket(buf));
 
     this._setupEvents();
     this._setupUIEvents();
@@ -572,6 +597,11 @@ class Game {
         this._syncQualityButtons(nextPreset.id);
         return;
       }
+      if (e.code === 'F6') {
+        e.preventDefault();
+        this.toggleNetSim();
+        return;
+      }
 
       if (!this.isGameRunning) return;
 
@@ -986,6 +1016,115 @@ class Game {
     }
   }
 
+  toggleNetSim() {
+    this.netSimEnabled = !this.netSimEnabled;
+    if (this.netSimEnabled) {
+      this.netTransport.setProfile({ latencyMs: 22.5, jitterMs: 4, lossRate: 0.01 });
+    } else {
+      this.netTransport.setProfile({ latencyMs: 0, jitterMs: 0, lossRate: 0 });
+    }
+    this.netTransport.resetStats();
+    this.predictionBuffer.clear();
+    this.snapshotInterpolator.clear();
+    this._netAckSeq = this._netSeq;
+    return this.netSimEnabled;
+  }
+
+  _onNetPacket(buf) {
+    const view = new Uint8Array(buf);
+    if (view.length === 0) return;
+    if (view[0] === PACKET_TYPE.INPUT) {
+      const pkt = decodeInputPacket(buf);
+      this._netAckSeq = Math.max(this._netAckSeq, pkt.seq);
+    } else if (view[0] === PACKET_TYPE.SNAPSHOT) {
+      const snap = decodeSnapshotPacket(buf);
+      this.snapshotInterpolator.pushSnapshot(snap);
+    }
+  }
+
+  _stepNetcode(fixedDt) {
+    this._netTick++;
+    this._netSimTimeMs += fixedDt * 1000;
+
+    const entities = this._netEntitiesScratch;
+    entities.length = 0;
+
+    entities.push({
+      id: 0,
+      team: this.playerTeam,
+      x: this.player.camera.position.x,
+      y: this.player.camera.position.y - this.player.currentHeight,
+      z: this.player.camera.position.z,
+      yaw: this.player.yaw,
+      health: this.player.health,
+      alive: this.player.isAlive,
+      weaponSlot: this.weapons.activeSlot
+    });
+
+    for (const bot of this.bots) {
+      entities.push({
+        id: bot.id,
+        team: bot.team,
+        x: bot.group.position.x,
+        y: bot.group.position.y,
+        z: bot.group.position.z,
+        yaw: bot.group.rotation.y,
+        health: bot.health,
+        alive: bot.isAlive,
+        weaponSlot: 1
+      });
+    }
+
+    this.lagCompensator.recordFrame(this._netTick, this._netSimTimeMs, entities);
+
+    if (!this.netSimEnabled) return;
+
+    const moveForward = (this.player.keys.forward ? 1 : 0) - (this.player.keys.backward ? 1 : 0);
+    const moveRight = (this.player.keys.right ? 1 : 0) - (this.player.keys.left ? 1 : 0);
+    const buttonsMask =
+      (this.player.keys.jump ? 1 : 0) |
+      (this.player.keys.crouch ? 2 : 0) |
+      (this.player.keys.walk ? 4 : 0) |
+      (this.player.isShooting ? 8 : 0) |
+      (this.player.keys.use ? 16 : 0);
+
+    const inputCmd = {
+      seq: ++this._netSeq,
+      tick: this._netTick,
+      moveForward,
+      moveRight,
+      buttonsMask,
+      yaw: this.player.yaw,
+      pitch: this.player.pitch,
+      activeSlot: this.weapons.activeSlot
+    };
+
+    this.predictionBuffer.pushInput(inputCmd);
+    this.netTransport.sendPacket(encodeInputPacket(inputCmd), this._netSimTimeMs);
+
+    const snapBuf = encodeSnapshotPacket({
+      serverTick: this._netTick,
+      ackInputSeq: this._netAckSeq,
+      serverTimeMs: this._netSimTimeMs,
+      entities
+    });
+    this.netTransport.sendPacket(snapBuf, this._netSimTimeMs);
+
+    this.netTransport.step(this._netSimTimeMs);
+
+    this.predictionBuffer.reconcile(
+      {
+        x: this.player.camera.position.x,
+        y: this.player.camera.position.y,
+        z: this.player.camera.position.z,
+        yaw: this.player.yaw
+      },
+      this._netAckSeq,
+      (state) => state
+    );
+    this.snapshotInterpolator.sample(this._netSimTimeMs, 100);
+  }
+
   start() {
     this.renderer.setAnimationLoop(() => {
       const rawDelta = this.clock.getDelta();
@@ -1123,13 +1262,13 @@ class Game {
           const roundEvents = this.roundManager.update(fixedDt, { aliveCT, aliveT });
           for (const ev of roundEvents) {
             if (ev.type === 'c4_beep') {
-              sounds.playC4Beep(ev.urgency);
+              sounds.playC4Beep(ev.urgency, ev.pos || this.roundManager.bombPosition);
               if (this.plantedC4LedMat) {
                 this.plantedC4LedMat.emissiveIntensity = 4.0;
                 this.c4LedBlinkTimer = 0.08;
               }
             } else if (ev.type === 'c4_explode') {
-              sounds.playExplosion();
+              sounds.playExplosion(ev.pos || this.roundManager.bombPosition);
               this._spawnC4Explosion(ev.pos);
               this._removePlantedC4();
             } else if (ev.type === 'round_end') {
@@ -1138,7 +1277,11 @@ class Game {
               this._startRoundSetup(false);
             }
           }
+
+          this._stepNetcode(fixedDt);
         });
+
+        sounds.updateListener(this.camera);
 
         // Smooth visual effects & HUD at render frame rate
         if (this.c4LedBlinkTimer > 0) {
@@ -1204,6 +1347,11 @@ class Game {
 
       if (this.isGameRunning) {
         const telemetry = this.graphics.sampleTelemetry(frameDelta);
+        const netStats = this.netTransport.getStats();
+        telemetry.rttMs = this.netSimEnabled ? netStats.rttMs : 0;
+        telemetry.lossPct = this.netSimEnabled ? netStats.lossPct : 0;
+        telemetry.tickRate = FIXED_HZ;
+        telemetry.netModeLabel = this.netSimEnabled ? 'NET-SIM 45ms' : 'LOCAL 0ms';
         this.hud.updateNetGraph(telemetry, frameDelta);
       }
     });

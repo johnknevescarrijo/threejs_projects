@@ -57,6 +57,10 @@ export class HUD {
       ngMs: document.getElementById('ng-ms'),
       ngDc: document.getElementById('ng-dc'),
       ngTris: document.getElementById('ng-tris'),
+      ngPing: document.getElementById('ng-ping'),
+      ngTick: document.getElementById('ng-tick'),
+      ngLoss: document.getElementById('ng-loss'),
+      ngNetMode: document.getElementById('ng-netmode'),
       ngPreset: document.getElementById('ng-preset'),
       ngBackend: document.getElementById('ng-backend')
     };
@@ -653,8 +657,9 @@ export class HUD {
     if (!this.netGraphVisible) return;
 
     const presetChanged = this._last.ngPreset !== telemetry.presetLabel;
+    const netModeChanged = this._last.ngNetMode !== telemetry.netModeLabel;
     this._netGraphTimer += delta;
-    if (!presetChanged && this._netGraphTimer < 0.15) return;
+    if (!presetChanged && !netModeChanged && this._netGraphTimer < 0.15) return;
     this._netGraphTimer = 0;
 
     this._setText('ngFps', this.dom.ngFps, telemetry.fps);
@@ -673,6 +678,20 @@ export class HUD {
       : String(telemetry.triangles);
     this._setText('ngTris', this.dom.ngTris, trisText);
 
+    const rttMs = Math.round(telemetry.rttMs ?? 0);
+    this._setText('ngPing', this.dom.ngPing, `${rttMs}ms`);
+    const pingCls = rttMs >= 90 ? 'bad' : (rttMs >= 35 ? 'warn' : '');
+    this._setClassName('ngPingCls', this.dom.ngPing, pingCls);
+
+    const tickRate = telemetry.tickRate ?? 64;
+    this._setText('ngTick', this.dom.ngTick, `${tickRate}Hz`);
+
+    const lossPct = Number(telemetry.lossPct ?? 0);
+    this._setText('ngLoss', this.dom.ngLoss, `${lossPct.toFixed(1)}%`);
+    const lossCls = lossPct >= 3 ? 'bad' : (lossPct >= 1 ? 'warn' : '');
+    this._setClassName('ngLossCls', this.dom.ngLoss, lossCls);
+
+    this._setText('ngNetMode', this.dom.ngNetMode, telemetry.netModeLabel || 'LOCAL 0ms');
     this._setText('ngPreset', this.dom.ngPreset, telemetry.presetLabel);
     this._setText('ngBackend', this.dom.ngBackend, telemetry.backendLabel);
   }
