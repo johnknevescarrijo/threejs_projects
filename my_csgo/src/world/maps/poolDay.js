@@ -36,8 +36,10 @@ function createBoxPart(w, h, d, cx, cy, cz, rx = 0, ry = 0, rz = 0, uvScale = 0.
 }
 
 export class PoolDayMap {
-  constructor(scene) {
+  constructor(scene, graphicsPipeline = null) {
     this.scene = scene;
+    this.graphicsPipeline = graphicsPipeline;
+    this.theme = 'pool';
     this.blueprint = POOLDAY_BLUEPRINT;
     this.id = this.blueprint.id;
     this.name = this.blueprint.name;
@@ -52,6 +54,7 @@ export class PoolDayMap {
 
     this._sceneObjects = [];
     this._disposables = [];
+    this.sunLight = null;
 
     this._createTextures();
     this._createMaterials();
@@ -136,18 +139,61 @@ export class PoolDayMap {
     this.wallTileTex.wrapS = THREE.RepeatWrapping;
     this.wallTileTex.wrapT = THREE.RepeatWrapping;
     this.wallTileTex.colorSpace = THREE.SRGBColorSpace;
+
+    if (this.graphicsPipeline) {
+      const targetAniso = Math.min(
+        this.graphicsPipeline.getMaxAnisotropy(),
+        this.graphicsPipeline.preset.anisotropy
+      );
+      this.tileTex.anisotropy = targetAniso;
+      this.wallTileTex.anisotropy = targetAniso;
+
+      this.tileNormalTex = this._trackDisposable(
+        this.graphicsPipeline.createNormalTextureFromCanvas(tCanvas, 2.0)
+      );
+      this.tileRoughTex = this._trackDisposable(
+        this.graphicsPipeline.createRoughnessTextureFromCanvas(tCanvas, 0.28, 0.62)
+      );
+      this.wallTileNormalTex = this._trackDisposable(
+        this.graphicsPipeline.createNormalTextureFromCanvas(wCanvas, 2.2)
+      );
+      this.wallTileRoughTex = this._trackDisposable(
+        this.graphicsPipeline.createRoughnessTextureFromCanvas(wCanvas, 0.32, 0.68)
+      );
+    }
   }
 
   _createMaterials() {
+    const hasPipeline = Boolean(this.graphicsPipeline);
+    const envIntensity = this.graphicsPipeline?.preset?.envMapIntensity ?? 0.78;
+
     this.mats = {
       floor: this._trackDisposable(new THREE.MeshStandardMaterial({
-        map: this.tileTex, roughness: 0.45, metalness: 0.08
+        map: this.tileTex,
+        normalMap: this.tileNormalTex || null,
+        normalScale: new THREE.Vector2(0.75, 0.75),
+        roughnessMap: this.tileRoughTex || null,
+        roughness: this.tileRoughTex ? 1.0 : 0.45,
+        metalness: 0.08,
+        vertexColors: hasPipeline,
+        envMapIntensity: envIntensity
       })),
       wall: this._trackDisposable(new THREE.MeshStandardMaterial({
-        map: this.wallTileTex, roughness: 0.5, metalness: 0.1
+        map: this.wallTileTex,
+        normalMap: this.wallTileNormalTex || null,
+        normalScale: new THREE.Vector2(0.8, 0.8),
+        roughnessMap: this.wallTileRoughTex || null,
+        roughness: this.wallTileRoughTex ? 1.0 : 0.5,
+        metalness: 0.1,
+        vertexColors: hasPipeline,
+        envMapIntensity: envIntensity
       })),
       locker: this._trackDisposable(new THREE.MeshStandardMaterial({
-        color: 0x0284c7, roughness: 0.55, metalness: 0.15
+        color: 0x0284c7,
+        roughness: 0.55,
+        metalness: 0.15,
+        vertexColors: hasPipeline,
+        envMapIntensity: envIntensity
       })),
       water: this._trackDisposable(new THREE.MeshStandardMaterial({
         color: 0x0ea5e9,
@@ -155,7 +201,8 @@ export class PoolDayMap {
         metalness: 0.1,
         transparent: true,
         opacity: 0.52,
-        side: THREE.DoubleSide
+        side: THREE.DoubleSide,
+        envMapIntensity: envIntensity
       })),
       sky: this._trackDisposable(new THREE.MeshBasicMaterial({
         color: 0xbae6fd, side: THREE.BackSide
@@ -173,17 +220,26 @@ export class PoolDayMap {
     const hemi = new THREE.HemisphereLight(0xf0f9ff, 0x38bdf8, 1.15);
     this._trackObject(hemi);
 
+    const shadowSize = this.graphicsPipeline?.preset?.shadowMapSize ?? 1024;
+    const shadowRadius = this.graphicsPipeline?.preset?.shadowFrustumRadius ?? 28;
+    const sunOffset = { x: 14, y: 34, z: -10 };
+
     const sun = new THREE.DirectionalLight(0xffffff, 1.35);
-    sun.position.set(14, 34, -10);
+    sun.position.set(sunOffset.x, sunOffset.y, sunOffset.z);
+    sun.userData.sunOffset = sunOffset;
     sun.castShadow = true;
-    sun.shadow.mapSize.set(1024, 1024);
+    sun.shadow.mapSize.set(shadowSize, shadowSize);
     sun.shadow.camera.near = 2;
     sun.shadow.camera.far = 85;
-    sun.shadow.camera.left = -22;
-    sun.shadow.camera.right = 22;
-    sun.shadow.camera.top = 22;
-    sun.shadow.camera.bottom = -22;
+    sun.shadow.camera.left = -shadowRadius;
+    sun.shadow.camera.right = shadowRadius;
+    sun.shadow.camera.top = shadowRadius;
+    sun.shadow.camera.bottom = -shadowRadius;
+    sun.shadow.bias = -0.0005;
+    sun.shadow.normalBias = 0.025;
     this._trackObject(sun);
+    this._trackObject(sun.target);
+    this.sunLight = sun;
   }
 
   _buildPoolGeometry() {
@@ -254,6 +310,13 @@ export class PoolDayMap {
       if (geos.length === 0) return;
       const merged = mergeGeometries(geos, false);
       geos.forEach((g) => g.dispose());
+      if (this.graphicsPipeline) {
+        this.graphicsPipeline.applyBakedAO(merged, {
+          roofBoxes: [],
+          groundY: 0,
+          bounceTint: [0.95, 0.98, 1.0]
+        });
+      }
       this._trackDisposable(merged);
       const mesh = new THREE.Mesh(merged, mat);
       mesh.castShadow = castShadow;
@@ -271,6 +334,13 @@ export class PoolDayMap {
   _buildPillarsAndProps() {
     // 4 Iconic Tiled Pool Pillars at (±8.5, ±8.5) via InstancedMesh
     const pillarGeo = this._trackDisposable(new THREE.BoxGeometry(1.6, 4.8, 1.6));
+    if (this.graphicsPipeline) {
+      this.graphicsPipeline.applyBakedAO(pillarGeo, {
+        roofBoxes: [],
+        groundY: -2.4,
+        bounceTint: [0.95, 0.98, 1.0]
+      });
+    }
     const pillarCoords = [
       [-8.5, -8.5],
       [8.5, -8.5],
